@@ -1,0 +1,13 @@
+[package]
+name = "pairkey-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+pairkey-types = { path = "../pairkey-types" }
+pair-registry = { path = "../../programs/pair-registry", features = ["no-entrypoint"] }
+solana-program.workspace = true
+borsh.workspace = true
+thiserror.workspace = true

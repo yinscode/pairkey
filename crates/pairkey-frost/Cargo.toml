@@ -1,0 +1,24 @@
+[package]
+name = "pairkey-frost"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+pairkey-types = { path = "../pairkey-types" }
+frost-ed25519.workspace = true
+# Pin the entire upstream protocol stack, including transitive version ranges.
+frost-core.workspace = true
+frost-rerandomized.workspace = true
+curve25519-dalek.workspace = true
+hkdf.workspace = true
+sha2.workspace = true
+rand_core.workspace = true
+zeroize.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+serde_json.workspace = true

@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = ["crates/pairkey-types", "crates/pairkey-frost", "crates/pairkey-core", "crates/pairkey-channel", "crates/pairkey-worker", "crates/pairkey-coordinator", "programs/pair-registry", "programs/example-controller", "sdk", "tests/platform"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+borsh = { version = "=1.5.7", features = ["derive"] }
+curve25519-dalek = { version = "=4.1.3", default-features = false, features = ["alloc", "zeroize"] }
+sha2 = "=0.10.9"
+hkdf = "=0.12.4"
+rand_core = { version = "=0.6.4", features = ["getrandom"] }
+zeroize = { version = "=1.8.1", features = ["derive"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+thiserror = "=2.0.17"
+frost-ed25519 = { version = "=2.2.0", default-features = false, features = ["serialization", "cheater-detection"] }
+frost-core = { version = "=2.2.0", default-features = false }
+frost-rerandomized = { version = "=2.2.0", default-features = false }
+ed25519-dalek = "=2.2.0"
+solana-program = "=2.2.1"
+solana-sdk = "=2.2.1"
+litesvm = "=0.6.1"
+bincode = "=1.3.3"
+x25519-dalek = { version = "=2.0.1", features = ["static_secrets"] }
+chacha20poly1305 = "=0.10.1"
+axum = "=0.7.9"
+tokio = { version = "=1.48.0", features = ["macros", "rt-multi-thread", "net", "time", "signal", "sync"] }
+reqwest = { version = "=0.12.12", default-features = false, features = ["json", "rustls-tls"] }
+base64 = "=0.22.1"
+anyhow = "=1.0.100"
+futures-util = "=0.3.31"
+
+

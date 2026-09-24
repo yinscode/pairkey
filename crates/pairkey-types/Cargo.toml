@@ -1,0 +1,17 @@
+[package]
+name = "pairkey-types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+borsh.workspace = true
+curve25519-dalek.workspace = true
+sha2.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(target_os = "solana")'.dependencies]
+solana-curve25519 = "=2.2.4"
+
