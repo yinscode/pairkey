@@ -1,0 +1,17 @@
+[package]
+name = "example-controller"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+pair-registry = { path = "../pair-registry", features = ["no-entrypoint"] }
+borsh.workspace = true
+solana-program.workspace = true

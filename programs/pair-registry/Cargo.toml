@@ -1,0 +1,25 @@
+[package]
+name = "pair-registry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+pairkey-types = { path = "../../crates/pairkey-types" }
+borsh.workspace = true
+solana-program.workspace = true
+
+[dev-dependencies]
+litesvm.workspace = true
+solana-sdk.workspace = true
+pairkey-frost = { path = "../../crates/pairkey-frost" }
+rand_core.workspace = true
+bincode.workspace = true
+
