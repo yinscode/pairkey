@@ -1,0 +1,23 @@
+[package]
+name = "pairkey-coordinator"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+pairkey-types = { path = "../pairkey-types" }
+pairkey-worker = { path = "../pairkey-worker" }
+pairkey-channel = { path = "../pairkey-channel" }
+pairkey-sdk = { path = "../../sdk" }
+pairkey-frost = { path = "../pairkey-frost" }
+axum.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rand_core.workspace = true
+anyhow.workspace = true
+ed25519-dalek.workspace = true
+solana-sdk.workspace = true
+futures-util.workspace = true

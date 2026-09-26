@@ -1,0 +1,28 @@
+[package]
+name = "pairkey-worker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+dev-simulation = ["pairkey-channel/dev-simulation"]
+
+[dependencies]
+pairkey-types = { path = "../pairkey-types" }
+pairkey-core = { path = "../pairkey-core" }
+pairkey-frost = { path = "../pairkey-frost" }
+pairkey-channel = { path = "../pairkey-channel" }
+pairkey-sdk = { path = "../../sdk" }
+pair-registry = { path = "../../programs/pair-registry", features = ["no-entrypoint"] }
+axum.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+anyhow.workspace = true
+solana-sdk.workspace = true
+rand_core.workspace = true
+zeroize.workspace = true
+borsh.workspace = true
