@@ -1,0 +1,89 @@
+{
+  "artifacts": "/Users/user/000/_COOL/pairkey/.local/AkK7WhEYJzzHWtTpKWUMZXWjWcrt1J7Rj5cLp2Ak9aD3",
+  "hardware_backed": false,
+  "native_transfers": [
+    {
+      "cpi": false,
+      "derived_account": "DFuX45nH4RM6niETyK4b9uMuus8ENSxG6B9FFN8odSLo",
+      "execution_count": 1,
+      "namespace": 1,
+      "recipient": "1111111QLbz7JHiBTspS962RLKV8GndWFwiEaqKM"
+    },
+    {
+      "cpi": true,
+      "derived_account": "DntQT3MbX6Bnqzc4FFRhEHADQPR3k1duZPErgadnbsdG",
+      "execution_count": 1,
+      "namespace": 2,
+      "recipient": "11111112cMQwSC9qirWGjZM6gLGwW69X22mqwLLGP"
+    }
+  ],
+  "signing_latency_ms": [
+    88,
+    89,
+    89,
+    89,
+    89,
+    89,
+    89,
+    89,
+    89,
+    89,
+    89,
+    89,
+    89,
+    89,
+    90,
+    90,
+    90,
+    90,
+    91,
+    92,
+    159,
+    162,
+    190,
+    192,
+    192,
+    194,
+    206,
+    212,
+    218,
+    222,
+    222,
+    224,
+    227,
+    237,
+    274,
+    307
+  ],
+  "validator": "Agave 3.0.15",
+  "latency_summary_ms": {
+    "samples": 36,
+    "p50": 90,
+    "p95": 237,
+    "p99": 274
+  },
+  "simultaneous_signing_jobs_per_namespace": 8,
+  "process_restart_cases": 16,
+  "crash_stages": [
+    "before_round_one",
+    "after_round_one",
+    "after_round_two",
+    "after_result"
+  ],
+  "sdk_namespace_registration": true,
+  "sdk_polling_and_sse": true,
+  "live_freeze_and_retirement": true,
+  "fresh_receipts_with_mock_attestation": true,
+  "recent_blockhash_expiry_rejected": true,
+  "durable_nonce_execution_count": 1,
+  "independent_hardware_domains_verified": false,
+  "repeat_rejection_reason": "AlreadyProcessed",
+  "blockhash_valid_during_repeat_check": true,
+  "continuation_fixes": [
+    "streaming_http_response_limits",
+    "live_sse_subscription_admission",
+    "confirmed_negative_control_fence",
+    "reject_constant_registration_polynomial",
+    "reject_zero_child_shares"
+  ]
+}
