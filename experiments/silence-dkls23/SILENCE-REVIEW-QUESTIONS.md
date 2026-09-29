@@ -1,6 +1,6 @@
 # Draft questions for Silence about the PairKey constructor
 
-Prepared 2026-10-10 for Silence maintainers and the PairKey cryptographic reviewer.
+Draft version 2, updated 2026-10-11 for Silence maintainers and the PairKey cryptographic reviewer.
 **Draft only; not sent.** We seek the native input contract and evidence needed
 to assess PairKey's custom two-party key/setup construction. We retain Silence's
 DKLS23 implementation and locked parameters. The 2026 paper is optional background;
@@ -44,33 +44,53 @@ our adapter.
 
 ### Q1 Native key input and registration contract O1
 
-What exact key-generation functionality or imported-key precondition does signing
-rely on? Does it permit a malicious participant to choose a known scalar `b`
-after seeing honest `A=aG`, including grinding public predicates of `A+bG`?
-If not, what property must be established before the honest contribution is
-revealed, and where does the signing argument use it?
+We have now checked the [2023 paper](https://eprint.iacr.org/2023/765), revision
+dated December 14, 2023: Functionality 3.2 (printed p. 14), Theorem 4.1 and
+Simulator 4.2 (pp. 25–27), and §7/Protocol 7.1/Theorem 7.2 (pp. 57–61).
+The [contract](CONSTRUCTOR-SECURITY-CONTRACT.md#what-the-2023-paper-establishes-at-this-boundary)
+records the supplied PDF hash and precise source scope. The relaxed keygen
+functionality receives the adversarial polynomial contribution before sampling
+the honest polynomial. Section 7 expressly avoids extracting corrupt scalar
+shares during key generation. We no longer frame stronger Schnorr extraction as
+an inherent DKLS23 requirement.
 
-For our final-record-bound Schnorr proof plus identity endorsement, what knowledge
-or extraction property is required? Please specify the corruption, random-oracle
-and concurrency models, treatment of multiple wallets under the same identities,
-and whether proof non-malleability or stronger extraction is necessary. The
-malicious party is not assumed to follow the root KDF. For the honest party,
-are domain-separated HKDF outputs with 512-bit modular reduction suitable under
-an explicit multi-output PRF assumption, including identity derivation from the
-same root?
+Does this relaxed-keygen interface describe the required input contract of the
+pinned implementation, or does its implementation impose additional conditions?
+What exact simulation/distribution mapping would validate PairKey's two-party
+conversion and deterministic honest contributions? Our current ceremony reveals
+`A=aG` before a malicious participant must fix its known `b`, so the direct
+mapping is missing. Is there a supported separate argument that permits that
+behavior, including public-predicate grinding, or should PairKey pursue the
+paper's contribution ordering?
 
-**Requested result:** the relevant full DKLS23 definitions/proof passages and a
-decision on contract option A versus B, or a precise statement of what remains
-unproved. We have not inspected the full original proof and do not infer its
-requirements from the abstract. A commitment round would be a later, versioned
-PairKey change, only if the selected contract requires it.
+For the commitment approach, what remains necessary beyond a salted hash of the
+Hello? Please address the required commitment functionality, joint key/share
+distribution, and abort/retry/concurrent semantics. Identify any extraction
+needed by this replacement simulator separately from native keygen scalar
+extraction. A new ceremony must account for contributions already disclosed by
+`Describe` or an aborted attempt; re-committing to a known point does not restore
+the first-disclosure condition. How should such wallets and exact retries be
+handled while preserving existing keys and immutable records?
+
+The malicious party is not assumed to follow the root KDF. For honest parties,
+please assess the joint assumption for HKDF-SHA512 wallet contributions and
+HKDF-SHA256 identity seeds from the same root, plus modular-reduction bias and
+nonzero refusal. State the static-corruption, random-oracle and concurrency
+assumptions for multiple wallets and queries. Distinct session IDs alone do not
+establish the shared-root composition.
+
+**Requested result:** a source-linked assessment of contract option A versus B,
+with an explicit list of remaining obligations. Contribution commitment ordering
+is the leading direction for reusing the paper's argument, not a completed
+proof that Theorem 7.2 carries over. Existing Schnorr checks remain in place;
+any versioned registration change requires a separate implementation review.
 
 ### Q2 Representation and public child derivation O2
 
 Are fixed coordinates `[1,2]`, ranks `[0,0]`, and the converted shares `a/2,-b`
 admissible given nonzero/distinct share checks, local public consistency and
 `2*S0-S1=Q`? Does the argument require additional distributional properties of
-native DKG output beyond those predicates and the Q1 witness requirement?
+native DKG output beyond those predicates and the Q1 key-generation contract?
 
 May the chain code be the public deterministic hash of `(key_id,Q)` under the
 documented domain, with native public non-hardened derivation? Which related-key
@@ -91,8 +111,18 @@ or does native DKG establish additional relations we must preserve? Please
 confirm the local SenderOTSeed-to-RVOLEReceiver and ReceiverOTSeed-to-RVOLESender
 mapping for this pin.
 
-Both participants know our common zero seed, derived from committed then revealed
-coins. Native masks cancel with opposite signs. What secrecy/freshness conditions
+In particular, please map the compiled EndemicOT/PPRF/SoftSpoken realization to
+Functionality 5.1 (`F_EOTE`), as required by the Protocol 5.2/Theorem 6.1 route.
+Which argument establishes the OT-output fixing order used by Claim 6.7 for a
+malicious sender? The source-level ordering is supporting evidence; we do not
+treat it alone as a complete proof excluding every adaptive strategy.
+
+Section 3.1 and Functionality 3.4 (printed p. 15) describe pairwise committed and
+revealed seeds with opposite-sign random-oracle masks. Both participants know our
+common zero seed, derived from committed then revealed coins. Native masks cancel
+with opposite signs. This shared knowledge is not itself a claimed defect.
+What mapping establishes that our particular seed combination, invocation IDs,
+and abort behavior satisfy that realization? What secrecy/freshness conditions
 does signing require for that seed and those masks, including knowledge by each
 signer and an external relay? Does commit-before-reveal with possible last-revealer
 abort meet the needed distribution, or must the argument account differently for
@@ -128,6 +158,12 @@ change any selective-failure or retry obligation? Please specify the scope acros
 wallets, boots, configurations and enrolled identities, and any conditions for
 resuming service after an incident.
 
+Protocol 3.6 step 8 explicitly requires stopping relevant concurrent and future
+sessions after its check failures. We do not infer that fresh preprocessing
+removes every selective-failure risk: the same correlation material is not
+reused, but signing shares persist. Which obligations remain even with a new
+entry for every attempt?
+
 PairKey clears failed generations and uses a shared pairing-scoped local incident
 authority to fence cooperating processes. It preserves original failures and
 drains worker output through exit, including failures after a result. Invalid
@@ -158,6 +194,13 @@ evidence of an exploit.
 **Requested result:** a source-linked revision/coverage matrix, explicit unsupported
 interfaces and current specification references. A blanket statement that DKLS23
 was audited does not establish coverage of PairKey's custom constructor.
+
+Protocol 5.2's stated dimension rules give `xi=512` and `rho=1` at the locked
+values `kappa=256`, `lambda_s=128`, `lambda_c=256`. This is parameter-rule
+conformance, not an independent certification of the concrete implementation's
+security level. Please keep any discussion of the 2026 reference separate from
+the required native-contract and audit correspondence answers. No parameter or
+native transcript/algorithm patch is requested.
 
 ## PairKey follow-through
 

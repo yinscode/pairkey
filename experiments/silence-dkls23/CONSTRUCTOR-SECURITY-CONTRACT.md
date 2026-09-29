@@ -1,6 +1,6 @@
 # Draft Spike C constructor security contract
 
-Draft version 1, 2026-10-10. This contract describes the PairKey replacement
+Draft version 2, 2026-10-11. This contract describes the PairKey replacement
 boundary around Silence DKLS23 signing. It separates implemented checks from
 environmental assumptions and unresolved cryptographic obligations. Finding C1
 (custom key generation and preprocessing composition) remains **OPEN**.
@@ -37,8 +37,10 @@ correspondence and the custom adapter's coverage require an explicit assessment
 
 The intended claim to evaluate is threshold signing security with one statically
 malicious participant and one honest participant, allowing adaptive wallet,
-public child-path and message selection. A malicious participant may choose a
-known scalar after seeing the honest public contribution, and may abort. It is
+public child-path and message selection. The current ceremony allows a malicious
+participant to choose a known scalar after seeing the honest public contribution,
+and to abort. This behavior is a gap in a direct mapping to the paper's relaxed
+key-generation functionality, as detailed below. The malicious participant is
 **not assumed to follow PairKey's root KDF**. The argument must state its allowed
 multi-wallet and session interleavings. One pooled worker serializes native
 attempts; cooperating processes can overlap. Local concurrency tests do not
@@ -49,12 +51,66 @@ share refresh and resistance to sequential compromise of both unchanged roots
 are outside this claim. One root compromise exposes that party's namespace of
 contributions; learning both roots at different times can expose aggregate keys.
 
-The [2023 DKLS paper](https://eprint.iacr.org/2023/765) is the relevant protocol
-reference. The review did not obtain its full proof text; no exact theorem-to-
-constructor correspondence is asserted. Obtain the applicable definitions and
-proof passages under O1–O6. The [2026 paper](https://eprint.iacr.org/2026/976) is
+The [2023 DKLS paper](https://eprint.iacr.org/2023/765), revision dated
+December 14, 2023, is now available and is the primary theorem reference. The
+76-page PDF supplied in the local review packet has SHA-256
+`fe41a45db716161472f66c84bb39721c3545000b5515594d7192e894ccbba7e1`.
+The passages identified below were checked directly; this update does not claim
+a complete independent verification of every proof or cited primitive.
+The [2026 paper](https://eprint.iacr.org/2026/976) is
 supplementary reference only. Matching its sufficient bounds is not an acceptance
 condition here, and this contract proposes no changes to Silence's parameters.
+
+### What the 2023 paper establishes at this boundary
+
+Page numbers here are printed page numbers; PDF page numbers are two higher.
+
+- **Functionality 3.2, p. 14:** `F_RelaxedKeyGen` receives the adversary's
+  polynomial contribution before sampling the honest degree-`t-1` polynomial
+  uniformly. Its interface includes scalar contributions at honest coordinates,
+  group-valued contributions at corrupt coordinates, and release/abort control.
+  An aggregate-key equation alone does not establish this interface or joint
+  distribution. Release can be withheld after the adversary sees the generated
+  key, so uniform generation must not be confused with unbiased keys conditioned
+  on successful completion.
+- **Theorem 4.1 and Simulator 4.2, pp. 25–27:** the signing result uses the
+  `F_Com`, `F_Zero`, `F_RVOLE`, `F_RelaxedKeyGen` hybrid. Simulator step 5
+  combines the target public key and the received adversarial polynomial to
+  construct the honest contribution. PairKey's current reveal-before-commit
+  ceremony has not been mapped to this setup interface.
+- **Section 7, p. 57:** the signing protocol does not require extraction of
+  corrupt scalar shares during key generation; shares are rerandomized and
+  extracted through `F_RVOLE` for signing. The relevant key-generation conditions
+  concern public-key generation and consistent share distribution. This corrects
+  any reading of draft v1 that stronger Schnorr extraction is inherently required
+  by DKLS23. Any extraction needed by a proposed replacement simulator must be
+  identified separately, including extraction of committed values where relevant.
+- **Protocol 7.1 and Theorem 7.2/Simulator 7.3, pp. 58–61:** the proven
+  key-generation protocol commits to polynomial data and share contributions
+  through ideal commitment functionalities before opening them. This motivates
+  commitment ordering for a replacement, but does not prove that adding a hash
+  commitment around PairKey's Hello implements that protocol or functionality.
+- **Section 3.1/Functionality 3.4, p. 15:** the paper describes pairwise
+  committed/revealed seeds and opposite-sign random-oracle masks for zero sharing.
+  This supports PairKey's setup design direction; the exact seed combination,
+  invocation identifiers, abort behavior and composition still need mapping.
+- **Protocol 5.2, pp. 39–41:** its stated dimensions are `xi = kappa + 2*lambda_s`
+  and `rho = ceil(kappa/lambda_c)`. The locked values give `xi=512` and `rho=1`
+  for `kappa=256`, `lambda_s=128`, `lambda_c=256`. This confirms conformance to
+  those stated dimension rules, not a standalone security-level certification or
+  proof that the concrete OT stack realizes every hybrid assumption.
+- **Theorem 6.1, p. 42, and Claim 6.7, p. 50:** the RVOLE argument uses the
+  `F_EOTE` hybrid, and Claim 6.7 uses OT outputs fixed before the adversary
+  computes the challenge. Mapping the pinned EndemicOT/PPRF/SoftSpoken stack to
+  that interface and ordering remains O3/O6. Inspecting the honest code's order
+  alone does not prove the corresponding property against a malicious peer.
+
+The native signing theorem's statistical guarantee is in its stated hybrid
+model. Replacing ideal components with HKDF, signatures, DH, commitments and
+concrete OT requires their computational assumptions and composition arguments;
+the complete PairKey construction does not thereby gain an unconditional
+statistical UC guarantee. Distinct session IDs and passing concurrent tests are
+supporting checks, not substitutes for those arguments.
 
 ## Status definitions and trusted environment
 
@@ -109,15 +165,15 @@ access; the worker's ownership discipline supplies single use within this path.
 
 ## Requirements and existing PairKey enforcement
 
-The native security requirements in this table are a **proposed caller contract**
-for confirmation by Silence, not a claim that the native theorem has already
-been shown to require exactly these conditions. O1–O6 identify unresolved rows
-of the security argument; E1–E5 below identify implementation evidence.
+The requirements below combine the paper's identified conditions with a
+**proposed implementation mapping** for confirmation by Silence. They do not
+assert that PairKey realizes the hybrid functionalities. O1–O6 identify
+unresolved rows of the security argument; E1–E5 below identify implementation evidence.
 
 | Requirement | PairKey supplier and enforcement | Established property and residual assumption | Evidence |
 |---|---|---|---|
 | Honest contribution generation | `Root::derive` and `Root::identity` in [lib.rs](src/lib.rs) | Implemented deterministic, separated domains and nonzero refusal. Root entropy/independence and joint multi-output pseudorandomness are assumed; suitability for the selected model is O1. | E1; source |
-| Agreed, authenticated wallet and remote contribution witness | `WalletRecord`, `Endorsement`, `WalletStore` in [registration.rs](src/registration.rs); worker admission | Implemented final-record proof/signature binding, immutable preparation/commit, local root match and admission before OT reservation. Required extraction and allowed adaptive contribution selection are O1. Trusted enrollment/policy and honest filesystem remain assumed. | E1 |
+| Agreed, authenticated wallet and admissible key-generation output | `WalletRecord`, `Endorsement`, `WalletStore` in [registration.rs](src/registration.rs); worker admission | Implemented final-record proof/signature binding, immutable preparation/commit, local root match and admission before OT reservation. Mapping the contribution ordering and joint distribution to Functionality 3.2 is O1; keygen scalar extraction is not a native theorem requirement. Trusted enrollment/policy and honest filesystem remain assumed. | E1 |
 | Correct threshold representation and derived public key | `Manifest`, restricted constructor, native `derive_with_offset` | Implemented equations, fixed coordinates/ranks, chain-code rule and final derived-key verification. Admissibility of this key distribution and related public children is O2. | E1, E2, E4 |
 | Correct directional OT/PPRF correlations | `preprocess` in [pool_worker.rs](src/pool_worker.rs), pinned base-OT/PPRF checks | Implemented authenticated setup and role-specific IDs, native proof checks and completed transcript agreement. Required joint correlation distribution/secrecy versus native keygen is O3. Seed types alone do not prove it. | E2, E4; native source |
 | Appropriate common zero material | `preprocess` commitments/reveals and native `get_zeta_i` | Implemented both commitments before reveals, checked openings and ordered seed derivation; opposite masks cancel algebraically. Required distribution, permitted knowledge and selective-abort effects are O3. | E2, E4; native source |
@@ -135,7 +191,9 @@ refuses zero. This is negligibly biased wide reduction, not exact uniform
 sampling; there is no retry to select another contribution for the same input.
 Identity derivation uses HKDF-SHA256, salt `pairkey/dkls-research/identity/v1`
 and the role byte. Joint use of the same root for identity and multiple wallet
-contributions needs the stated PRF assumption. A scalar proof does not certify it.
+contributions needs the stated joint PRF assumption, covering both HKDF-SHA512
+and HKDF-SHA256; a HMAC-SHA512 assumption alone does not justify replacing the
+identity outputs too. A scalar proof does not certify these properties.
 
 The record's namespace labels the existing key-ID KDF; it is not an additional
 KDF input. Both parties endorse the canonical final record, including ordered
@@ -146,12 +204,14 @@ prepared endorsement before release, then commits only with both endorsements
 and its matching preparation. Conflicts and partial files fail closed.
 
 This establishes concrete transcript binding and local non-equivocation under
-the filesystem assumption. It does not establish concurrent extraction. There
-is no contribution commit-before-reveal phase. A malicious signer can select
+the filesystem assumption. There is no contribution commit-before-reveal phase.
+A malicious signer can select
 known `b` after seeing `A` and grind public predicates of `A+bG`. That fact alone
-is not a key-recovery or forgery attack; O1 must determine whether the selected
-functionality permits it. Merely presenting `B=xG-A` without knowing its discrete
-logarithm is a different case, for which the knowledge proof is relevant.
+is not a key-recovery or forgery attack, but the ordering does not supply the
+direct Functionality 3.2 mapping. Retaining this adaptive behavior would require
+a separately supported argument under O1. Merely presenting `B=xG-A` without
+knowing its discrete logarithm is a different case, for which the knowledge proof
+is relevant.
 
 ### Setup secrecy and native identifier trace
 
@@ -167,8 +227,10 @@ encrypted setup channel hides reveals from an external relay under the channel
 assumptions; it does not hide the seed from either participant. Commitments
 prevent changing a committed coin after seeing the other reveal. A last revealer
 can still abort based on that reveal, so unbiased output conditioned on completion
-is not established. Native opposite-sign masks cancel, but whether this seed
-generation and knowledge pattern meets native signing assumptions remains O3.
+is not established. Section 3.1 expressly uses shared pairwise seeds; knowledge
+by both signers in the two-party case is not itself a newly identified defect.
+Native opposite-sign masks cancel. Mapping this particular seed derivation and
+invocation/abort behavior to the paper's realization remains O3.
 
 The implemented identifier trace is:
 
@@ -197,7 +259,7 @@ O4 must assess the actual native challenge order and adaptive consumption.
 
 | ID | Replacement boundary and unresolved obligation | Required closure evidence |
 |---|---|---|
-| **O1** | Native keygen uses a polynomial/commitment/proof ceremony. PairKey supplies root-derived honest contributions and final-record-bound Schnorr proofs. Specify the required witness extraction, corruption model, multi-wallet/concurrent setting and admissibility of adaptive known-scalar malicious contributions. | Applicable native input definition/theorem and a reviewed mapping of this ceremony, including the honest KDF assumption. Explicitly select the registration decision below. |
+| **O1** | Functionality 3.2 fixes the adversarial polynomial contribution before sampling the honest polynomial. PairKey currently reveals the honest contribution first. Establish a replacement mapping for the joint key/share distribution, or a separate argument permitting the current adaptive known-scalar behavior. Native keygen scalar extraction is not required by §7. | Reviewed simulation/composition argument, including both honest KDFs, commitment realization if used, prior disclosure, retries and concurrent wallets. Identify any replacement-specific extraction requirement rather than assuming it. Explicitly select the registration decision below. |
 | **O2** | Native keygen creates its coordinates, shares and chain code through its own protocol. PairKey fixes coordinates 1/2, converts additive shares, and uses public `H(key_id,Q)` as chain code. Establish admissibility of this distribution and public non-hardened child offsets. | Confirm fixed coordinates/ranks and public chain-code semantics, with the required related-key argument. Algebra alone is insufficient. |
 | **O3** | PairKey uses the exported EndemicOT/PPRF APIs and a separate common-coin setup in place of native keygen's joint output. Establish the required joint distribution, correlation/secrecy, zero-seed knowledge and abort behavior. | Property-by-property native-keygen output contract, precise role mapping and an argument for the replacement setup, including selective abort. |
 | **O4** | PairKey prepares material before wallet/message selection and binds a single later consumption. Establish security under adaptive choice, concurrent setup/consumption and the concrete identifier/challenge ordering. | Written composition argument for this offline/online split, naming any restrictions. Functional signing and identifier tracing alone do not close it. |
@@ -220,21 +282,42 @@ unauthenticated traffic, context mismatch and peer abort do not by themselves
 prove a peer cheated. The two-party attribution argument must not be generalized
 to more parties or another native revision without review.
 
+Single-use preprocessing prevents reuse of the same correlation material. It
+does not by itself prove that every selective-failure risk across attempts is
+eliminated, particularly where signing shares persist. Protocol 3.6 step 8
+(printed pp. 19–20) specifies concurrent/future-session failure obligations that
+must still be mapped to the local incident policy. Fresh material is not
+permission to resume with a peer after a
+failure that requires refusal under the selected argument.
+
 ### Registration decision remains pending
 
-- **A: adaptive known-scalar contributions are admissible.** Keep the current
-  ceremony if a reviewer establishes the required extraction and composition
-  properties for it.
-- **B: contributions must be fixed before reveal.** Design a separately versioned,
-  authenticated commitment/opening ceremony binding ceremony/wallet IDs, ordered
+- **A: retain the current adaptive contribution behavior under a separate argument.**
+  This is not supplied by the direct Functionality 3.2 mapping. A reviewer must
+  establish the required security statement and composition, including related
+  keys and repeated/concurrent registration and signing queries.
+- **B: pursue the paper's contribution ordering.** This is the leading remediation
+  direction for reusing the paper's relaxed-keygen argument. Design a separately
+  versioned, authenticated commitment/opening ceremony binding ceremony/wallet IDs, ordered
   enrolled identities, role, contribution and protocol version. Require both
-  commitments before revealing the honest contribution, retain final-record
-  endorsements and durable preparation, and specify replay/restart/abort behavior.
-  A commitment phase alone does not prove concurrent extraction or prevent
-  selective-abort bias.
+  commitments before the first disclosure of the honest contribution, retain
+  final-record endorsements and durable preparation, and specify replay/restart/abort behavior.
+  Review the converted-share distribution and a realization of the required
+  commitment functionality; adding a hash round does not automatically inherit
+  Theorem 7.2. Do not remove the existing Schnorr checks merely because the
+  paper's own protocol needs no keygen scalar proofs.
 
-Neither option is selected by this draft. No existing records are reinterpreted
-or rewritten. A protocol change requires the supported contract and a separate
+The first-disclosure condition includes `Describe`, earlier failed or aborted
+ceremonies, and registrations under any context that exposes the same deterministic
+contribution. A new commitment or ceremony ID cannot make a known point hidden
+again. The design must define how such wallets are refused, retained under the
+older claim, or otherwise handled without silently changing keys or rewriting
+records. Exact retries must not enable a fresh adversarial choice after a reveal.
+Commitments do not remove selective-abort bias or establish concurrency security
+without the corresponding argument.
+
+Neither option is authorized for implementation by this draft. No existing
+records are reinterpreted or rewritten. A protocol change requires the supported contract and a separate
 implementation review; if neither option has an argument, C1 remains open.
 
 ## Verification evidence and closure
@@ -264,6 +347,14 @@ implementation review; if neither option has an argument, C1 remains open.
 The prior remediation validation recorded 83 distinct tests across default and
 fault-feature configurations, plus formatting, Clippy and a release build; see
 [REVIEW.md](REVIEW.md). This is implementation evidence, not a security reduction.
+
+The collector defect at `5a6c05a` (C2, Claude's Finding 4) is addressed by
+`f0331a8`; review that diff separately from the unchanged registration contract.
+Deterministic schedule summaries remain useful reproducibility artifacts. The
+remediation adds fresh run IDs and terminal diagnostics, but does not convert
+every schedule summary into a fresh-run attestation. Nonces, timestamps or host
+labels can improve provenance without proving that a run occurred. None of
+these evidence improvements closes a cryptographic obligation.
 
 PairKey owns this mapping, enforcement of the agreed contract and any subsequent
 registration changes. Silence is asked to clarify native assumptions and coverage
