@@ -456,6 +456,7 @@ mod tests {
     use tokio::sync::mpsc;
 
     async fn r4_case(publish_incident: bool, bypass_gate: bool) -> Arc<wire::QueueTrace> {
+        let _slot = crate::process_probe::native_fixture_slot().await;
         let dir = std::env::temp_dir().join(format!("dkls-multi-{:?}", fresh()));
         std::fs::create_dir(&dir).unwrap();
         for role in 0..2 {

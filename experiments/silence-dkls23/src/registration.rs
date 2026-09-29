@@ -257,6 +257,15 @@ impl WalletStore {
             .join(format!("{}-{role}.prepared", Self::name(key)))
     }
     pub fn endorse(&self, record: &WalletRecord, root: &Root, role: u8) -> Result<Endorsement> {
+        self.endorse_checkpoint(record, root, role, |_| Ok(()))
+    }
+    fn endorse_checkpoint(
+        &self,
+        record: &WalletRecord,
+        root: &Root,
+        role: u8,
+        checkpoint: impl FnMut(WriteStep) -> Result<()>,
+    ) -> Result<Endorsement> {
         record.validate()?;
         record.manifest.check_local(root, role)?;
         let _lock = AuthorityLock::acquire(&self.dir)?;
@@ -281,17 +290,27 @@ impl WalletStore {
             return Ok(prepared.endorsement);
         }
         let endorsement = Endorsement::new(record, root, role)?;
-        write_new(
+        write_checkpoint(
             &path,
             &self.dir,
             &Prepared {
                 record: record.clone(),
                 endorsement: endorsement.clone(),
             },
+            checkpoint,
         )?;
         Ok(endorsement)
     }
     pub fn commit(&self, wallet: &RegisteredWallet, root: &Root, role: u8) -> Result<[u8; 32]> {
+        self.commit_checkpoint(wallet, root, role, |_| Ok(()))
+    }
+    fn commit_checkpoint(
+        &self,
+        wallet: &RegisteredWallet,
+        root: &Root,
+        role: u8,
+        checkpoint: impl FnMut(WriteStep) -> Result<()>,
+    ) -> Result<[u8; 32]> {
         wallet.validate()?;
         wallet.record.manifest.check_local(root, role)?;
         let _lock = AuthorityLock::acquire(&self.dir)?;
@@ -310,7 +329,7 @@ impl WalletStore {
             ensure!(existing == *wallet, "conflicting wallet registration");
             sync(&path, &self.dir)?;
         } else {
-            write_new(&path, &self.dir, wallet)?;
+            write_checkpoint(&path, &self.dir, wallet, checkpoint)?;
         }
         Ok(wallet.record.digest())
     }
@@ -343,14 +362,15 @@ fn sync(path: &Path, dir: &Path) -> Result<()> {
     fs::File::open(dir)?.sync_all()?;
     Ok(())
 }
-fn write_new<T: Serialize>(path: &Path, dir: &Path, data: &T) -> Result<()> {
-    write_checkpoint(path, dir, data, |_| Ok(()))
-}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum WriteStep {
+    BeforeCreate,
     Created,
+    PartiallyWritten,
     Written,
+    BeforeFileSync,
     FileSynced,
+    BeforeDirectorySync,
     DirectorySynced,
 }
 fn write_checkpoint<T: Serialize>(
@@ -361,12 +381,18 @@ fn write_checkpoint<T: Serialize>(
 ) -> Result<()> {
     let bytes = serde_json::to_vec(data)?;
     ensure!(bytes.len() as u64 <= MAX_RECORD, "oversized wallet record");
+    checkpoint(WriteStep::BeforeCreate)?;
     let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
     checkpoint(WriteStep::Created)?;
-    file.write_all(&bytes)?;
+    let midpoint = bytes.len() / 2;
+    file.write_all(&bytes[..midpoint])?;
+    checkpoint(WriteStep::PartiallyWritten)?;
+    file.write_all(&bytes[midpoint..])?;
     checkpoint(WriteStep::Written)?;
+    checkpoint(WriteStep::BeforeFileSync)?;
     file.sync_all()?;
     checkpoint(WriteStep::FileSynced)?;
+    checkpoint(WriteStep::BeforeDirectorySync)?;
     fs::File::open(dir)?.sync_all()?;
     checkpoint(WriteStep::DirectorySynced)?;
     Ok(())
@@ -375,3 +401,7 @@ fn write_checkpoint<T: Serialize>(
 #[cfg(test)]
 #[path = "registration_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "registration_process_tests.rs"]
+mod process_tests;

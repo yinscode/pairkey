@@ -4,6 +4,8 @@ mod native_process_tests;
 mod pool_driver;
 mod pool_worker;
 #[cfg(all(test, feature = "research-faults"))]
+mod pooled_process_tests;
+#[cfg(all(test, feature = "research-faults"))]
 mod process_probe;
 mod wire;
 mod worker;

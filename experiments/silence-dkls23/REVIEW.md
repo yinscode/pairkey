@@ -4,6 +4,67 @@ Keep DKLS23 experimental. A/B remain baselines; Spike C now uses a small RAM
 preprocessing pool in long-lived local workers. Production dependencies and
 architecture v0.4 are unchanged. The custom composition has not been adopted.
 
+## Astra review of e9a6220 and pooled assurance follow-up
+
+The user reports that Astra independently reviewed `e9a6220` against `0336e52`,
+reproducing 59 distinct tests, 59 demo signatures and 39 refusals, plus Clippy,
+release build, formatting and all 23 source hashes. No new defect or regression
+was demonstrated. Astra closes the tested registration, authority, reservation,
+original-error/persistence and Direct-route release behavior within cooperating
+processes sharing an honest local filesystem. This is not cryptographic or
+production approval.
+
+This follow-up implements the next pooled C and registration interruption matrix:
+
+- Two real pooled worker processes exercise endorsement release, commit ACK,
+  authenticated consumption agreement, native R4 and verified result handoffs.
+  A third process calls public `incident()` only after both target frames are
+  paused before handoff. Five stages each have protected, positive and deliberate
+  bypass schedules, plus five protected role-1 publication schedules (20 total).
+  The stdio consumer observes actual queues independently of cancellation and
+  producer return values. Protected targets never enter the queue; positive and
+  bypass controls each expose both targets. Unrelated scope usability is checked
+  at the authority API, not by an additional native signing execution.
+- Actual `WalletStore` preparation and commit operations run in subprocesses.
+  Eight checkpoints each receive injected errors and SIGKILL schedules (32 total):
+  before creation, creation, partial write, complete write, before/after file sync,
+  and before/after directory sync. Complete records recover by resyncing the exact
+  bytes/endorsements; incomplete records remain refused and unchanged. Internally
+  consistent same-key forks are refused after every recovery schedule.
+- Four additional pooled worker death schedules interrupt endorsement and commit
+  ACK release immediately before or after independently observed queue handoff.
+  Both workers are killed and replaced with fresh boot entropy. Replacement
+  endorsements, public keys and existing record bytes must remain identical, and
+  both replacement commit acknowledgments must match the record.
+
+Checkpoint callbacks remain private and normal callers use no-op callbacks.
+Native probes, fixture scheduling and deliberate bypasses compile only into the
+`research-faults` test binary. The first full parallel run hit fixture timeouts,
+including older R4 tests; heavy native fixtures now share one test-only permit.
+Signers and the two overlapping attempts inside the existing R4 fixture remain
+concurrent. No protocol deadline or arithmetic was relaxed. Pooled test children
+use explicit larger test-thread stacks to accommodate the large native future.
+
+Validation: 63 runtime tests with `research-faults`, 53 without; the union is
+64 runtime tests plus two compile-fail tests (66 distinct tests). Clippy in both
+configurations, release build, formatting, 59 demo signatures and 39 refusals
+pass. `results-pooled-assurance.json` records source-bound metadata and all
+56 new schedules; previous evidence retains its historical source inventories.
+
+Remaining test work: overlapping actual-native cross-process attempts with
+multiple wallets/routes and publication sources, plus death/cancellation after
+reservation returns, during construction and after construction before the first
+native handoff. The scope checks here do not close that broader matrix.
+Checkpoint errors and process death do not simulate storage-device faults or
+power-loss durability. Independent cryptographic review and all production gates
+remain open.
+
+Configuration hashes include covered wrapper sources; this revision therefore
+rejects records from older configurations. Tests use fresh isolated fixtures.
+No immutable record is rewritten or migrated. Configuration migration,
+address-preserving recovery/refresh, production controller authorization and
+cross-host authority must be designed before a production upgrade.
+
 ## Astra review of 0336e52 and assurance follow-up
 
 Astra reports independently reproducing 43 distinct tests, 58 signatures and 34
@@ -39,12 +100,12 @@ bypass the gate: Hello/boot, readiness, status, failure and closure notification
 Setup/native/result handoffs are gated; the newer registration also gates wallet
 endorsements/commit ACKs. Avoid the broader phrase "each output".
 
-Current validation: 56 runtime tests with `research-faults`, 51 without,
+Validation at `e9a6220`: 56 runtime tests with `research-faults`, 51 without,
 57 distinct runtime tests plus two compile-fail tests (59 total). Clippy in both
 modes, release build, formatting, 59 demo signatures and 39 refusals pass.
 Evidence is recorded in `results-assurance.json`. The registration and
 older benchmark artifacts retain their own source inventories and revisions.
-Cryptographic/upstream review, independent review of new registration, real TEE
+Cryptographic/upstream review, real TEE
 provisioning/entropy, cross-host authority, hostile rollback/snapshots, recovery
 and licensing remain open.
 

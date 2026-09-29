@@ -1,0 +1,703 @@
+{
+  "git_base": "e9a6220",
+  "branch": "silence-dkls23",
+  "working_tree_implementation": true,
+  "source_hashes": {
+    "Cargo.lock": "c8f40215fac308da2bcf140301f4e71c2ae72a9970f690fe37f9aefc7ece1eff",
+    "Cargo.toml": "d56180334d5352f61b73b9f20741c503668212004c3ab1f1da4efd231312952d",
+    "POOLING.md": "55a2c2aa3309b3d97ce962739309ccb2cbef4e248aa7f2368cb5e1931a46ccb9",
+    "README.md": "e144a6c3657f2ccc5fb9c63fd14dc449aa0e014c6daefc79e9af161d01a3e806",
+    "REVIEW.md": "04e5d0a000c214c7e5a6c86b1c79937fedd26489bf1be63e027ed82d476b9cb9",
+    "SECURITY-REVIEW.md": "8936738c45f13e6fc272a86d9a10efb419a1408be03e23fba44f752396c0457b",
+    "bootstrap.sh": "0001cb7375efedda7d38c1de32fa1a824e7a75ced267bf3c56af206512af5505",
+    "patch-source.py": "6e393567a3e06551a20df319f0bcecc30aae5971692a0760878d838ff41d5172",
+    "patches/research-keyshare.rs": "b632d9443b96709b8cdc6dec0cf8eb821f0d9966c5ac619cfe0a276a218a563a",
+    "src/authority.rs": "4377a21757dc7e2bd1b5f7f2861ce4d9c497d0c9bf85c52d617f49902736f6a1",
+    "src/lib.rs": "46ddfb06fb583505a8bbfc505f9c14a5bea67db96516bf931ce6e31ce6e17ec8",
+    "src/lifecycle.rs": "2b834b8c5c4211a423f7ade2d04aa2d333d27d906f820171ae64ab28ba700325",
+    "src/main.rs": "54f9a0a3a8f123feb027b54cf7a95eba2ffd214a698b430cccde9bffcc725d91",
+    "src/measure.rs": "6e6f64fc9516ccbf2531ec4083c6b3ce34fb5d30dc990323df5a74206431290c",
+    "src/native_process_tests.rs": "e5aa5ea12bfa0d43599651301da37b55d40fefb6131d57b032bc15986ecffbe4",
+    "src/pool.rs": "4d2823c829ef22bdaed7a35764d86981359e279d84d4ea1fe35a3260331dccf0",
+    "src/pool_driver.rs": "7da42a750addae43cbec573dd3eaaa134440db600389f713a8ada7486681a53e",
+    "src/pool_tests.rs": "1b0dec289cf746cc962e458ab4fbbca208f02219ebeeb3cd0c5463d63e962bf6",
+    "src/pool_worker.rs": "11f39bb634fe1812b5078d3d998106224bc71df822be92f33ab1877da3156ddf",
+    "src/pooled_process_tests.rs": "fb5a6440c62424e199a7ee132df6b202c73637e5ff0561fe4efe568e18af6425",
+    "src/process_probe.rs": "b9cdcee68fb5b08bd1d4ec70c8048b4e0a8127671d9a59a8868c0ec1a66bd43a",
+    "src/registration.rs": "94a1028f4a5acaf512687cbfcd02749ffd34f0da9bd695a6188e79b01a7350f8",
+    "src/registration_process_tests.rs": "f207fe6f11a09f79703af9da012a08daadaf75fb201f21571344d922855dd4d6",
+    "src/registration_tests.rs": "df85d821860ddd0ddd5aa9d743cf5d46f5d49b6e26be57cba5ed08fb09a9a43e",
+    "src/reservation_tests.rs": "efc35e0d8448cd3f7c5bbfa5cec520e52a995f0623dd8eebab715711a34e3722",
+    "src/wire.rs": "419744bbc1edf0271afd5947748d70c1046b165938072997fa443c823239cd46",
+    "src/worker.rs": "e34822e5a95eff90e61a02fd484bae3ae58b7a9ce7e882343841de65cad2db2f",
+    "tests/authority.rs": "4d91c0c1e1ed47c2ddaca755255c2b44aa4e419c10d5fd9ca67fd0e28749a31b",
+    "tests/invariants.rs": "0d392463127fd1673e2c32843ef0d22259b2b4c38127b16a6fc420e3a339d0e8"
+  },
+  "astra_review": {
+    "revision": "e9a6220",
+    "comparison": "0336e52",
+    "source": "user-reported independent review",
+    "scope": "cooperating processes sharing an honest local filesystem",
+    "no_demonstrated_new_defect_or_regression": true,
+    "new_schedules_independently_reviewed": false
+  },
+  "validation": {
+    "research_faults_runtime_tests": 63,
+    "default_runtime_tests": 53,
+    "distinct_runtime_tests": 64,
+    "compile_fail_tests": 2,
+    "distinct_tests_total": 66,
+    "clippy_both_configurations": "passed",
+    "formatting": "passed",
+    "release_build": "passed",
+    "demo_signatures": 59,
+    "demo_refusals": 39,
+    "fixture_scheduling": "one test-only permit per heavy native fixture; signers and overlapping attempts inside a fixture remain concurrent",
+    "initial_parallel_run": "six fixture deadline failures; focused new tests passed; full suite passed after test-only resource scheduling",
+    "native_parameters_dependencies_patches": "unchanged from e9a6220"
+  },
+  "new_schedules": {
+    "pooled": [
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": false,
+        "publisher_role": 0,
+        "queue_handoffs": 2,
+        "stage": "commit",
+        "verified_result_frames": 2
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 0,
+        "queue_handoffs": 0,
+        "stage": "commit",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 1,
+        "queue_handoffs": 0,
+        "stage": "commit",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": true,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 0,
+        "queue_handoffs": 2,
+        "stage": "commit",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": false,
+        "publisher_role": 0,
+        "queue_handoffs": 2,
+        "stage": "consume",
+        "verified_result_frames": 2
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 0,
+        "queue_handoffs": 0,
+        "stage": "consume",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 1,
+        "queue_handoffs": 0,
+        "stage": "consume",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": true,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 0,
+        "queue_handoffs": 2,
+        "stage": "consume",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": false,
+        "publisher_role": 0,
+        "queue_handoffs": 2,
+        "stage": "endorsement",
+        "verified_result_frames": 2
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 0,
+        "queue_handoffs": 0,
+        "stage": "endorsement",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 1,
+        "queue_handoffs": 0,
+        "stage": "endorsement",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": true,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 0,
+        "queue_handoffs": 2,
+        "stage": "endorsement",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": false,
+        "publisher_role": 0,
+        "queue_handoffs": 2,
+        "stage": "r4",
+        "verified_result_frames": 2
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 0,
+        "queue_handoffs": 0,
+        "stage": "r4",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 1,
+        "queue_handoffs": 0,
+        "stage": "r4",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": true,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 0,
+        "queue_handoffs": 2,
+        "stage": "r4",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": false,
+        "publisher_role": 0,
+        "queue_handoffs": 2,
+        "stage": "result",
+        "verified_result_frames": 2
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 0,
+        "queue_handoffs": 0,
+        "stage": "result",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": false,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 1,
+        "queue_handoffs": 0,
+        "stage": "result",
+        "verified_result_frames": 0
+      },
+      {
+        "both_actual_targets_reached": true,
+        "bypass": true,
+        "distinct_processes": 3,
+        "passed": true,
+        "publication_api": "incident",
+        "publish": true,
+        "publisher_role": 0,
+        "queue_handoffs": 2,
+        "stage": "result",
+        "verified_result_frames": 2
+      }
+    ],
+    "registration_write_sync": [
+      {
+        "checkpoint": "BeforeCreate",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "Created",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": false
+      },
+      {
+        "checkpoint": "PartiallyWritten",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": false
+      },
+      {
+        "checkpoint": "Written",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "BeforeFileSync",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "FileSynced",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "BeforeDirectorySync",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "DirectorySynced",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "BeforeCreate",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "Created",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": false
+      },
+      {
+        "checkpoint": "PartiallyWritten",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": false
+      },
+      {
+        "checkpoint": "Written",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "BeforeFileSync",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "FileSynced",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "BeforeDirectorySync",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "DirectorySynced",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "death",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      }
+    ],
+    "registration_errors": [
+      {
+        "checkpoint": "BeforeCreate",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "Created",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": false
+      },
+      {
+        "checkpoint": "PartiallyWritten",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": false
+      },
+      {
+        "checkpoint": "Written",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "BeforeFileSync",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "FileSynced",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "BeforeDirectorySync",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "DirectorySynced",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "commit",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "BeforeCreate",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "Created",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": false
+      },
+      {
+        "checkpoint": "PartiallyWritten",
+        "complete_before_interruption": false,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": false
+      },
+      {
+        "checkpoint": "Written",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "BeforeFileSync",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "FileSynced",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "BeforeDirectorySync",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      },
+      {
+        "checkpoint": "DirectorySynced",
+        "complete_before_interruption": true,
+        "conflicting_record_refused": true,
+        "existing_bytes_unchanged": true,
+        "mode": "error",
+        "operation": "prepare",
+        "passed": true,
+        "retry_succeeded": true
+      }
+    ],
+    "registration_release": [
+      {
+        "both_workers_killed": true,
+        "death_after_queue_handoff": false,
+        "existing_bytes_unchanged": true,
+        "observed_queue_handoffs": 0,
+        "passed": true,
+        "replacement_commit_acknowledgments": 2,
+        "replacement_endorsements_identical": true,
+        "stage": "commit"
+      },
+      {
+        "both_workers_killed": true,
+        "death_after_queue_handoff": true,
+        "existing_bytes_unchanged": true,
+        "observed_queue_handoffs": 2,
+        "passed": true,
+        "replacement_commit_acknowledgments": 2,
+        "replacement_endorsements_identical": true,
+        "stage": "commit"
+      },
+      {
+        "both_workers_killed": true,
+        "death_after_queue_handoff": false,
+        "existing_bytes_unchanged": true,
+        "observed_queue_handoffs": 0,
+        "passed": true,
+        "replacement_commit_acknowledgments": 2,
+        "replacement_endorsements_identical": true,
+        "stage": "endorsement"
+      },
+      {
+        "both_workers_killed": true,
+        "death_after_queue_handoff": true,
+        "existing_bytes_unchanged": true,
+        "observed_queue_handoffs": 2,
+        "passed": true,
+        "replacement_commit_acknowledgments": 2,
+        "replacement_endorsements_identical": true,
+        "stage": "endorsement"
+      }
+    ]
+  },
+  "demo_evidence": {
+    "ab": {
+      "path": ".local/silence-dkls23/next-assurance-ab/evidence.json",
+      "sha256": "5ac935235615169ecbcd02e67dd462d4af85cc9384a52acfc44783c07246824b",
+      "signatures": 40,
+      "refusals": 16
+    },
+    "pool": {
+      "path": ".local/silence-dkls23/next-assurance-pool/pool-evidence.json",
+      "sha256": "02eaeb81bb72a34f1cea7ceffc4731ce597bd9d7078bfa876f701ab965d7c5f5",
+      "baseline_signatures": 18,
+      "restart_signatures": 1,
+      "refusals": 23
+    }
+  },
+  "log_hashes": {
+    "rf": "a8c203676d40b258132414c2f4d74decf48a807e80d3a335eedbf72c478a646e",
+    "default": "71b5ca18bf132bcb1a82e8cc9295066191126f33425c8f86425e56a33aa5702f",
+    "clippy-rf": "9a0ce7003fc6d38339b4c64bc3d1bea238dda28358748b79986b7fafe46ba7f4",
+    "clippy-default": "f1656df616eaf0b1ffad6dc02d11100c13fb095d310edd8aadc476fce9a3df00",
+    "release": "7a83e24082411de612a80f09328191058fe5cda6f40c18cca007538b4338b9da",
+    "ab": "47ca7e4a3770d42716d1af33d0ed2b7f36ea2f0e79826c4c70880709e65c1093",
+    "pool": "d4d243bc1191b9e65b6e7732539ec755380239a2af7e9157e262bed8143022f2"
+  },
+  "limits": [
+    "New process schedules are not independent cryptographic or production approval.",
+    "Checkpoint errors and SIGKILL do not simulate storage-device faults or power loss.",
+    "Actual-native cross-process overlapping attempts across wallets/routes and publication sources remain open.",
+    "Post-reservation package construction death/cancellation schedules remain open.",
+    "Registration release/death schedules kill both workers, before or after queue handoff, not every one-sided death interleaving.",
+    "Unrelated authority usability is checked at the authority API, not by a new native signing execution.",
+    "Covered wrapper source changes alter configuration; no old immutable record is rewritten or migrated.",
+    "Configuration migration, address-preserving recovery/refresh, authoritative controls, real TEE provisioning/entropy, rollback/snapshot protection, full secret-memory handling and licensing remain open."
+  ]
+}

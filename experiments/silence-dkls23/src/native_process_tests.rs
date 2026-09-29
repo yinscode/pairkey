@@ -297,6 +297,7 @@ async fn case(stage: &str, publish: bool, bypass: bool) -> Result<()> {
     Ok(())
 }
 async fn cases(publish: bool, bypass: bool) {
+    let _slot = crate::process_probe::native_fixture_slot().await;
     for stage in ["setup", "r4", "result"] {
         tokio::time::timeout(Duration::from_secs(25), case(stage, publish, bypass))
             .await

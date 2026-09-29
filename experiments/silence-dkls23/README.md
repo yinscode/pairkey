@@ -265,3 +265,15 @@ Sources: [migration](https://github.com/silence-laboratories/dkls23/blob/af5ada2
 Process-death and checkpoint I/O-failure tests exercise local control behavior;
 they do not demonstrate durability under power loss. Native test-only probes
 cover setup/R4/result queue handoffs with a separate incident publisher.
+
+The pooled C assurance follow-up exercises five sensitive handoffs with public
+incident publication, queue-observed positive/bypass controls and both publisher
+roles (20 schedules). Registration adds 32 write/sync interruption schedules and
+four actual-worker release/death/replacement schedules. Heavy native test fixtures
+are serialized across fixtures to avoid resource-driven deadline failures; each
+fixture retains its concurrent signers/attempts. See `REVIEW.md` for exact scope,
+remaining overlap/ownership schedules and configuration migration requirements.
+
+Current source-bound validation is recorded in `results-pooled-assurance.json`: 66
+distinct tests, 59 demo signatures and 39 refusals, Clippy in both modes, release
+build and formatting. Older artifacts retain their revision-specific inventories.

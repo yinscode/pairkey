@@ -317,10 +317,10 @@ separately; keeping two entries ready moves setup off the online path but does
 not remove its sustained throughput cost. See `results-pool.json`,
 `results-comparison.json` and `REVIEW.md` for reproducible evidence and limits.
 
-## Assurance limits after Astra's 0336e52 review
+## Assurance limits after Astra's reviews
 
-Astra's scoped closures apply to the local authority at that revision, preceding
-immutable registration. The follow-up tests actual native setup/R4/result targets
+Astra's scoped review of `e9a6220` also covers immutable registration, within
+cooperating processes sharing an honest local filesystem. The follow-up tests actual native setup/R4/result targets
 in two processes against a third publisher, with queue-observed positive/bypass
 controls. Twelve reservation transitions each receive error and process-death
 schedules with a preloaded competitor. Reservation fixtures use synthetic seeds;
@@ -331,3 +331,15 @@ remain outside this honest-filesystem bound.
 
 Wire gates setup/native/result handoffs and wallet endorsement/commit ACKs. Public
 Hello/boot, readiness, status, failure and closure/control frames bypass it.
+
+The newer pooled process suite drives actual C workers through endorsement,
+commit ACK, consumption agreement, native R4 and result handoffs. Twenty schedules
+include positive/bypass controls and public `incident()` publication by either
+role. Independent queue observation remains the release oracle. Thirty-two
+registration write/sync interruption schedules and four release/death schedules
+check exact recovery of complete records and continued refusal of partial records.
+These are not overlapping C attempts or a storage-device/power-loss simulation;
+post-reservation construction ownership schedules remain open. See `REVIEW.md`.
+Source-bound configurations change with covered wrapper edits. Older immutable
+records must not be silently rewritten to fit a new build; upgrade/recovery
+requires a separately reviewed migration design.

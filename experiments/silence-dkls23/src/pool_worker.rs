@@ -413,6 +413,15 @@ impl Service {
         .with_chain_path(path)
         .with_hash(r.prehash)
         .with_ttl(Duration::from_secs(30));
+        #[cfg(all(test, feature = "research-faults"))]
+        if let Some(probe) = &mut wire.process_probe {
+            use sl_dkls23::setup::ProtocolParticipant;
+            probe.r4 = setup
+                .msg_id(None, sl_mpc_mate::message::MessageTag::tag(4))
+                .as_ref()
+                .try_into()
+                .unwrap();
+        }
         let online_setup = start.elapsed().as_secs_f64() * 1000.0;
         let seed = Zeroizing::new(fresh());
         let start = Instant::now();
@@ -452,6 +461,10 @@ pub async fn run(role: u8, root_path: &Path, peer: [u8; 32]) -> Result<()> {
     let dh = StaticSecret::from(fresh());
     let own = Boot::new(&root, role, PublicKey::from(&dh).to_bytes());
     let (mut wire, writer, reader) = wire::stdio();
+    #[cfg(all(test, feature = "research-faults"))]
+    {
+        wire.process_probe = crate::process_probe::Probe::from_env(role);
+    }
     wire.send(Frame::PoolHello(own.clone()))?;
     let result:Result<()>=async {
         let Frame::PoolCommand(command)=wire.receive().await? else {anyhow::bail!("expected pool enrollment");};

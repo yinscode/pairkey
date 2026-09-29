@@ -135,6 +135,15 @@ and queue handoffs for cooperating processes sharing one honest filesystem.
 Both role markers deny the pairing. Partial markers deny release without proving
 durability. Lock files must never be removed/replaced, and publication failure
 before creating a marker does not establish a remote cutoff. A/B native R4 queue
-controls continue to test the gate; process fixtures use synthetic queues/seeds.
+controls continue to test the gate. Direct and pooled process fixtures now observe
+actual native handoffs; reservation transition fixtures use synthetic seeds.
 C does not implement concurrent native attempts or cross-host authority. Real attestation, durable
 authority, snapshot resistance and production policy enforcement remain open.
+
+Astra's user-reported `e9a6220` review closes tested implementation behaviors
+within the cooperating-process/honest-filesystem boundary. The subsequent pooled
+C process-race and registration-crash suites add assurance only. They do not
+establish composition security, power-loss durability or production upgrade
+compatibility. Covered source edits change the registered configuration; this
+revision refuses old records rather than rewriting them. Configuration migration,
+address-preserving recovery/refresh and authoritative controls remain blockers.

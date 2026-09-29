@@ -28,13 +28,20 @@ impl Probe {
         })
     }
     pub fn setup(&self, label: &str) {
-        if self.stage == "setup" && label == "base-ot-1" {
+        if (self.stage == "setup" && label == "base-ot-1")
+            || (self.stage == "consume" && label == "pool-reservation")
+        {
             self.armed.store(true, Ordering::SeqCst);
         }
     }
     pub fn pause(&self, frame: &Frame) -> bool {
         let selected = match frame {
-            Frame::Setup(_) => self.stage == "setup" && self.armed.swap(false, Ordering::SeqCst),
+            Frame::Setup(_) => {
+                matches!(self.stage.as_str(), "setup" | "consume")
+                    && self.armed.swap(false, Ordering::SeqCst)
+            }
+            Frame::WalletEndorsement(_) => self.stage == "endorsement",
+            Frame::WalletRegistered(_) => self.stage == "commit",
             Frame::Relay(b) => self.stage == "r4" && b.get(..32) == Some(self.r4.as_slice()),
             Frame::Result(_) => self.stage == "result",
             _ => false,
@@ -79,4 +86,17 @@ pub fn observe(frame: &Frame) {
         )
         .unwrap();
     }
+}
+
+/// Limit competing heavy fixtures, not signers/attempts within a fixture. Each
+/// native process otherwise creates its own worker/Rayon pools and can exhaust
+/// CPU while unrelated test runtimes/builds compete with bounded deadlines.
+pub async fn native_fixture_slot() -> tokio::sync::OwnedSemaphorePermit {
+    static SLOT: std::sync::OnceLock<std::sync::Arc<tokio::sync::Semaphore>> =
+        std::sync::OnceLock::new();
+    SLOT.get_or_init(|| std::sync::Arc::new(tokio::sync::Semaphore::new(1)))
+        .clone()
+        .acquire_owned()
+        .await
+        .unwrap()
 }
