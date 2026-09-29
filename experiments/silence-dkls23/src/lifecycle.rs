@@ -1,5 +1,5 @@
 //! Research lifecycle authority. Trusted filesystem; no hostile-host guarantees.
-use crate::{check_incident, digest, incident, reserve, Manifest};
+use crate::{authority::AuthorityLock, check_incident, digest, incident_locked, reserve, Manifest};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use sl_dkls23::{keygen::KeygenError, sign::SignError};
@@ -201,11 +201,20 @@ impl ReleaseGate {
             .state
             .lock()
             .map_err(|_| anyhow::anyhow!("release gate poisoned"))?;
-        if check_incident(&state.dir, state.role).is_err() {
+        ensure!(!state.stopped, "research quarantine; release fenced");
+        let lock = AuthorityLock::acquire(&state.dir);
+        // Any marker for this pairing stops both signer roles, including replicas
+        // which did not originate the incident. Hold the OS lock through handoff.
+        let checked = lock.and_then(|lock| {
+            check_incident(&state.dir, 0)?;
+            check_incident(&state.dir, 1)?;
+            Ok(lock)
+        });
+        let _lock = checked.map_err(|error| {
             state.stopped = true;
             self.0.changed.send_replace(true);
-        }
-        ensure!(!state.stopped, "research quarantine; release fenced");
+            error.context("research authority failure; release fenced")
+        })?;
         send()
     }
     pub fn publish(&self, context: [u8; 32]) -> Result<()> {
@@ -216,15 +225,22 @@ impl ReleaseGate {
             .map_err(|_| anyhow::anyhow!("release gate poisoned"))?;
         state.stopped = true; // Remains stopped even if durable publication fails.
         self.0.changed.send_replace(true);
-        incident(&state.dir, state.role, context)
+        let _lock = AuthorityLock::acquire(&state.dir)?;
+        incident_locked(&state.dir, state.role, context, |_| Ok(()))
     }
     pub async fn cancelled(&self) {
         let mut receiver = self.0.changed.subscribe();
-        let _ = receiver.wait_for(|stopped| *stopped).await;
+        let mut poll = tokio::time::interval(std::time::Duration::from_millis(100));
+        loop {
+            tokio::select! {
+                _ = receiver.wait_for(|stopped| *stopped) => return,
+                _ = poll.tick() => if self.release(|| Ok(())).is_err() { return; },
+            }
+        }
     }
     pub fn apply(&self, failure: Failure, context: [u8; 32]) -> Failure {
         self.apply_using(failure, context, |dir, role, context| {
-            incident(dir, role, context)
+            incident_locked(dir, role, context, |_| Ok(()))
         })
     }
     fn apply_using(
@@ -244,6 +260,7 @@ impl ReleaseGate {
                     .map_err(|_| anyhow::anyhow!("release gate poisoned"))?;
                 state.stopped = true;
                 self.0.changed.send_replace(true);
+                let _lock = AuthorityLock::acquire(&state.dir)?;
                 publish(&state.dir, state.role, context)
             })();
             match result {
@@ -354,14 +371,14 @@ impl ReservedEntry {
 #[cfg(test)]
 mod publication_tests {
     use super::*;
-    use crate::{fresh, incident_with_checkpoint, IncidentStep};
+    use crate::{fresh, incident_locked, IncidentStep};
     #[test]
     fn a_failure_is_published_once_and_retains_unconfirmed_status() {
         let dir = std::env::temp_dir().join(format!("dkls-apply-{:?}", fresh()));
         let gate = ReleaseGate::new(dir.clone(), 0);
         let failure = Failure::violation(Phase::Migration, [8; 32], "PPRF error");
         let failure = gate.apply_using(failure, [3; 32], |dir, role, context| {
-            incident_with_checkpoint(dir, role, context, |step| {
+            incident_locked(dir, role, context, |step| {
                 if step == IncidentStep::Created {
                     anyhow::bail!("injected write failure after creation");
                 }

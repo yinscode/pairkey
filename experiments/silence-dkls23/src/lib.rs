@@ -1,4 +1,5 @@
 //! Isolated research harness. No production authorization or TEE claims.
+mod authority;
 pub mod lifecycle;
 pub mod pool;
 use anyhow::{bail, ensure, Context, Result};
@@ -325,6 +326,8 @@ pub enum Frame {
 /// Public experiment ledger: create-new + fsync makes reservations irreversible
 /// across these process restarts. This is NOT a hostile-host durable authority.
 pub fn reserve(dir: &Path, role: u8, entry: [u8; 32], context: [u8; 32]) -> Result<()> {
+    ensure!(role < 2, "invalid reservation role");
+    let _lock = authority::AuthorityLock::acquire(dir)?;
     fs::create_dir_all(dir)?;
     let name = entry.iter().map(|b| format!("{b:02x}")).collect::<String>();
     let path = dir.join(format!("{role}-{name}.retired"));
@@ -357,8 +360,19 @@ pub(crate) fn incident_with_checkpoint(
     dir: &Path,
     role: u8,
     context: [u8; 32],
+    checkpoint: impl FnMut(IncidentStep) -> Result<()>,
+) -> Result<()> {
+    let _lock = authority::AuthorityLock::acquire(dir)?;
+    incident_locked(dir, role, context, checkpoint)
+}
+/// Caller holds the scope lock through publication and any release handoff.
+pub(crate) fn incident_locked(
+    dir: &Path,
+    role: u8,
+    context: [u8; 32],
     mut checkpoint: impl FnMut(IncidentStep) -> Result<()>,
 ) -> Result<()> {
+    ensure!(role < 2, "invalid incident role");
     fs::create_dir_all(dir)?;
     let path = dir.join(format!("{role}.quarantined"));
     let file = match OpenOptions::new().create_new(true).write(true).open(&path) {

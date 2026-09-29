@@ -57,6 +57,7 @@ pub fn configuration() -> Hash {
         include_bytes!("../patches/research-keyshare.rs"),include_bytes!("pool.rs"),
         include_bytes!("pool_worker.rs"),include_bytes!("wire.rs"),include_bytes!("lib.rs"),
         include_bytes!("lifecycle.rs"),
+        include_bytes!("authority.rs"),
     ])
 }
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]

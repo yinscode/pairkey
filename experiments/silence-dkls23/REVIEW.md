@@ -4,7 +4,38 @@ Keep DKLS23 experimental. A/B remain baselines; Spike C now uses a small RAM
 preprocessing pool in long-lived local workers. Production dependencies and
 architecture v0.4 are unchanged. The custom composition has not been adopted.
 
-## Tasks 2–5: implemented research scope
+## Local cross-process authority follow-up
+
+The pool/benchmark implementation is frozen at `4d2e21c` for review. The follow-up
+adds a local Unix advisory lock held across scope marker checks, reservations,
+native queue handoffs and incident publication. A marker for either role stops
+both roles. The public direct `incident()` path uses the same lock. Separate
+ledger locks serialize retirement writes through sync; lock files remain stable.
+Idle workers poll for remote cancellation; each output independently locks/checks.
+
+Seven real-process regressions cover duplicate synthetic RAM entries (one winner),
+publication versus an in-progress queue handoff, both-role refusal and scope
+independence, lock-holder death, durable retirement after death, partial-marker
+refusal, idle remote cancellation and lock timeout. The handoff test observes its
+actual synthetic queue with positive and deliberate-bypass controls. This is an
+authority fixture, not a complete native signing across-process race test. Existing
+actual-native R4 queue controls are rerun unchanged.
+
+Current validation: 40 runtime tests with `research-faults`, 38 without, plus the
+same two compile-fail tests. The union is 41 runtime tests plus two compile-fail
+tests (43 distinct). The ignored child helper is explicitly executed by the seven
+parent tests, not counted as an additional test. Evidence is `results-authority.json`.
+
+This closes the check-then-handoff race for cooperating processes sharing one
+honest local authority filesystem. Publication waits for an active handoff; output
+already queued is released. Failed publication before marker creation cannot fence
+other processes. Lock acquisition has a two-second timeout and permanently stops
+the affected local gate. Cross-host/replica atomicity, hostile rollback, snapshot
+protection, full native cross-process fault schedules and cryptographic review
+remain open. The research manifest adds the already-locked `libc 0.2.190` as a
+direct dependency; no package version, native patch or OT/VOLE parameter changes.
+
+## Tasks 2–5: research scope at 4d2e21c
 
 2. Canonical setup-input, completed-transcript and consumption contexts, with
    arrival-independent hashing, fixed directional roles, binding substitution
@@ -27,14 +58,14 @@ Validation: 33 runtime tests plus two compile-fail tests with `research-faults`;
 34 distinct runtime tests plus two compile-fail tests. Clippy in both modes,
 formatting, release build, bootstrap syntax and production isolation are checked.
 
-Current evidence: `results.json` (A/B), `results-pool.json` (C), and
+Evidence at `4d2e21c`: `results.json` (A/B), `results-pool.json` (C), and
 `results-comparison.json` (benchmark). The c33a1e1 evidence is preserved in
 `results-lifecycle.json`; original run-03 measurements remain in
 `results-baseline.json`. Every current artifact records source hashes and the
 locked parameter decision. Run directories, root fixtures, native sources and
 build products stay ignored.
 
-### Boundaries for the next review
+### Boundaries recorded at 4d2e21c
 
 C uses canonical **binary hash inputs**; its authenticated transport remains
 JSON-over-AEAD/stdio. Exact validated native bodies enter the completed digest;
@@ -218,7 +249,7 @@ Custom composition security, memory erasure, recovery, real attestation,
 authoritative cross-replica controls, rollback protection, application licensing
 and independent cryptographic review remain unproven or unfinished gates.
 
-## Current A/B/C measurements (local research)
+## A/B/C measurements at 4d2e21c (local research)
 
 18 samples per route/delay (three wallets × two paths × three attempts), with
 162 verified signatures total. A/B wall includes process launch/registration;

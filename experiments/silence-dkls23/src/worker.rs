@@ -233,12 +233,14 @@ async fn execute_inner(
     wire.gate = Some(gate.clone());
     // Burn before setup: interruptions, malformed data and uncertain peer state
     // cannot release the entry back to availability.
-    reserve(
-        &controls.join("entries"),
-        role,
-        request.entry,
-        request.context(),
-    )?;
+    gate.release(|| {
+        reserve(
+            &controls.join("entries"),
+            role,
+            request.entry,
+            request.context(),
+        )
+    })?;
     let channel = SetupChannel::new(dh, request, role)?;
     let peer_context: [u8; 32] = channel
         .exchange(wire, "reservation", &request.context())

@@ -751,7 +751,7 @@ pub async fn demo(dir: &Path, samples: usize) -> Result<()> {
     refusals.push(
         json!({"fault":"restart discards unused material","diagnostic":format!("{error:#}")}),
     );
-    let evidence = json!({"configuration":hex(&pool::configuration()),"baseline":baseline,"refusals":refusals,"native_parameters":"locked unchanged","limitations":["custom composition unaudited","same-process release gate only; honest filesystem ledger","snapshot/rollback protection absent","idle refill scheduled by trusted driver; no overlapping sign/refill wire multiplexing","no TEE, production authorization or adoption"]});
+    let evidence = json!({"configuration":hex(&pool::configuration()),"baseline":baseline,"refusals":refusals,"native_parameters":"locked unchanged","limitations":["custom composition unaudited","cooperating local processes share OS-lock authority; no cross-host/replica fencing","snapshot/rollback protection absent","idle refill scheduled by trusted driver; no overlapping sign/refill wire multiplexing","no TEE, production authorization or adoption"]});
     std::fs::write(
         dir.join("pool-evidence.json"),
         serde_json::to_vec_pretty(&evidence)?,

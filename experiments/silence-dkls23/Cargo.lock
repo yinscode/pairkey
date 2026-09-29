@@ -529,6 +529,7 @@ dependencies = [
  "futures-util",
  "hkdf",
  "k256",
+ "libc",
  "rand_core",
  "serde",
  "serde_json",

@@ -105,10 +105,17 @@ Fiat-Shamir transcript construction or of key-independent single-use composition
 Both root/child keys and 2-party signing remain functional with fresh pooled
 material, but independent review is still required. No native OT/VOLE parameter,
 algorithm, migration patch, constructor patch or dependency lock changed.
+That statement describes the pool revision `4d2e21c`. The authority follow-up
+adds already-locked `libc 0.2.190` to direct dependencies; resolved package
+versions, upstream code/patches and OT/VOLE parameters are unchanged.
 
 Pool failures clear the generation; public setup and consumption tombstones
 assume an honest filesystem. A/B/C share the conservative existing incident
-scope. Only same-process gate locking is atomic with queue handoff. A/B native
-R4 queue controls continue to test that shared primitive; C does not implement
-concurrent native attempts or cross-process fencing. Real attestation, durable
+scope. Local cross-process OS locking now serializes marker checks/publication
+and queue handoffs for cooperating processes sharing one honest filesystem.
+Both role markers deny the pairing. Partial markers deny release without proving
+durability. Lock files must never be removed/replaced, and publication failure
+before creating a marker does not establish a remote cutoff. A/B native R4 queue
+controls continue to test the gate; process fixtures use synthetic queues/seeds.
+C does not implement concurrent native attempts or cross-host authority. Real attestation, durable
 authority, snapshot resistance and production policy enforcement remain open.

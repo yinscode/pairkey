@@ -127,6 +127,29 @@ scope, so changing the pool recipe cannot bypass an earlier quarantine. Public
 setup/consumption records live in `controls/pool-setups` and `controls/entries`.
 Enrollment/configuration approval and policy receipts are trusted local fixtures.
 
+Local cross-process authority now uses a persistent `.authority.lock` inode in
+each scope. A fresh file descriptor acquires an exclusive Unix `flock` for each
+operation. Gate callbacks must be synchronous and must not reenter the same
+scope/ledger lock. Marker checks, admission/reservation and transport-queue handoffs hold
+the scope lock; publication takes that same lock before creating/writing/syncing
+its marker. Both role markers stop the pairing. A separate ledger lock serializes
+create-new retirement records through file/directory sync. A/B admission now also
+reserves under its scope gate. Never delete or replace lock files.
+
+An in-progress handoff may complete before publication acquires the lock. Once a
+marker is created under that lock, subsequent handoffs refuse, including when the
+marker is incomplete. Queued output remains released and cannot be recalled. A
+two-second lock-acquisition timeout fails closed for that local gate; it does not
+prove publication to other processes. Idle cancellation polls every 100 ms on a
+best-effort basis; output fencing does not depend on that polling interval.
+
+Kernel locks release on process death; retirement/incident records remain. Death
+before marker creation, failed lock acquisition or inability to create the marker
+does not establish a remote incident cutoff. The local publisher remains stopped
+and reports unconfirmed persistence. Advisory locking depends on cooperative code,
+one stable authority path/inode and local filesystem semantics. Independent hosts,
+replicas, hostile rollback, snapshots and cloned entropy remain outside this bound.
+
 `lifecycle::ReservedEntry` remains the older metadata-only specification scaffold;
 the actual seed-owning implementation is `pool::ReservedEntry`. Ownership tests
 cover races, binding substitution, capacity, expiry, cancellation and restart;
@@ -161,7 +184,7 @@ clones roots, entropy, attempt IDs and authority state together.
 
 The pool is experimental only. Production adoption still requires independent
 cryptographic/upstream sign-off, real attestation/provisioning, authoritative
-cross-process/replica release and reservation controls, rollback/snapshot
+cross-host/replica release and reservation controls, rollback/snapshot
 protection, recovery, and licensing for the intended use. The locked Silence
 parameters remain unchanged, as requested.
 

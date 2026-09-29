@@ -152,8 +152,11 @@ it cannot be recalled. Gates acquired for the same authority path and signer rol
 process; integration must use that shared authority consistently. The A/B harness creates one attempt per worker
 process; C uses long-lived sequential workers; the concurrent in-process test uses the shared primitive directly.
 Across processes, each handoff checks its scoped durable marker, but this is
-**not** an atomic cross-process or cross-replica release boundary. Production
-must supply that authority and cancellation integration before pool adoption.
+now serialized with publication under an advisory OS lock held through the actual
+queue handoff. Both role markers deny use of the pairing; idle workers poll the
+authority every 100 ms for cancellation. This applies only to cooperating
+processes sharing one honest local filesystem. Cross-host/replica authority and
+snapshot protection remain required before production adoption.
 
 The parent handles stdout termination and closed pipes separately from worker
 failures. It preserves structured terminal diagnostics through either abort
@@ -195,9 +198,10 @@ include library subscription messages and custom setup frames; they are not a
 claim about network flights or RTTs. JSON framing adds overhead. This is not a
 Phala/Oyster, cross-region, production authorization or throughput benchmark.
 
-See `results.json` for current A/B evidence, `results-pool.json` and
-`results-comparison.json` for Spike C and benchmarks, `results-lifecycle.json` for
-the independently reviewed c33a1e1 lifecycle run, and `results-baseline.json` for
+See `results-authority.json` for the local cross-process authority follow-up.
+`results.json`, `results-pool.json` and `results-comparison.json` preserve the
+pre-authority A/B/C evidence at `4d2e21c`; `results-lifecycle.json` preserves
+the independently reviewed c33a1e1 lifecycle run. `results-baseline.json` contains
 the original measurements. `REVIEW.md` documents results/failure policy;
 `POOLING.md` documents the implemented research context/ownership design;
 `SECURITY-REVIEW.md` retains the source inventory and open gates.
