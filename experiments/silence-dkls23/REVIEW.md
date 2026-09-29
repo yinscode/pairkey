@@ -4,6 +4,47 @@ Keep DKLS23 experimental. A/B remain baselines; Spike C now uses a small RAM
 preprocessing pool in long-lived local workers. Production dependencies and
 architecture v0.4 are unchanged. The custom composition has not been adopted.
 
+## Astra review of a061990 and fixture corrections
+
+The user reports that Astra reviewed `a061990` against `e9a6220` and reproduced
+one test-harness defect: two ordinary default-suite runs read an empty `returned`
+file between creation and completion of the child's write. No signing-output
+bypass, duplicate consumption or registration regression was demonstrated.
+Astra also identified assertion gaps in the released-endorsement comparison and
+successful worker/commit-acknowledgment checks. Its scoped closure of pooled
+handoffs and registration interruption/recovery is qualified by these findings.
+The earlier locally passing default run is historical evidence, not a closure of
+that subsequently reproduced race.
+
+This follow-up fixes all three fixture findings:
+
+- Registration interruption parents wait for successful child completion before
+  reading `returned`. A deterministic regression pauses the writer with an empty
+  result file and checks that the completion reader remains blocked until exit.
+- Endorsement-after-release schedules retain the actual outgoing values, require
+  one per role, and compare released frame -> saved journal -> replacement
+  endorsement. Evidence records the observed released count; schedules with no
+  released endorsement report the comparison as inapplicable.
+- Non-killed pooled child fixtures fail if `pool_worker::run` returns an error.
+  Replacement commits require exactly one matching ACK from each transport role;
+  missing, duplicate, invalid-role and wrong-digest replies are refused. Evidence
+  counts come from the observed ACK roles. Negative controls check incomplete ACK
+  lists and a worker error that must produce unsuccessful child exit.
+
+Corrected validation: the ordinary default suite passed twice (54 runtime plus
+two compile-fail tests each); the fault-enabled suite passed 66 runtime plus two
+compile-fail tests. The union is 69 distinct tests. All 56 schedules passed with
+the stronger assertions, as did Clippy in both modes, release build and formatting.
+`results-fixture-corrections.json` records current source-bound evidence. Demos
+were not rerun for these test-only changes; Astra reproduced 59 signatures and
+39 refusals at the reviewed base revision.
+
+Changes are limited to test fixtures and documentation/evidence. The 56 existing
+pooled/registration schedules retain their scope; no signing protocol, configuration
+migration, incident authority, native parameters or dependencies changed. Power
+loss, hostile rollback/snapshots, cross-host authority, independent cryptographic
+approval and all previously listed production gates remain open.
+
 ## Astra review of e9a6220 and pooled assurance follow-up
 
 The user reports that Astra independently reviewed `e9a6220` against `0336e52`,
@@ -45,11 +86,12 @@ Signers and the two overlapping attempts inside the existing R4 fixture remain
 concurrent. No protocol deadline or arithmetic was relaxed. Pooled test children
 use explicit larger test-thread stacks to accommodate the large native future.
 
-Validation: 63 runtime tests with `research-faults`, 53 without; the union is
-64 runtime tests plus two compile-fail tests (66 distinct tests). Clippy in both
+Local validation recorded at `a061990`: 63 runtime tests with `research-faults`,
+53 without; 66 distinct tests including two compile-fail tests. Clippy in both
 configurations, release build, formatting, 59 demo signatures and 39 refusals
-pass. `results-pooled-assurance.json` records source-bound metadata and all
-56 new schedules; previous evidence retains its historical source inventories.
+passed locally. Astra subsequently reproduced two default-suite failures; see
+fixture corrections above. `results-pooled-assurance.json` retains the original
+source-bound run evidence and all 56 schedules.
 
 Remaining test work: overlapping actual-native cross-process attempts with
 multiple wallets/routes and publication sources, plus death/cancellation after

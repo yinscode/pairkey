@@ -274,6 +274,9 @@ are serialized across fixtures to avoid resource-driven deadline failures; each
 fixture retains its concurrent signers/attempts. See `REVIEW.md` for exact scope,
 remaining overlap/ownership schedules and configuration migration requirements.
 
-Current source-bound validation is recorded in `results-pooled-assurance.json`: 66
-distinct tests, 59 demo signatures and 39 refusals, Clippy in both modes, release
-build and formatting. Older artifacts retain their revision-specific inventories.
+`results-pooled-assurance.json` retains the locally passing validation at
+`a061990`; Astra later reproduced a default-suite completion-file race. The
+fixture correction waits for child exit, compares released/journal/recovered
+endorsements, and rejects incomplete ACKs and worker errors. See `REVIEW.md` and
+`results-fixture-corrections.json` for the corrected validation; older artifacts
+retain their revision-specific inventories.
