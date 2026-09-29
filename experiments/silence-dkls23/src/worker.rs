@@ -207,7 +207,7 @@ async fn execute(
 ) -> Result<Outcome> {
     let result = tokio::select! {
         biased;
-        _=gate.cancelled()=>Err(Failure::burn(Phase::Control,FailureKind::Quarantined,"active attempt cancelled by incident cutoff").into()),
+        failure=gate.cancelled()=>Err(failure.into()),
         result=execute_inner(root,role,request,dh,wire,controls,gate)=>result,
     };
     result.map_err(|error: anyhow::Error| {
@@ -363,7 +363,7 @@ async fn execute_inner(
         crate::measure::active(sl_dkls23::sign::run(setup, *seed, &mut *wire));
     let result = tokio::select! {
         biased;
-        _ = gate.cancelled() => return Err(Failure::burn(Phase::Signing,FailureKind::Quarantined,"active attempt cancelled by incident cutoff").into()),
+        failure = gate.cancelled() => return Err(failure.into()),
         result = sign_future => result,
     };
     let (signature, recovery) = match result {

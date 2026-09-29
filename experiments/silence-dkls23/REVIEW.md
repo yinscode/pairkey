@@ -51,20 +51,33 @@ Tasks 1–3 add 41 schedules:
 The independent stdio consumer records hashes/counts for actual sensitive
 setup/native/result/registration handoffs, never payloads or secret packages.
 Queues/readers and surviving child exit statuses are drained before assertions.
-An expanded result-bypass rerun exposed a collector ordering bug: after a
-completed result, the pooled worker can publish its incident-shutdown control
-failure before the other worker's result arrives. The fixture now preserves the
-completed command reply, ignoring that role's later failure only when publication
-is recorded. A deterministic stream-order regression checks this case and also
-requires an unexpected failure without publication to remain visible. This
-changes fixture collection, not signer output fencing or protocol behavior.
+After a completed result, a pooled worker can emit an incident-shutdown control
+failure before the other worker's result arrives. The original exception at
+`5a6c05a` was too broad: publication plus a result suppressed any later failure.
+The collector now retains every failure in a diagnostic ledger and accepts only
+a typed observer cutoff for an explicitly expected publication. The publisher's
+acknowledgment must match the fixture run, ordered peers, publishing role and
+complete authority record. Passive observer notifications never claim to have
+persisted the incident themselves. Scenario completion drains residual events,
+reader tasks and worker exits under a bounded deadline; unexpected late failures
+and duplicate terminal replies fail the scenario even after both results arrived.
+The Direct fixture also checks the original typed refusal, rather than accepting
+an arbitrary error whenever a later gate check fails.
+
+Active and idle worker cancellation use the same typed gate cause. An authority
+or persistence error remains a local failure after the gate stops, including if
+an incident is published later. Regressions cover these distinctions, stale or
+wrong publication acknowledgments, pre/post-result failures, reader errors,
+abnormal exits and drain timeouts. Native positive and deliberate-bypass controls
+continue to exercise the real queue oracle. No native arithmetic, parameters,
+dependencies or registration ceremony changes are part of this remediation.
 Fixture serialization limits competing heavy tests; overlapping attempts inside
 each fixture remain concurrent. Probe logic compiles only in the fault-enabled
 test binary. Constructor checkpoints are crate-private and normal callers use a
 no-op callback. Cancellation inside a checkpoint is injected failure handling,
 not a demonstration of arbitrary asynchronous interruption or hardware erasure.
 
-Validation and source-bound schedule evidence are recorded in
+Baseline validation at `5a6c05a` and source-bound schedule evidence are recorded in
 `results-extended-assurance.json`: ordinary default suite 55 runtime plus two
 compile-fail tests; final fault-enabled full suite 71 runtime plus two compile-fail
 tests; union 74 distinct tests. All 130 schedule records passed, including the 41
@@ -76,6 +89,17 @@ signatures independently. Native parameters, resolved dependencies,
 upstream patches and production signing paths are unchanged. Covered wrapper
 sources change configuration hashes: old experimental registration records remain
 refused, never rewritten. Fresh isolated fixtures are used for validation.
+
+Collector remediation validation: 58 default runtime tests plus two compile-fail
+tests, and 80 fault-enabled runtime tests plus two compile-fail tests passed;
+the union is 83 distinct tests. Clippy with warnings denied passed for all targets
+in both configurations; formatting and the default release build passed. Fresh
+schedule evidence uses the existing `PAIRKEY_ASSURANCE_EVIDENCE_DIR` export;
+`terminals/` additionally retains per-run diagnostics, including expected rejection
+records from synthetic negative tests. The initial remediation run exposed the
+survivor's harness-induced EOF failure and an incorrect pooled setup probe label;
+both were corrected before the final full fault-enabled run. Registration,
+constructor, dependency pins and native parameter/source hashes are unchanged.
 
 This closes the requested local assurance matrix within cooperating processes
 sharing an honest filesystem. It does not establish cryptographic security,

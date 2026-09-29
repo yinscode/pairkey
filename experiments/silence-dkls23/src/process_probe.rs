@@ -28,7 +28,7 @@ impl Probe {
         })
     }
     pub fn setup(&self, label: &str) {
-        if (self.stage == "setup" && label == "base-ot-1")
+        if (self.stage == "setup" && matches!(label, "base-ot-1" | "pool-base-ot-1"))
             || (self.stage == "consume" && label == "pool-reservation")
         {
             self.armed.store(true, Ordering::SeqCst);

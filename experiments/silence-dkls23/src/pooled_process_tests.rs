@@ -6,7 +6,7 @@ use futures_util::{SinkExt, StreamExt};
 use k256::elliptic_curve::group::GroupEncoding;
 use pairkey_dkls23_research::{
     digest, fresh, incident,
-    lifecycle::pair_scope_dir,
+    lifecycle::{pair_scope_dir, Failure},
     point,
     pool::{self, Boot, Command as Operation, Consumption, SetupInput},
     registration::{Endorsement, RegisteredWallet, WalletRecord},
@@ -25,6 +25,53 @@ use tokio::{
 };
 
 const CHILD: &str = "pooled_process_tests::pooled_process_child";
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PublicationAck {
+    peers: [[u8; 32]; 2],
+    run: [u8; 32],
+    publisher: u8,
+    context: [u8; 32],
+}
+#[derive(Clone)]
+struct PublicationExpectation {
+    dir: PathBuf,
+    scope: PathBuf,
+    peers: [[u8; 32]; 2],
+    run: [u8; 32],
+    publisher: u8,
+}
+impl PublicationExpectation {
+    fn confirmed(&self) -> bool {
+        let check = || -> Result<()> {
+            ensure!(
+                self.dir.join("publisher.done").exists(),
+                "publisher not acknowledged"
+            );
+            let ack: PublicationAck =
+                serde_json::from_slice(&fs::read(self.dir.join("publication-ack.json"))?)?;
+            ensure!(
+                ack.peers == self.peers
+                    && ack.run == self.run
+                    && ack.publisher == self.publisher
+                    && ack.context == [9; 32],
+                "wrong publication"
+            );
+            ensure!(
+                fs::read(self.scope.join(format!("{}.quarantined", self.publisher)))?
+                    == ack.context,
+                "wrong or incomplete authority record"
+            );
+            Ok(())
+        };
+        check().is_ok()
+    }
+}
+fn direct_cutoff(error: &anyhow::Error, publication: &PublicationExpectation) -> bool {
+    error
+        .downcast_ref::<Failure>()
+        .is_some_and(Failure::is_incident_cutoff)
+        && publication.confirmed()
+}
 #[test]
 #[ignore = "explicit pooled subprocess fixture"]
 fn pooled_process_child() {
@@ -59,6 +106,17 @@ fn pooled_process_child() {
                 incident(&scope, publisher_role, [9; 32]).unwrap();
             }
             fs::write(dir.join("published"), []).unwrap();
+            let ack = PublicationAck {
+                peers,
+                run: serde_json::from_slice(&fs::read(dir.join("run.json")).unwrap()).unwrap(),
+                publisher: publisher_role,
+                context: [9; 32],
+            };
+            fs::write(
+                dir.join("publication-ack.json"),
+                serde_json::to_vec(&ack).unwrap(),
+            )
+            .unwrap();
         }
         fs::write(dir.join("publisher.done"), []).unwrap();
     } else {
@@ -87,14 +145,20 @@ fn pooled_process_child() {
         };
         fs::write(dir.join(format!("{role}.done")), format!("{result:?}")).unwrap();
         if direct && result.is_err() {
-            // Direct run returns a gate refusal on its final Result send. Require
-            // a persisted incident; every other unexpected error fails the fixture.
-            let gate = pairkey_dkls23_research::lifecycle::ReleaseGate::new(
-                pair_scope_dir(&storage.join("controls"), peers, 1),
-                role,
-            );
+            // Only the original typed cutoff is acceptable, never an unrelated
+            // error followed by a failed re-check of the gate.
+            let run = serde_json::from_slice(&fs::read(dir.join("run.json")).unwrap()).unwrap();
             assert!(
-                gate.release(|| Ok(())).is_err(),
+                (0..2).any(|publisher| direct_cutoff(
+                    result.as_ref().unwrap_err(),
+                    &PublicationExpectation {
+                        dir: dir.clone(),
+                        scope: pair_scope_dir(&storage.join("controls"), peers, 1),
+                        peers,
+                        run,
+                        publisher,
+                    }
+                )),
                 "unexpected Direct worker error: {result:?}"
             );
         } else {
@@ -140,6 +204,12 @@ struct Actors {
     boots: Option<[Boot; 2]>,
     direct_hellos: Option<[Hello; 2]>,
     probe_dir: PathBuf,
+    publication: PublicationExpectation,
+    expected_publication: Option<PublicationExpectation>,
+    closed: [bool; 2],
+    replied: [bool; 2],
+    diagnostics: Vec<(usize, Failure)>,
+    unexpected: Vec<String>,
 }
 impl Actors {
     async fn start(dir: &Path, stage: &str, bypass: bool) -> Result<Self> {
@@ -176,6 +246,8 @@ impl Actors {
                 .to_bytes(),
         ];
         fs::write(dir.join("peers.json"), serde_json::to_vec(&peers)?)?;
+        let run = fresh();
+        fs::write(dir.join("run.json"), serde_json::to_vec(&run)?)?;
         let mut group = ChildGroup {
             children: vec![],
             readers: vec![],
@@ -281,9 +353,57 @@ impl Actors {
             boots,
             direct_hellos: direct_key.map(|_| hellos.map(Option::unwrap)),
             probe_dir: dir.to_path_buf(),
+            publication: PublicationExpectation {
+                dir: dir.to_path_buf(),
+                scope: pair_scope_dir(&storage.join("controls"), peers, 1),
+                peers,
+                run,
+                publisher: 0,
+            },
+            expected_publication: None,
+            closed: [false; 2],
+            replied: [false; 2],
+            diagnostics: vec![],
+            unexpected: vec![],
         })
     }
+    fn expect_publication(&mut self, publisher: u8) {
+        let mut publication = self.publication.clone();
+        publication.publisher = publisher;
+        self.expected_publication = Some(publication);
+    }
+    fn expected_cutoff(&self, failure: &Failure) -> bool {
+        failure.is_incident_cutoff()
+            && self
+                .expected_publication
+                .as_ref()
+                .is_some_and(PublicationExpectation::confirmed)
+    }
+    fn check_diagnostics(&self) -> Result<()> {
+        ensure!(
+            self.unexpected.is_empty(),
+            "unexpected worker events: {:?}; diagnostics: {:?}",
+            self.unexpected,
+            self.diagnostics
+        );
+        Ok(())
+    }
+    async fn stop_inputs(&mut self) {
+        for input in &mut self.inputs {
+            // Stop is queued before EOF even if a survivor's completed reply
+            // has not reached the collector yet. Dropping stdin alone would
+            // manufacture a post-reply transport failure in its idle loop.
+            if self.boots.is_some() {
+                if let Some(input) = input {
+                    let _ = send(input, &Frame::PoolCommand(Box::new(Operation::Stop))).await;
+                }
+            }
+            input.take();
+        }
+    }
     async fn call(&mut self, ops: [Operation; 2]) -> Result<Vec<(usize, Frame)>> {
+        self.check_diagnostics()?;
+        self.replied = [false; 2];
         for (role, op) in ops.into_iter().enumerate() {
             send(
                 self.inputs[role].as_mut().context("input closed")?,
@@ -294,6 +414,7 @@ impl Actors {
         self.collect().await
     }
     async fn start_direct(&mut self, request: Request) -> Result<Vec<(usize, Frame)>> {
+        self.replied = [false; 2];
         for input in &mut self.inputs {
             send(
                 input.as_mut().context("input closed")?,
@@ -305,11 +426,11 @@ impl Actors {
     }
     async fn collect(&mut self) -> Result<Vec<(usize, Frame)>> {
         let mut replies = vec![];
-        let mut closed = [false; 2];
         let mut failed = false;
         let mut poll = tokio::time::interval(Duration::from_millis(5));
         loop {
-            if closed.iter().all(|v| *v) || (!failed && replies.len() == 2) {
+            if self.closed.iter().all(|v| *v) || (!failed && self.replied.iter().all(|v| *v)) {
+                self.check_diagnostics()?;
                 return Ok(replies);
             }
             let [r0, r1] = &mut self.relays;
@@ -319,6 +440,7 @@ impl Actors {
                 b=r0.next(),if !failed=>{if let (Some(b),Some(input))=(b,&mut self.inputs[0]) {let _=send(input,&Frame::Relay(b)).await;}continue;},
                 b=r1.next(),if !failed=>{if let (Some(b),Some(input))=(b,&mut self.inputs[1]) {let _=send(input,&Frame::Relay(b)).await;}continue;},
             };
+            ensure!(event.0 < 2, "invalid worker role");
             match event {
                 (role, Frame::Setup(b)) if !failed => {
                     if let Some(input) = &mut self.inputs[1 - role] {
@@ -329,38 +451,35 @@ impl Actors {
                     let _ = self.relays[role].send(b).await;
                 }
                 (role, Frame::Closed) => {
-                    closed[role] = true;
+                    self.closed[role] = true;
                     self.inputs[role].take();
-                    if !replies.iter().any(|(r, _)| *r == role) {
+                    if !self.replied[role] {
                         failed = true;
-                        for input in &mut self.inputs {
-                            input.take();
-                        }
+                        self.stop_inputs().await;
                     }
                 }
                 (role, Frame::Failure(f)) => {
-                    // After a deliberate result bypass, a pooled worker can
-                    // emit its unfenced incident-shutdown control frame before
-                    // the other role's completed result reaches this reader.
-                    // The result already received is this command's terminal
-                    // reply; the later control frame must not replace/count it.
-                    if self.probe_dir.join("published").exists()
-                        && replies
-                            .iter()
-                            .any(|(r, frame)| *r == role && matches!(frame, Frame::Result(_)))
-                    {
+                    self.diagnostics.push((role, f.clone()));
+                    if self.replied[role] {
+                        if !self.expected_cutoff(&f) {
+                            self.unexpected
+                                .push(format!("role {role} failure after reply: {f:?}"));
+                        }
                         continue;
                     }
+                    self.replied[role] = true;
                     replies.push((role, Frame::Failure(f)));
                     failed = true;
-                    for input in &mut self.inputs {
-                        input.take();
-                    }
+                    self.stop_inputs().await;
                 }
                 (_, Frame::Ready(_)) => {}
                 (_, Frame::Setup(_) | Frame::Relay(_)) => {}
                 (role, frame) => {
-                    ensure!(!replies.iter().any(|(r, _)| *r == role), "duplicate reply");
+                    if self.replied[role] {
+                        self.unexpected.push(format!("role {role} duplicate reply"));
+                        self.check_diagnostics()?;
+                    }
+                    self.replied[role] = true;
                     replies.push((role, frame));
                 }
             }
@@ -417,19 +536,77 @@ impl Actors {
         }))
         .await
     }
-    async fn finish(mut self) -> Result<()> {
-        for input in &mut self.inputs {
-            if let Some(input) = input {
-                let _ = send(input, &Frame::PoolCommand(Box::new(Operation::Stop))).await;
-            }
-            input.take();
+    async fn finish(self) -> Result<()> {
+        self.finish_except(&[]).await
+    }
+    async fn finish_except(mut self, killed: &[usize]) -> Result<()> {
+        self.finish_with_timeout(killed, Duration::from_secs(10))
+            .await
+    }
+    async fn finish_with_timeout(&mut self, killed: &[usize], timeout: Duration) -> Result<()> {
+        let result = tokio::time::timeout(timeout, self.drain_workers(killed)).await;
+        if result.is_err() {
+            self.unexpected.push("worker/reader drain timed out".into());
+        } else if let Err(error) = result.unwrap() {
+            self.unexpected
+                .push(format!("worker completion: {error:#}"));
         }
-        for child in &mut self.group.children {
-            ensure!(child.wait().await?.success(), "worker failed");
+        if let Some(output) = std::env::var_os("PAIRKEY_ASSURANCE_EVIDENCE_DIR") {
+            let output = PathBuf::from(output).join("terminals");
+            fs::create_dir_all(&output)?;
+            fs::write(
+                output.join(format!("{}.json", super::hex(&self.publication.run))),
+                serde_json::to_vec_pretty(&serde_json::json!({
+                    "run": self.publication.run, "closed": self.closed,
+                    "diagnostics": self.diagnostics, "unexpected": self.unexpected,
+                    "planned_killed_roles": killed,
+                }))?,
+            )?;
+        }
+        self.check_diagnostics()
+    }
+    async fn drain_workers(&mut self, killed: &[usize]) -> Result<()> {
+        self.stop_inputs().await;
+        for (role, child) in self.group.children.iter_mut().enumerate() {
+            let status = child.wait().await?;
+            use std::os::unix::process::ExitStatusExt;
+            if if killed.contains(&role) {
+                status.signal() != Some(libc::SIGKILL)
+            } else {
+                !status.success()
+            } {
+                self.unexpected
+                    .push(format!("role {role} unexpected worker exit: {status}"));
+            }
         }
         for reader in &mut self.group.readers {
-            reader.await?;
+            if let Err(error) = reader.await {
+                self.unexpected.push(format!("reader failed: {error}"));
+            }
         }
+        while let Some((role, frame)) = self.events.recv().await {
+            ensure!(role < 2, "invalid residual worker role");
+            match frame {
+                Frame::Closed => self.closed[role] = true,
+                Frame::Failure(f) => {
+                    if !self.expected_cutoff(&f) {
+                        self.unexpected
+                            .push(format!("role {role} residual failure: {f:?}"));
+                    }
+                    self.diagnostics.push((role, f));
+                }
+                // Queued native traffic may precede a cutoff; the independent
+                // queue oracle determines its ordering relative to publication.
+                Frame::Relay(_) | Frame::Setup(_) | Frame::Ready(_) => {}
+                _ => self
+                    .unexpected
+                    .push(format!("role {role} unexpected residual terminal reply")),
+            }
+        }
+        ensure!(
+            self.closed.iter().all(|v| *v),
+            "worker output ended without EOF event"
+        );
         Ok(())
     }
 }
@@ -516,6 +693,9 @@ async fn case(stage: &str, publish: bool, bypass: bool, publisher_role: u8) -> R
         )?;
     }
     let mut actors = Actors::start(&dir.0, stage, bypass).await?;
+    if publish {
+        actors.expect_publication(publisher_role);
+    }
     let (record, hellos) = actors.describe([7; 32]).await?;
     let target = tokio::spawn(barrier(
         dir.0.clone(),
@@ -930,78 +1110,354 @@ async fn pooled_fixture_worker_error_exits_unsuccessfully() {
 #[path = "extended_process_tests.rs"]
 mod extended;
 
+fn synthetic_result(role: u8) -> Frame {
+    Frame::Result(pairkey_dkls23_research::Outcome {
+        role,
+        route: Route::Pooled,
+        context: [1; 32],
+        public_key: vec![],
+        signature: vec![],
+        recovery_id: 0,
+        setup_ms: 0.0,
+        signing_ms: 0.0,
+        setup_active_poll_ms: None,
+        signing_active_poll_ms: 0.0,
+        package_bytes: 0,
+        setup_id: vec![],
+    })
+}
+fn synthetic_actors() -> (Directory, Actors, mpsc::UnboundedSender<(usize, Frame)>) {
+    let dir = Directory(std::env::temp_dir().join(format!("dkls-collector-{:?}", fresh())));
+    fs::create_dir(&dir.0).unwrap();
+    let (tx, events) = mpsc::unbounded_channel();
+    let relay = SimpleMessageRelay::new();
+    let actors = Actors {
+        group: ChildGroup {
+            children: vec![],
+            readers: vec![],
+        },
+        inputs: vec![None, None],
+        events,
+        relays: [relay.connect(), relay.connect()],
+        boots: None,
+        direct_hellos: None,
+        probe_dir: dir.0.clone(),
+        publication: PublicationExpectation {
+            dir: dir.0.clone(),
+            scope: dir.0.join("authority"),
+            peers: [[1; 32], [2; 32]],
+            run: fresh(),
+            publisher: 1,
+        },
+        expected_publication: None,
+        closed: [false; 2],
+        replied: [false; 2],
+        diagnostics: vec![],
+        unexpected: vec![],
+    };
+    (dir, actors, tx)
+}
+fn acknowledge(publication: &PublicationExpectation) {
+    incident(&publication.scope, publication.publisher, [9; 32]).unwrap();
+    let ack = PublicationAck {
+        peers: publication.peers,
+        run: publication.run,
+        publisher: publication.publisher,
+        context: [9; 32],
+    };
+    fs::write(
+        publication.dir.join("publication-ack.json"),
+        serde_json::to_vec(&ack).unwrap(),
+    )
+    .unwrap();
+    fs::write(publication.dir.join("publisher.done"), []).unwrap();
+    fs::write(publication.dir.join("published"), []).unwrap();
+}
+fn close_events(tx: mpsc::UnboundedSender<(usize, Frame)>) {
+    tx.send((0, Frame::Closed)).unwrap();
+    tx.send((1, Frame::Closed)).unwrap();
+}
+
 #[tokio::test]
 async fn collector_preserves_completed_results_before_incident_shutdown_control() {
-    // Synthetic frames test ordering only. Actual native signatures and queues
-    // are independently verified by the process matrix.
-    for published in [false, true] {
-        let dir =
-            Directory(std::env::temp_dir().join(format!("dkls-terminal-reply-{:?}", fresh())));
-        fs::create_dir(&dir.0).unwrap();
-        if published {
-            fs::write(dir.0.join("published"), []).unwrap();
+    for after_both in [false, true] {
+        let (dir, mut actors, tx) = synthetic_actors();
+        actors.expect_publication(1);
+        acknowledge(actors.expected_publication.as_ref().unwrap());
+        tx.send((0, synthetic_result(0))).unwrap();
+        if after_both {
+            tx.send((1, synthetic_result(1))).unwrap();
         }
-        let result = |role| {
-            Frame::Result(pairkey_dkls23_research::Outcome {
-                role,
-                route: Route::Pooled,
-                context: [1; 32],
-                public_key: vec![],
-                signature: vec![],
-                recovery_id: 0,
-                setup_ms: 0.0,
-                signing_ms: 0.0,
-                setup_active_poll_ms: None,
-                signing_active_poll_ms: 0.0,
-                package_bytes: 0,
-                setup_id: vec![],
-            })
-        };
-        let (tx, events) = mpsc::unbounded_channel();
-        tx.send((0, result(0))).unwrap();
-        tx.send((
-            0,
-            Frame::Failure(pairkey_dkls23_research::lifecycle::Failure::burn(
-                pairkey_dkls23_research::lifecycle::Phase::Control,
-                pairkey_dkls23_research::lifecycle::FailureKind::Quarantined,
-                "post-result incident shutdown",
-            )),
-        ))
-        .unwrap();
-        tx.send((1, result(1))).unwrap();
-        tx.send((0, Frame::Closed)).unwrap();
-        tx.send((1, Frame::Closed)).unwrap();
-        let relay = SimpleMessageRelay::new();
-        let mut actors = Actors {
-            group: ChildGroup {
-                children: vec![],
-                readers: vec![],
-            },
-            inputs: vec![None, None],
-            events,
-            relays: [relay.connect(), relay.connect()],
-            boots: None,
-            direct_hellos: None,
-            probe_dir: dir.0.clone(),
-        };
-        let replies = tokio::time::timeout(Duration::from_secs(2), actors.collect())
-            .await
-            .unwrap()
+        tx.send((0, Frame::Failure(Failure::incident_cutoff())))
             .unwrap();
-        if published {
+        if !after_both {
+            tx.send((1, synthetic_result(1))).unwrap();
+        }
+        close_events(tx);
+        let replies = actors.collect().await.unwrap();
+        assert_eq!(replies.len(), 2);
+        assert!(replies.iter().all(|(_, f)| matches!(f, Frame::Result(_))));
+        actors
+            .finish_with_timeout(&[], Duration::from_secs(1))
+            .await
+            .unwrap();
+        assert_eq!(actors.diagnostics.len(), 1);
+        assert!(actors.diagnostics[0].1.is_incident_cutoff());
+        assert!(!actors.diagnostics[0].1.incident_persisted);
+        fs::write(dir.0.join("passed"), []).unwrap();
+    }
+}
+
+#[tokio::test]
+async fn collector_never_suppresses_unexpected_post_result_failures() {
+    use pairkey_dkls23_research::lifecycle::{Action, FailureKind, Phase};
+    let mut persistence = Failure::violation(Phase::Signing, [7; 32], "persistence failed");
+    persistence.incident_attempted = true;
+    let mut freeze = Failure::burn(Phase::Control, FailureKind::Local, "freeze");
+    freeze.action = Action::FreezeConfiguration;
+    let mut cutoff_with_failure = Failure::incident_cutoff();
+    cutoff_with_failure.abort_send_failed = true;
+    let failures = [
+        Failure::violation(Phase::Signing, [7; 32], "unexpected protocol violation"),
+        persistence,
+        freeze,
+        cutoff_with_failure,
+        Failure::burn(Phase::Transport, FailureKind::Transport, "transport"),
+        Failure::burn(Phase::Control, FailureKind::Timeout, "timeout"),
+        Failure::burn(Phase::Control, FailureKind::Local, "local"),
+    ];
+    for failure in failures {
+        for after_both in [false, true] {
+            let (dir, mut actors, tx) = synthetic_actors();
+            actors.expect_publication(1);
+            acknowledge(actors.expected_publication.as_ref().unwrap());
+            tx.send((0, synthetic_result(0))).unwrap();
+            if after_both {
+                tx.send((1, synthetic_result(1))).unwrap();
+            }
+            tx.send((0, Frame::Failure(failure.clone()))).unwrap();
+            if !after_both {
+                tx.send((1, synthetic_result(1))).unwrap();
+            }
+            close_events(tx);
+            assert_eq!(actors.collect().await.is_ok(), after_both);
+            assert!(actors
+                .finish_with_timeout(&[], Duration::from_secs(1))
+                .await
+                .is_err());
+            assert_eq!(actors.diagnostics.len(), 1);
+            assert_eq!(actors.diagnostics[0].1.detail, failure.detail);
+            assert_eq!(
+                actors.diagnostics[0].1.incident_attempted,
+                failure.incident_attempted
+            );
+            assert_eq!(
+                actors.diagnostics[0].1.incident_persisted,
+                failure.incident_persisted
+            );
+            fs::write(dir.0.join("passed"), []).unwrap();
+        }
+    }
+}
+
+#[tokio::test]
+async fn collector_requires_scoped_acknowledgment_for_late_cutoff() {
+    for invalid in [
+        "no-expectation",
+        "no-ack",
+        "no-done",
+        "wrong-role",
+        "old-run",
+        "wrong-peers",
+        "wrong-scope",
+        "partial-record",
+    ] {
+        let (dir, mut actors, tx) = synthetic_actors();
+        actors.expect_publication(1);
+        acknowledge(actors.expected_publication.as_ref().unwrap());
+        let p = actors.expected_publication.as_mut().unwrap();
+        match invalid {
+            "no-expectation" => actors.expected_publication = None,
+            "no-ack" => fs::remove_file(p.dir.join("publication-ack.json")).unwrap(),
+            "no-done" => fs::remove_file(p.dir.join("publisher.done")).unwrap(),
+            "wrong-role" => p.publisher = 0,
+            "old-run" => p.run = fresh(),
+            "wrong-peers" => p.peers.swap(0, 1),
+            "wrong-scope" => p.scope = p.dir.join("unrelated"),
+            "partial-record" => fs::write(p.scope.join("1.quarantined"), [0; 7]).unwrap(),
+            _ => unreachable!(),
+        }
+        tx.send((0, synthetic_result(0))).unwrap();
+        tx.send((0, Frame::Failure(Failure::incident_cutoff())))
+            .unwrap();
+        tx.send((1, synthetic_result(1))).unwrap();
+        close_events(tx);
+        assert!(actors.collect().await.is_err(), "{invalid}");
+        assert_eq!(actors.diagnostics.len(), 1);
+        assert!(actors
+            .finish_with_timeout(&[], Duration::from_secs(1))
+            .await
+            .is_err());
+        fs::write(dir.0.join("passed"), []).unwrap();
+    }
+}
+
+#[tokio::test]
+async fn collector_returns_failures_before_that_roles_result() {
+    for failing_role in 0..2 {
+        let (dir, mut actors, tx) = synthetic_actors();
+        actors.expect_publication(1);
+        acknowledge(actors.expected_publication.as_ref().unwrap());
+        let other = 1 - failing_role;
+        // A peer's result never turns this role's first failure into shutdown.
+        tx.send((other, synthetic_result(other as u8))).unwrap();
+        tx.send((failing_role, Frame::Failure(Failure::incident_cutoff())))
+            .unwrap();
+        close_events(tx);
+        let replies = actors.collect().await.unwrap();
+        assert!(replies
+            .iter()
+            .any(|(role, frame)| *role == failing_role && matches!(frame, Frame::Failure(_))));
+        assert_eq!(actors.diagnostics.len(), 1);
+        actors
+            .finish_with_timeout(&[], Duration::from_secs(1))
+            .await
+            .unwrap();
+        fs::write(dir.0.join("passed"), []).unwrap();
+    }
+}
+
+#[tokio::test]
+async fn collector_rejects_duplicate_replies_reader_errors_and_drain_timeout() {
+    for mode in [
+        "duplicate",
+        "residual-duplicate",
+        "reader-error",
+        "timeout",
+        "missing-eof",
+        "bad-exit",
+    ] {
+        let (dir, mut actors, tx) = synthetic_actors();
+        tx.send((0, synthetic_result(0))).unwrap();
+        if mode == "duplicate" {
+            tx.send((0, synthetic_result(0))).unwrap();
+        }
+        tx.send((1, synthetic_result(1))).unwrap();
+        if mode == "residual-duplicate" {
+            tx.send((1, synthetic_result(1))).unwrap();
+        }
+        if mode == "reader-error" {
+            actors
+                .group
+                .readers
+                .push(tokio::spawn(async { panic!("injected reader failure") }));
+        }
+        if mode == "bad-exit" {
+            actors.group.children.push(
+                Command::new("/bin/sh")
+                    .args(["-c", "exit 7"])
+                    .spawn()
+                    .unwrap(),
+            );
+        }
+        let held = if mode == "timeout" {
+            Some(tx)
+        } else {
+            if mode == "missing-eof" {
+                drop(tx);
+            } else {
+                close_events(tx);
+            }
+            None
+        };
+        assert_eq!(actors.collect().await.is_ok(), mode != "duplicate");
+        // A collection failure must remain a failure at completion as well.
+        let finish = actors
+            .finish_with_timeout(&[], Duration::from_millis(250))
+            .await;
+        assert!(finish.is_err(), "{mode}");
+        drop(held);
+        fs::write(dir.0.join("passed"), []).unwrap();
+    }
+}
+
+#[test]
+fn direct_fixture_requires_original_cutoff_not_a_later_closed_gate() {
+    use pairkey_dkls23_research::lifecycle::{FailureKind, Phase};
+    let (dir, actors, _tx) = synthetic_actors();
+    let p = &actors.publication;
+    acknowledge(p);
+    assert!(direct_cutoff(&Failure::incident_cutoff().into(), p));
+    for error in [
+        anyhow::anyhow!("original I/O failure"),
+        Failure::burn(Phase::Control, FailureKind::Local, "lock timeout").into(),
+        Failure::violation(Phase::Signing, [7; 32], "protocol violation").into(),
+    ] {
+        assert!(!direct_cutoff(&error, p));
+    }
+    fs::remove_file(p.dir.join("publisher.done")).unwrap();
+    assert!(!direct_cutoff(&Failure::incident_cutoff().into(), p));
+    fs::write(dir.0.join("passed"), []).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn pooled_idle_and_active_cutoffs_emit_typed_observer_failures() {
+    let _slot = crate::process_probe::native_fixture_slot().await;
+    for active in [false, true] {
+        let dir = Directory(std::env::temp_dir().join(format!("dkls-cutoff-{:?}", fresh())));
+        extended::provision(&dir.0, 11).unwrap();
+        let mut actors = Actors::start(&dir.0, if active { "setup" } else { "" }, false)
+            .await
+            .unwrap();
+        actors.expect_publication(1);
+        // Confirm enrollment and an ordinary command completed before testing
+        // the idle loop, rather than racing initial admission.
+        actors.describe([7; 32]).await.unwrap();
+        if active {
+            let input = SetupInput {
+                version: 1,
+                recipe: 1,
+                peers: actors.boots().clone().map(|b| b.identity),
+                boots: actors.boots().clone().map(|b| b.generation),
+                configuration: pool::configuration(),
+                entry: fresh(),
+            };
+            let publisher = tokio::spawn(barrier(dir.0.clone(), "setup".into(), true, false, 1));
+            let replies = actors
+                .call(std::array::from_fn(|_| Operation::Setup {
+                    input: input.clone(),
+                    fault: None,
+                }))
+                .await
+                .unwrap();
+            publisher.await.unwrap().unwrap();
             assert_eq!(replies.len(), 2);
             assert!(replies
                 .iter()
-                .enumerate()
-                .all(|(role, (r, f))| role == *r && matches!(f, Frame::Result(_))));
+                .all(|(_, f)| matches!(f, Frame::Failure(f) if f.is_incident_cutoff())));
         } else {
-            assert!(replies.iter().any(|(_, f)| matches!(f, Frame::Failure(_))));
-            assert_ne!(
-                replies.len(),
-                2,
-                "unexpected failure hidden without publication"
-            );
+            extended::publish(&dir.0, &dir.0, 1, "incident")
+                .await
+                .unwrap();
+            // Observe shutdown before sending Stop, so this exercises idle
+            // cancellation rather than the ordinary Stop command.
+            tokio::time::timeout(Duration::from_secs(5), async {
+                while !(0..2).all(|r| dir.0.join(format!("{r}.done")).exists()) {
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                }
+            })
+            .await
+            .unwrap();
         }
+        actors
+            .finish_with_timeout(&[], Duration::from_secs(5))
+            .await
+            .unwrap();
+        assert_eq!(actors.diagnostics.len(), 2);
+        assert!(actors
+            .diagnostics
+            .iter()
+            .all(|(_, f)| f.is_incident_cutoff() && !f.incident_persisted));
         fs::write(dir.0.join("passed"), []).unwrap();
     }
 }

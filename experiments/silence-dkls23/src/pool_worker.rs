@@ -489,7 +489,7 @@ pub async fn run(role: u8, root_path: &Path, peer: [u8; 32]) -> Result<()> {
         loop {
             let next=tokio::select! {
                 biased;
-                _=gate.cancelled()=>{service.pool.invalidate();anyhow::bail!("pool incident cutoff");},
+                failure=gate.cancelled()=>{service.pool.invalidate();return Err(failure.into());},
                 next=wire.receive()=>next?,
             };
             let Frame::PoolCommand(command)=next else {anyhow::bail!("unexpected pooled control frame");};
@@ -506,7 +506,7 @@ pub async fn run(role: u8, root_path: &Path, peer: [u8; 32]) -> Result<()> {
             let timeout=if fault_timeout {Duration::from_millis(500)} else {Duration::from_secs(30)};
             let result=tokio::select! {
                 biased;
-                _=gate.cancelled()=>Err(Failure::burn(Phase::Control,FailureKind::Quarantined,"pool incident cutoff").into()),
+                failure=gate.cancelled()=>Err(failure.into()),
                 result=tokio::time::timeout(timeout,service.command(*command,&mut wire))=>result.unwrap_or_else(|_|Err(Failure::burn(Phase::Control,FailureKind::Timeout,"pool command timeout").into())),
             };
             match result {

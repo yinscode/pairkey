@@ -55,6 +55,23 @@ impl std::fmt::Display for Failure {
 }
 impl std::error::Error for Failure {}
 impl Failure {
+    /// A local observer stopped at an incident cutoff; it did not publish one.
+    pub fn incident_cutoff() -> Self {
+        Self::burn(
+            Phase::Control,
+            FailureKind::Quarantined,
+            "research quarantine; release fenced",
+        )
+    }
+    pub fn is_incident_cutoff(&self) -> bool {
+        self.phase == Phase::Control
+            && self.kind == FailureKind::Quarantined
+            && self.action == Action::Burn
+            && self.peer.is_none()
+            && !self.incident_attempted
+            && !self.incident_persisted
+            && !self.abort_send_failed
+    }
     /// Registration validation can identify either endorser. A violation signed
     /// by this worker's own identity is local compromise/failure, not peer blame.
     pub fn registration_perspective(mut self, own: [u8; 32]) -> Self {
@@ -173,7 +190,7 @@ struct GateAuthority {
     changed: tokio::sync::watch::Sender<bool>,
 }
 struct GateState {
-    stopped: bool,
+    stopped: Option<Failure>,
     dir: PathBuf,
     role: u8,
 }
@@ -193,7 +210,7 @@ impl ReleaseGate {
         let (changed, _) = tokio::sync::watch::channel(false);
         let gate = Arc::new(GateAuthority {
             state: Mutex::new(GateState {
-                stopped: false,
+                stopped: None,
                 dir,
                 role,
             }),
@@ -210,7 +227,9 @@ impl ReleaseGate {
             .state
             .lock()
             .map_err(|_| anyhow::anyhow!("release gate poisoned"))?;
-        ensure!(!state.stopped, "research quarantine; release fenced");
+        if let Some(failure) = &state.stopped {
+            return Err(failure.clone().into());
+        }
         let lock = AuthorityLock::acquire(&state.dir);
         // Any marker for this pairing stops both signer roles, including replicas
         // which did not originate the incident. Hold the OS lock through handoff.
@@ -220,9 +239,16 @@ impl ReleaseGate {
             Ok(lock)
         });
         let _lock = checked.map_err(|error| {
-            state.stopped = true;
+            let failure = error.downcast_ref::<Failure>().cloned().unwrap_or_else(|| {
+                Failure::burn(
+                    Phase::Control,
+                    FailureKind::Local,
+                    format!("research authority failure; release fenced: {error:#}"),
+                )
+            });
+            state.stopped = Some(failure.clone());
             self.0.changed.send_replace(true);
-            error.context("research authority failure; release fenced")
+            anyhow::Error::new(failure)
         })?;
         send()
     }
@@ -232,18 +258,33 @@ impl ReleaseGate {
             .state
             .lock()
             .map_err(|_| anyhow::anyhow!("release gate poisoned"))?;
-        state.stopped = true; // Remains stopped even if durable publication fails.
+        state.stopped.get_or_insert_with(Failure::incident_cutoff);
         self.0.changed.send_replace(true);
-        let _lock = AuthorityLock::acquire(&state.dir)?;
-        incident_locked(&state.dir, state.role, context, |_| Ok(()))
+        let result = (|| {
+            let _lock = AuthorityLock::acquire(&state.dir)?;
+            incident_locked(&state.dir, state.role, context, |_| Ok(()))
+        })();
+        if let Err(error) = &result {
+            state.stopped = Some(Failure::burn(
+                Phase::Control,
+                FailureKind::Local,
+                format!("incident persistence failed: {error:#}"),
+            ));
+        }
+        result
     }
-    pub async fn cancelled(&self) {
+    pub async fn cancelled(&self) -> Failure {
         let mut receiver = self.0.changed.subscribe();
         let mut poll = tokio::time::interval(std::time::Duration::from_millis(100));
         loop {
             tokio::select! {
-                _ = receiver.wait_for(|stopped| *stopped) => return,
-                _ = poll.tick() => if self.release(|| Ok(())).is_err() { return; },
+                _ = receiver.wait_for(|stopped| *stopped) => {},
+                _ = poll.tick() => {},
+            }
+            if let Err(error) = self.release(|| Ok(())) {
+                return error.downcast_ref::<Failure>().cloned().unwrap_or_else(|| {
+                    Failure::burn(Phase::Control, FailureKind::Local, format!("{error:#}"))
+                });
             }
         }
     }
@@ -267,10 +308,20 @@ impl ReleaseGate {
                     .state
                     .lock()
                     .map_err(|_| anyhow::anyhow!("release gate poisoned"))?;
-                state.stopped = true;
+                state.stopped.get_or_insert_with(Failure::incident_cutoff);
                 self.0.changed.send_replace(true);
-                let _lock = AuthorityLock::acquire(&state.dir)?;
-                publish(&state.dir, state.role, context)
+                let result = (|| {
+                    let _lock = AuthorityLock::acquire(&state.dir)?;
+                    publish(&state.dir, state.role, context)
+                })();
+                if let Err(error) = &result {
+                    state.stopped = Some(Failure::burn(
+                        Phase::Control,
+                        FailureKind::Local,
+                        format!("incident persistence failed: {error:#}"),
+                    ));
+                }
+                result
             })();
             match result {
                 Ok(()) => failure.incident_persisted = true,
@@ -381,6 +432,48 @@ impl ReservedEntry {
 mod publication_tests {
     use super::*;
     use crate::{fresh, incident_locked, IncidentStep};
+    #[tokio::test]
+    async fn authority_failure_is_not_reclassified_after_later_publication() {
+        let dir = std::env::temp_dir().join(format!("dkls-gate-cause-{:?}", fresh()));
+        std::fs::write(&dir, []).unwrap(); // A file cannot be an authority directory.
+        let gate = ReleaseGate::new(dir.clone(), 0);
+        let first = gate.release(|| Ok(())).unwrap_err();
+        assert_eq!(
+            first.downcast_ref::<Failure>().unwrap().kind,
+            FailureKind::Local
+        );
+        std::fs::remove_file(&dir).unwrap();
+        crate::incident(&dir, 1, [9; 32]).unwrap();
+        let repeated = gate.release(|| Ok(())).unwrap_err();
+        assert_eq!(
+            repeated.downcast_ref::<Failure>().unwrap().detail,
+            first.downcast_ref::<Failure>().unwrap().detail
+        );
+        assert!(!gate.cancelled().await.is_incident_cutoff());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[tokio::test]
+    async fn cancellation_reports_cutoff_but_never_confirms_observed_durability() {
+        let dir = std::env::temp_dir().join(format!("dkls-gate-cause-{:?}", fresh()));
+        let gate = ReleaseGate::new(dir.clone(), 0);
+        crate::incident(&dir, 1, [9; 32]).unwrap();
+        let failure = tokio::time::timeout(std::time::Duration::from_secs(1), gate.cancelled())
+            .await
+            .unwrap();
+        assert!(failure.is_incident_cutoff());
+        assert!(!failure.incident_attempted && !failure.incident_persisted);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[tokio::test]
+    async fn failed_publication_is_not_an_expected_observer_cutoff() {
+        let dir = std::env::temp_dir().join(format!("dkls-gate-cause-{:?}", fresh()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("0.quarantined"), [0; 7]).unwrap();
+        let gate = ReleaseGate::new(dir.clone(), 0);
+        assert!(gate.publish([9; 32]).is_err());
+        assert_eq!(gate.cancelled().await.kind, FailureKind::Local);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn a_failure_is_published_once_and_retains_unconfirmed_status() {
         let dir = std::env::temp_dir().join(format!("dkls-apply-{:?}", fresh()));
@@ -401,7 +494,14 @@ mod publication_tests {
             panic!("same failure published twice")
         });
         assert!(!failure.incident_persisted);
-        assert!(gate.release(|| Ok(())).is_err());
+        assert_eq!(
+            gate.release(|| Ok(()))
+                .unwrap_err()
+                .downcast_ref::<Failure>()
+                .unwrap()
+                .kind,
+            FailureKind::Local
+        );
         assert!(ReleaseGate::new(dir.clone(), 0).release(|| Ok(())).is_err());
         std::fs::remove_dir_all(dir).unwrap();
     }

@@ -2,7 +2,7 @@
 use super::*;
 use pairkey_dkls23_research::lifecycle::ReleaseGate;
 
-fn provision(dir: &Path, seed: u8) -> Result<()> {
+pub(super) fn provision(dir: &Path, seed: u8) -> Result<()> {
     fs::create_dir_all(dir)?;
     for role in 0..2 {
         fs::write(
@@ -168,7 +168,7 @@ fn verify(frames: &[(usize, Frame)], ready: &ReadySign) -> Result<usize> {
     }
     Ok(frames.len())
 }
-async fn publish(root: &Path, probe: &Path, role: u8, api: &str) -> Result<()> {
+pub(super) async fn publish(root: &Path, probe: &Path, role: u8, api: &str) -> Result<()> {
     // Separate process, exact ordered peers of the affected pairing.
     let mut c = command(probe, 2, "", true, false, role);
     c.env("PAIRKEY_ACTOR_STORAGE_DIR", root)
@@ -205,6 +205,10 @@ async fn overlap_case(stage: &str, mode: &str, role: u8, api: &str) -> Result<()
     );
     let mut a = Actors::start_variant(&p0, &dir.0, stage, mode == "bypass", Some([7; 32])).await?;
     let mut b = Actors::start_variant(&p1, &dir.0, stage, mode == "bypass", None).await?;
+    if mode != "positive" {
+        a.expect_publication(role);
+        b.expected_publication = a.expected_publication.clone();
+    }
     let mut unrelated = Actors::start_variant(&p2, &other, "", false, None).await?;
     let ra = prepare(&mut a, [7; 32]).await?;
     let rb = prepare(&mut b, [8; 32]).await?;
@@ -328,29 +332,8 @@ fn kill(pid: u32) -> Result<()> {
     );
     Ok(())
 }
-async fn finish_except(mut actors: Actors, killed: &[usize]) -> Result<()> {
-    for input in &mut actors.inputs {
-        if let Some(input) = input {
-            let _ = send(input, &Frame::PoolCommand(Box::new(Operation::Stop))).await;
-        }
-        input.take();
-    }
-    for (role, child) in actors.group.children.iter_mut().enumerate() {
-        let status = child.wait().await?;
-        if killed.contains(&role) {
-            use std::os::unix::process::ExitStatusExt;
-            ensure!(
-                status.signal() == Some(libc::SIGKILL),
-                "fixture did not die from planned SIGKILL"
-            );
-        } else {
-            ensure!(status.success(), "surviving fixture failed");
-        }
-    }
-    for reader in &mut actors.group.readers {
-        reader.await?;
-    }
-    Ok(())
+async fn finish_except(actors: Actors, killed: &[usize]) -> Result<()> {
+    actors.finish_except(killed).await
 }
 async fn replace_and_sign(root: &Path, old: &ReadySign, label: &str) -> Result<usize> {
     let record_path = root.join("controls/wallets").join(format!(
@@ -390,6 +373,9 @@ async fn ownership_case(stage: &str, mode: &str) -> Result<()> {
     let probe = dir.0.join("actors");
     fs::create_dir(&probe)?;
     let mut actors = Actors::start_variant(&probe, &dir.0, stage, false, None).await?;
+    if mode == "incident" {
+        actors.expect_publication(1);
+    }
     let ready = prepare(&mut actors, [7; 32]).await?;
     let pids = actors
         .group

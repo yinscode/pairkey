@@ -5,7 +5,7 @@ pub mod pool;
 pub mod registration;
 #[cfg(test)]
 mod reservation_tests;
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{ensure, Context, Result};
 use ed25519_dalek::{Signature as IdentitySignature, Signer, SigningKey, VerifyingKey};
 use hkdf::Hkdf;
 use k256::{
@@ -448,7 +448,7 @@ pub(crate) fn incident_locked(
 }
 pub fn check_incident(dir: &Path, role: u8) -> Result<()> {
     match fs::metadata(dir.join(format!("{role}.quarantined"))) {
-        Ok(_) => bail!("research quarantine marker present; signing refused"),
+        Ok(_) => Err(lifecycle::Failure::incident_cutoff().into()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.into()),
     }
