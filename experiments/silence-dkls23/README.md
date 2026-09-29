@@ -86,6 +86,21 @@ key-independent composition and failure security remain questions for review.
 
 ## Spike C: deterministic shares with idle preprocessing
 
+Spike C replaces native wallet key generation with deterministic contributions
+derived independently from each signer's root. It converts those contributions
+into shares compatible with the library's fixed Shamir coordinates and constructs
+transient signing packages using fresh, single-use OT/PPRF preprocessing. The
+share conversion is algebraically correct and functional tests pass. Security of
+the registration procedure, deterministic multi-wallet derivation, and composition
+with wallet-independent preprocessing has not yet been established by cryptographic
+review. Native signing arithmetic remains unchanged; upstream audit coverage should
+not be assumed to extend to this construction.
+
+Ordinary DKG generally occurs when creating a wallet, not for each signature.
+Replacing wallet key generation and preparing fresh per-attempt OT material are
+two separate choices requiring separate security arguments. The constructor's
+algebraic checks establish reconstruction compatibility, not those arguments.
+
 Two long-lived workers authenticate signed boot identities and ephemeral DH
 keys. Each two-slot pool entry runs fresh native EndemicOT/PPRF and zero-coin
 commit/reveal before any wallet or message is selected. Canonical setup inputs,
@@ -123,6 +138,15 @@ the peer's boot evidence and share possession proof. This is a development
 registration experiment, not proof of KDF compliance by a malicious participant
 or a complete production commit/reveal registration ceremony. The manifest is
 pinned in the parent and compared across complete process replacements.
+In C, `describe()` supplies a registration candidate. Each worker independently
+validates it, generates a full-record-bound possession proof and identity
+endorsement, and durably journals that endorsement before release. The complete
+public record commits only with both endorsements. Signing requires its digest
+and loads/verifies the committed record before consuming an OT entry. Successful
+registration is cached by the driver; restart reuses the same public record and
+endorsements. Partial files and conflicting registrations fail closed. The store
+is an honest local filesystem fixture, not Solana registry integration or proof
+of the key-generation replacement. See `POOLING.md`.
 
 Before setup, each side creates and fsyncs an irreversible public reservation
 record. The record never returns to availability. Cancellation, failure and
@@ -151,7 +175,7 @@ queued before publication is already considered released and may arrive later;
 it cannot be recalled. Gates acquired for the same authority path and signer role share one lock in a
 process; integration must use that shared authority consistently. The A/B harness creates one attempt per worker
 process; C uses long-lived sequential workers; the concurrent in-process test uses the shared primitive directly.
-Across processes, each handoff checks its scoped durable marker, but this is
+Across processes, each setup/native/result handoff checks its scoped durable marker, but this is
 now serialized with publication under an advisory OS lock held through the actual
 queue handoff. Both role markers deny use of the pairing; idle workers poll the
 authority every 100 ms for cancellation. This applies only to cooperating
@@ -198,7 +222,9 @@ include library subscription messages and custom setup frames; they are not a
 claim about network flights or RTTs. JSON framing adds overhead. This is not a
 Phala/Oyster, cross-region, production authorization or throughput benchmark.
 
-See `results-authority.json` for the local cross-process authority follow-up.
+See `results-assurance.json` for the assurance follow-up,
+`results-registration.json` for the preceding registration run, and
+`results-authority.json` for authority evidence at `0336e52`.
 `results.json`, `results-pool.json` and `results-comparison.json` preserve the
 pre-authority A/B/C evidence at `4d2e21c`; `results-lifecycle.json` preserves
 the independently reviewed c33a1e1 lifecycle run. `results-baseline.json` contains
@@ -220,6 +246,11 @@ Explicit Rust clearing and worker termination do not prove physical erasure.
 Hardware entropy, real attestation, clone/snapshot protection, authoritative
 incident controls, recovery and address-preserving refresh are not implemented.
 Public additive child derivation shares the root family's compromise scope.
+Root compromise exposes that signer's contributions across wallet IDs. Exposure
+of both unchanged roots at different times can reveal aggregate wallet keys;
+fresh OT and transient packages do not provide proactive share refresh. Root
+replacement generally changes wallet keys. Address-preserving recovery/refresh
+requires a separate design.
 
 The included Silence license and NOTICE apply to this standalone research
 resulting program. Research without current monetization does not establish
@@ -230,3 +261,7 @@ Sources: [migration](https://github.com/silence-laboratories/dkls23/blob/af5ada2
 [signing](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/sign/dsg.rs),
 [audit](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/docs/ToB-SilenceLaboratories_2024.04.10.pdf),
 [2026 analysis](https://eprint.iacr.org/2026/976).
+
+Process-death and checkpoint I/O-failure tests exercise local control behavior;
+they do not demonstrate durability under power loss. Native test-only probes
+cover setup/R4/result queue handoffs with a separate incident publisher.

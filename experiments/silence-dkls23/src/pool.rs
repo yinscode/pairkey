@@ -1,6 +1,6 @@
 //! Spike C: canonical public contexts and linear, RAM-only preprocessing ownership.
 //! Not a production authority or proof of the custom cryptographic composition.
-use crate::{fresh, lifecycle::ReleaseGate, point, reserve, Manifest, Request, Root, REVISION};
+use crate::{fresh, lifecycle::ReleaseGate, point, Manifest, Request, Root, REVISION};
 use anyhow::{ensure, Context, Result};
 use ed25519_dalek::{Signature, Signer, VerifyingKey};
 use k256::Scalar;
@@ -58,6 +58,7 @@ pub fn configuration() -> Hash {
         include_bytes!("pool_worker.rs"),include_bytes!("wire.rs"),include_bytes!("lib.rs"),
         include_bytes!("lifecycle.rs"),
         include_bytes!("authority.rs"),
+        include_bytes!("registration.rs"),
     ])
 }
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -191,11 +192,13 @@ impl Consumption {
         policy_version: u64,
     ) -> Self {
         Self {
-            version: 1,
+            version: if r.wallet_record.is_some() { 2 } else { 1 },
             input: input.digest(),
             completed,
             entry: input.entry,
-            wallet: manifest_digest(&r.manifest),
+            wallet: r
+                .wallet_record
+                .unwrap_or_else(|| manifest_digest(&r.manifest)),
             scheme: "secp256k1/bip32-public".into(),
             path: r.path.clone(),
             prehash: r.prehash,
@@ -206,9 +209,11 @@ impl Consumption {
     }
     pub fn validate_request(&self, r: &Request) -> Result<()> {
         ensure!(
-            self.version == 1
+            self.version == if r.wallet_record.is_some() { 2 } else { 1 }
                 && self.scheme == "secp256k1/bip32-public"
-                && self.wallet == manifest_digest(&r.manifest)
+                && self.wallet
+                    == r.wallet_record
+                        .unwrap_or_else(|| manifest_digest(&r.manifest))
                 && self.entry == r.entry
                 && self.path == r.path
                 && self.prehash == r.prehash
@@ -283,6 +288,11 @@ pub enum Command {
     Ping(Hash),
     Enroll([Boot; 2]),
     Describe(Hash),
+    Register {
+        record: Box<crate::registration::WalletRecord>,
+        hellos: Box<[crate::Hello; 2]>,
+    },
+    CommitWallet(Box<crate::registration::RegisteredWallet>),
     Setup {
         input: SetupInput,
         fault: Option<String>,
@@ -465,6 +475,13 @@ impl RamPool {
         })
     }
     pub fn reserve(&self, c: &Consumption) -> Result<ReservedEntry> {
+        self.reserve_checkpoint(c, |_| Ok(()))
+    }
+    pub(crate) fn reserve_checkpoint(
+        &self,
+        c: &Consumption,
+        mut checkpoint: impl FnMut(crate::ReserveStep) -> Result<()>,
+    ) -> Result<ReservedEntry> {
         self.gate.release(|| {
             let mut entries = self.entries.lock().unwrap();
             entries.retain(|e| Instant::now() < e.expires);
@@ -472,13 +489,23 @@ impl RamPool {
                 .iter()
                 .position(|e| e.input.entry == c.entry)
                 .context("pool empty or entry unavailable")?;
+            checkpoint(crate::ReserveStep::BeforeRemove)?;
             let entry = entries.remove(index).unwrap(); // removed before ANY fallible validation
                                                         // A malformed reservation still irreversibly retires the selected entry.
-            reserve(&self.ledger, self.role, c.entry, c.digest())?;
+            checkpoint(crate::ReserveStep::Removed)?;
+            crate::reserve_checkpoint(
+                &self.ledger,
+                self.role,
+                c.entry,
+                c.digest(),
+                &mut checkpoint,
+            )?;
+            checkpoint(crate::ReserveStep::BeforeProvenance)?;
             ensure!(
                 c.input == entry.input.digest() && c.completed == entry.completed,
                 "pool provenance mismatch"
             );
+            checkpoint(crate::ReserveStep::Validated)?;
             Ok(ReservedEntry {
                 entry,
                 consumption: c.clone(),

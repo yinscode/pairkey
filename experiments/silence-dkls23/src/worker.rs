@@ -349,6 +349,15 @@ async fn execute_inner(
         probe.trace.r4_ids.lock().unwrap().insert(probe.id);
     }
     let seed = Zeroizing::new(fresh());
+    #[cfg(all(test, feature = "research-faults"))]
+    if let Some(probe) = &mut wire.process_probe {
+        use sl_dkls23::setup::ProtocolParticipant;
+        probe.r4 = setup
+            .msg_id(None, sl_mpc_mate::message::MessageTag::tag(4))
+            .as_ref()
+            .try_into()
+            .unwrap();
+    }
     let started = Instant::now();
     let (sign_future, sign_active) =
         crate::measure::active(sl_dkls23::sign::run(setup, *seed, &mut *wire));
@@ -393,6 +402,10 @@ pub async fn run(role: u8, root_path: &Path, key_id: [u8; 32]) -> Result<()> {
     let dh = StaticSecret::from(*dh_seed);
     let hello = Hello::new(&root, role, key_id, PublicKey::from(&dh).to_bytes())?;
     let (mut wire, writer, reader) = wire::stdio();
+    #[cfg(all(test, feature = "research-faults"))]
+    {
+        wire.process_probe = crate::process_probe::Probe::from_env(role);
+    }
     wire.send(Frame::Hello(hello.clone()))?;
 
     let result = async {
@@ -506,6 +519,7 @@ mod tests {
                 attempt: fresh(),
                 path: "m".into(),
                 prehash: [6; 32],
+                wallet_record: None,
                 fault: None,
             });
             let coordinator = SimpleMessageRelay::new();
@@ -526,6 +540,7 @@ mod tests {
                     control,
                     gate: None,
                     abort_watch: None,
+                    process_probe: None,
                     partial_probe: if role == 0 {
                         Some(wire::PartialProbe {
                             id: [0; 32],

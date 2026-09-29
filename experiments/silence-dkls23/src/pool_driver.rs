@@ -6,6 +6,7 @@ use k256::{
     ecdsa::{RecoveryId, Signature, VerifyingKey},
     elliptic_curve::group::GroupEncoding,
 };
+use pairkey_dkls23_research::registration::{RegisteredWallet, WalletRecord};
 use pairkey_dkls23_research::{
     digest, fresh,
     lifecycle::{Failure, FailureKind, Phase, Terminals},
@@ -17,7 +18,7 @@ use serde_json::{json, Value};
 use signature::hazmat::PrehashVerifier;
 use sl_mpc_mate::coord::{simple::MessageRelay, SimpleMessageRelay};
 use std::{
-    collections::{BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     path::Path,
     str::FromStr,
     time::{Duration, Instant},
@@ -29,6 +30,8 @@ use tokio::{
 };
 
 struct Session {
+    dir: std::path::PathBuf,
+    wallets: BTreeMap<[u8; 32], (RegisteredWallet, [Hello; 2])>,
     group: ChildGroup,
     inputs: Vec<Option<ChildStdin>>,
     events: mpsc::UnboundedReceiver<(usize, Frame)>,
@@ -142,6 +145,8 @@ impl Session {
         }
         let coordinator = SimpleMessageRelay::new();
         Ok(Self {
+            dir: dir.to_path_buf(),
+            wallets: BTreeMap::new(),
             group,
             inputs,
             events: rx,
@@ -252,7 +257,11 @@ impl Session {
                     terminals.closed(role);
                     self.inputs[role].take();
                 }
-                Frame::Hello(_) | Frame::PoolStatus(_) | Frame::Result(_) => {
+                Frame::Hello(_)
+                | Frame::PoolStatus(_)
+                | Frame::Result(_)
+                | Frame::WalletEndorsement(_)
+                | Frame::WalletRegistered(_) => {
                     ensure!(
                         !replies.iter().any(|(r, _)| *r == role),
                         "duplicate pool reply"
@@ -353,6 +362,61 @@ impl Session {
         manifest.validate()?;
         Ok((manifest, hellos))
     }
+    async fn register(&mut self, key: [u8; 32]) -> Result<(RegisteredWallet, [Hello; 2])> {
+        if let Some(wallet) = self.wallets.get(&key) {
+            return Ok(wallet.clone());
+        }
+        let (manifest, hellos) = self.describe(key).await?;
+        let record = WalletRecord::new(manifest)?;
+        let mut frames = self
+            .command([
+                Command::Register {
+                    record: Box::new(record.clone()),
+                    hellos: Box::new(hellos.clone()),
+                },
+                Command::Register {
+                    record: Box::new(record.clone()),
+                    hellos: Box::new(hellos.clone()),
+                },
+            ])
+            .await?;
+        frames.sort_by_key(|(role, _)| *role);
+        let endorsements = frames
+            .into_iter()
+            .map(|(role, f)| {
+                let Frame::WalletEndorsement(e) = f else {
+                    anyhow::bail!("expected wallet endorsement");
+                };
+                ensure!(e.role as usize == role, "wallet endorsement role mismatch");
+                e.validate(&record)?;
+                Ok(e)
+            })
+            .collect::<Result<Vec<_>>>()?
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("endorsement count"))?;
+        let wallet = RegisteredWallet {
+            record,
+            endorsements,
+        };
+        wallet.validate()?;
+        let replies = self
+            .command([
+                Command::CommitWallet(Box::new(wallet.clone())),
+                Command::CommitWallet(Box::new(wallet.clone())),
+            ])
+            .await?;
+        for (_, f) in replies {
+            let Frame::WalletRegistered(digest) = f else {
+                anyhow::bail!("expected wallet commit ACK");
+            };
+            ensure!(
+                digest == wallet.record.digest(),
+                "wallet commit disagreement"
+            );
+        }
+        self.wallets.insert(key, (wallet.clone(), hellos.clone()));
+        Ok((wallet, hellos))
+    }
     async fn sign(
         &mut self,
         input: &SetupInput,
@@ -361,8 +425,18 @@ impl Session {
         path: &str,
         fault: Option<&str>,
     ) -> Result<Value> {
-        let (manifest, hellos) = self.describe(key).await?;
-        let request = Request {
+        let registration_start = Instant::now();
+        let (wallet, manifest, hellos) = if fault == Some("unregistered-wallet") {
+            let (manifest, hellos) = self.describe(key).await?;
+            (None, manifest, hellos)
+        } else {
+            let (wallet, hellos) = self.register(key).await?;
+            let manifest = wallet.record.manifest.clone();
+            (Some(wallet), manifest, hellos)
+        };
+        let registration_ms = registration_start.elapsed().as_secs_f64() * 1000.0;
+        let record_digest = WalletRecord::new(manifest.clone())?.digest();
+        let mut request = Request {
             route: Route::Pooled,
             manifest: manifest.clone(),
             hellos,
@@ -371,7 +445,23 @@ impl Session {
             path: path.into(),
             prehash: pool::hash("mock-exact-message", &[&key, path.as_bytes()]),
             fault: fault.map(str::to_owned),
+            wallet_record: Some(record_digest),
         };
+        if cfg!(feature = "research-faults") {
+            match fault {
+                Some("missing-wallet-digest") => request.wallet_record = None,
+                Some("wrong-wallet-digest") => request.wallet_record.as_mut().unwrap()[0] ^= 1,
+                Some("registered-chain-code") => request.manifest.chain_code[0] ^= 1,
+                Some("partial-wallet-record") => std::fs::write(
+                    pairkey_dkls23_research::registration::WalletStore::new(
+                        self.dir.join("controls/wallets"),
+                    )
+                    .record_path(key),
+                    b"{",
+                )?,
+                _ => {}
+            }
+        }
         let c = Consumption::new(
             input,
             completed,
@@ -446,7 +536,7 @@ impl Session {
         );
         Ok(
             json!({"route":"Pooled","key_id":hex(&key),"path":path,"entry":hex(&input.entry),"consumption":hex(&c.digest()),"public_key":hex(&outcomes[0].public_key),"signature":hex(&outcomes[0].signature),
-            "online_wall_ms":start.elapsed().as_secs_f64()*1000.0,"online_setup_ms":outcomes.iter().map(|o|o.setup_ms).collect::<Vec<_>>(),"signing_and_verification_ms":outcomes.iter().map(|o|o.signing_ms).collect::<Vec<_>>(),
+            "wallet_record":wallet,"registration_or_cache_ms":registration_ms,"online_wall_ms":start.elapsed().as_secs_f64()*1000.0,"online_setup_ms":outcomes.iter().map(|o|o.setup_ms).collect::<Vec<_>>(),"signing_and_verification_ms":outcomes.iter().map(|o|o.signing_ms).collect::<Vec<_>>(),
             "wire_bytes":self.wire_bytes-bytes,"wire_messages_including_subscriptions":self.wire_messages-messages,"parent_framing_probe_ms":(self.parent_serialization_ns-cpu) as f64/1e6,
             "signing_active_poll_ms":outcomes.iter().map(|o|o.signing_active_poll_ms).collect::<Vec<_>>(),"package_bytes":outcomes[0].package_bytes,"manifest":manifest}),
         )
@@ -533,6 +623,11 @@ pub async fn demo(dir: &Path, samples: usize) -> Result<()> {
         "full-pool",
         "repeat-setup",
         "repeat-consumption",
+        "unregistered-wallet",
+        "missing-wallet-digest",
+        "wrong-wallet-digest",
+        "registered-chain-code",
+        "partial-wallet-record",
     ] {
         let fault_dir = dir.join(format!("pool-fault-{fault}"));
         let mut s = Session::start(&fault_dir, 0).await?;
@@ -644,6 +739,12 @@ pub async fn demo(dir: &Path, samples: usize) -> Result<()> {
             "full-pool" => "pool full",
             "repeat-setup" => "entry already reserved",
             "repeat-consumption" => "pool empty or entry unavailable",
+            "unregistered-wallet" => "wallet not committed",
+            "missing-wallet-digest" => "signing requires a registered wallet digest",
+            "wrong-wallet-digest" | "registered-chain-code" => {
+                "request differs from registered wallet"
+            }
+            "partial-wallet-record" => "wallet not committed or record invalid",
             _ => unreachable!(),
         };
         if fault == "disconnect" {
@@ -697,6 +798,26 @@ pub async fn demo(dir: &Path, samples: usize) -> Result<()> {
             })
             .unwrap_or(false);
         if [
+            "unregistered-wallet",
+            "missing-wallet-digest",
+            "wrong-wallet-digest",
+            "registered-chain-code",
+            "partial-wallet-record",
+        ]
+        .contains(&fault)
+        {
+            let input = affected
+                .as_ref()
+                .context("registration refusal lacked setup fixture")?;
+            ensure!(
+                (0..2).all(|r| !fault_dir
+                    .join("controls/entries")
+                    .join(format!("{r}-{}.retired", hex(&input.entry)))
+                    .exists()),
+                "invalid wallet consumed preprocessing before registration admission"
+            );
+        }
+        if [
             "wrong-consumption",
             "wrong-provenance",
             "cancel-reserved",
@@ -731,7 +852,26 @@ pub async fn demo(dir: &Path, samples: usize) -> Result<()> {
         } else {
             drop(replacement);
         }
-        refusals.push(json!({"fault":fault,"diagnostic":format!("{error:#}"),"terminals":terminals,"quarantine":quarantined,"replacement_retry_succeeded":!expect_incident,"affected_setup":affected,"both_reservations_retired":reservations_retired}));
+        let same_wallet_restart_refused = if fault == "partial-wallet-record" {
+            let mut restarted = Session::start(&fault_dir, 0).await?;
+            let (input, status, _) = restarted.refill(None).await?;
+            let e = restarted
+                .sign(&input, status[0].completed, [7; 32], "m", None)
+                .await
+                .err()
+                .context("partial wallet silently recovered on restart")?;
+            let t = e
+                .downcast_ref::<Terminals>()
+                .context("missing partial wallet restart terminal report")?;
+            ensure!(
+                !t.drain_timed_out && t.closed == [true, true],
+                "partial wallet restart drain incomplete"
+            );
+            true
+        } else {
+            false
+        };
+        refusals.push(json!({"fault":fault,"diagnostic":format!("{error:#}"),"terminals":terminals,"quarantine":quarantined,"replacement_retry_succeeded":!expect_incident,"same_wallet_restart_refused":same_wallet_restart_refused,"affected_setup":affected,"both_reservations_retired":reservations_retired}));
     }
     // Old RAM entry and generation are unavailable after a clean restart.
     let restart_dir = dir.join("pool-fault-restart");
@@ -751,7 +891,23 @@ pub async fn demo(dir: &Path, samples: usize) -> Result<()> {
     refusals.push(
         json!({"fault":"restart discards unused material","diagnostic":format!("{error:#}")}),
     );
-    let evidence = json!({"configuration":hex(&pool::configuration()),"baseline":baseline,"refusals":refusals,"native_parameters":"locked unchanged","limitations":["custom composition unaudited","cooperating local processes share OS-lock authority; no cross-host/replica fencing","snapshot/rollback protection absent","idle refill scheduled by trusted driver; no overlapping sign/refill wire multiplexing","no TEE, production authorization or adoption"]});
+    let mut restarted = Session::start(dir, 0).await?;
+    let (input, status, _) = restarted.refill(None).await?;
+    let key = digest(b"pairkey/dkls-research/wallet/v1", &0u8);
+    let registration_restart = restarted
+        .sign(&input, status[0].completed, key, "m", None)
+        .await?;
+    ensure!(
+        registration_restart["wallet_record"] == baseline["attempts"][0]["wallet_record"]
+            && registration_restart["public_key"] == baseline["attempts"][0]["public_key"],
+        "registered wallet changed across worker restart"
+    );
+    ensure!(
+        registration_restart["signature"] != baseline["attempts"][0]["signature"],
+        "restarted registered wallet reused signing nonce/signature"
+    );
+    restarted.stop().await?;
+    let evidence = json!({"configuration":hex(&pool::configuration()),"baseline":baseline,"registration_restart":registration_restart,"refusals":refusals,"native_parameters":"locked unchanged","limitations":["custom composition and registration proofs unaudited; no contribution commit-before-reveal phase","public registration store assumes honest filesystem and fixed approved build configuration","cooperating local processes share OS-lock authority; no cross-host/replica fencing","snapshot/rollback protection absent","idle refill scheduled by trusted driver; no overlapping sign/refill wire multiplexing","no TEE, production authorization or adoption"]});
     std::fs::write(
         dir.join("pool-evidence.json"),
         serde_json::to_vec_pretty(&evidence)?,

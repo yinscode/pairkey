@@ -1,6 +1,7 @@
 //! Real-process authority tests. Synthetic seed/queue fixtures are not evidence
 //! of cryptographic composition security or of a cross-host release authority.
 use k256::elliptic_curve::group::GroupEncoding;
+use pairkey_dkls23_research::registration::{WalletRecord, WalletStore};
 use pairkey_dkls23_research::{
     fresh, lifecycle::ReleaseGate, pool, public, reserve, Hello, Manifest, Request, Root, Route,
 };
@@ -124,6 +125,7 @@ fn synthetic_pool(f: &Fixture, gate: ReleaseGate, role: u8) -> (pool::RamPool, p
         attempt: [12; 32],
         path: "m".into(),
         prehash: [6; 32],
+        wallet_record: None,
         fault: None,
     };
     let c = pool::Consumption::new(&input, [10; 32], &r, [11; 32], 1);
@@ -159,6 +161,50 @@ fn authority_child() {
     let event = |s: &str| f.signal(&format!("{label}.{s}"));
     let report = |s: &str| fs::write(f.0.join(format!("{label}.result")), s).unwrap();
     match mode.as_str() {
+        "register" | "register-fork" => {
+            let roots = [
+                Root::load(&f.0.join("a")).unwrap(),
+                Root::load(&f.0.join("b")).unwrap(),
+            ];
+            let key = [7; 32];
+            let mut public_shares = [
+                public(&roots[0].derive(0, key).unwrap()),
+                public(&roots[1].derive(1, key).unwrap()),
+            ];
+            if mode == "register-fork" {
+                public_shares[1] = (pairkey_dkls23_research::point(&public_shares[1]).unwrap()
+                    + k256::ProjectivePoint::GENERATOR)
+                    .to_bytes()
+                    .to_vec();
+            }
+            let q = (pairkey_dkls23_research::point(&public_shares[0]).unwrap()
+                + pairkey_dkls23_research::point(&public_shares[1]).unwrap())
+            .to_bytes()
+            .to_vec();
+            let m = Manifest {
+                version: 1,
+                key_id: key,
+                identities: [
+                    roots[0].identity(0).verifying_key().to_bytes(),
+                    roots[1].identity(1).verifying_key().to_bytes(),
+                ],
+                additive_public: public_shares,
+                public_key: q.clone(),
+                chain_code: pairkey_dkls23_research::digest(
+                    b"pairkey/dkls-research/public-chain-code/v1",
+                    &(key, q),
+                ),
+            };
+            let r = WalletRecord::new(m).unwrap();
+            event("ready");
+            f.wait("go");
+            let e =
+                gate.release(|| WalletStore::new(f.0.join("wallets")).endorse(&r, &roots[0], 0));
+            match e {
+                Ok(e) => report(&serde_json::to_string(&e).unwrap()),
+                Err(_) => report("conflict"),
+            }
+        }
         "reserve" => {
             let (p, c) = synthetic_pool(&f, gate, role);
             event("ready");
@@ -380,4 +426,36 @@ fn authority_contention_times_out_without_release_and_keeps_local_gate_closed() 
     let mut replacement = f.spawn("release", "replacement", 0);
     replacement.finish();
     assert_eq!(f.read("replacement.result"), "released:1");
+}
+
+#[test]
+fn conflicting_registration_across_processes_endorses_only_one_candidate() {
+    let f = Fixture::new();
+    let mut children: Vec<_> = (0..4)
+        .map(|i| {
+            f.spawn(
+                if i % 2 == 0 {
+                    "register"
+                } else {
+                    "register-fork"
+                },
+                &format!("r{i}"),
+                0,
+            )
+        })
+        .collect();
+    for i in 0..4 {
+        f.wait(&format!("r{i}.ready"));
+    }
+    f.signal("go");
+    for c in &mut children {
+        c.finish();
+    }
+    let records: Vec<_> = (0..4).map(|i| f.read(&format!("r{i}.result"))).collect();
+    let success: Vec<_> = records
+        .iter()
+        .filter(|r| r.as_str() != "conflict")
+        .collect();
+    assert_eq!(success.len(), 2);
+    assert_eq!(success[0], success[1]);
 }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{public, Hello, Route};
+use crate::{public, reserve, Hello, Route};
 use k256::elliptic_curve::group::GroupEncoding;
 use std::{
     fs,
@@ -56,6 +56,7 @@ impl Fixture {
             attempt: fresh(),
             path: "m".into(),
             prehash: [6; 32],
+            wallet_record: None,
             fault: None,
         };
         Self {

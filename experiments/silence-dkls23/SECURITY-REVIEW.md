@@ -88,6 +88,25 @@ rollback/snapshot protection, licensing for the intended application, exact
 reconstruction demonstrates operator restart; it does not demonstrate user
 recovery. Architecture v0.4 remains the reference; none of the spikes is adopted.
 
+The deterministic contribution conversion checks reconstruction algebra. It does
+not establish the registration/proof assumptions of the native signing theorem.
+C now requires an immutable, jointly endorsed public record and checks it before
+OT consumption. Its new proof challenge binds the final record; identity
+endorsements and public prepare journals prevent normal equivocation on retries.
+This local ceremony does not prove independent roots or provide stronger extraction
+properties automatically. It has no contribution commit-before-reveal phase,
+production registration authorization, config migration or rollback protection.
+`POOLING.md` documents the ceremony and transient constructor's caller obligations.
+Review wallet key-generation replacement and
+wallet-independent preprocessing separately. Knowledge proofs do not establish
+independent root generation/KDF compliance; extraction and adaptive contribution
+selection require analysis in the selected model. No exploit is asserted here.
+
+Compromise of one root spans its contribution namespace; exposure of both unchanged
+roots at different times can recover aggregate wallet keys. Fresh OT is not share
+refresh, and root replacement generally changes public keys. Address-preserving
+recovery and proactive refresh remain separate, unimplemented designs.
+
 ## Spike C extension
 
 The RAM pool adds explicit clearing ownership for sender/receiver OT seeds and

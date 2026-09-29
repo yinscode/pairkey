@@ -53,6 +53,8 @@ pub struct Wire {
     pub gate: Option<ReleaseGate>,
     #[cfg(all(test, feature = "research-faults"))]
     pub partial_probe: Option<PartialProbe>,
+    #[cfg(all(test, feature = "research-faults"))]
+    pub process_probe: Option<crate::process_probe::Probe>,
     pub tx: mpsc::UnboundedSender<Frame>,
     pub rx: mpsc::UnboundedReceiver<Vec<u8>>,
     pub control: mpsc::UnboundedReceiver<Frame>,
@@ -86,6 +88,8 @@ impl Wire {
         failed
     }
     pub fn send(&self, frame: Frame) -> Result<()> {
+        #[cfg(all(test, feature = "research-faults"))]
+        let process_target = self.process_probe.as_ref().is_some_and(|p| p.pause(&frame));
         let is_abort = matches!((&self.abort_watch,&frame),(Some(watch),Frame::Relay(bytes)) if bytes.get(..32)==Some(watch.id.as_slice()));
         #[cfg(all(test, feature = "research-faults"))]
         let is_r4 = matches!((&self.partial_probe,&frame),(Some(probe),Frame::Relay(bytes)) if bytes.get(..32)==Some(probe.id.as_slice()));
@@ -107,9 +111,18 @@ impl Wire {
                 .store(true, Ordering::SeqCst);
             anyhow::bail!("injected abort-send failure");
         }
-        let gated = matches!(frame, Frame::Relay(_) | Frame::Setup(_) | Frame::Result(_));
+        let gated = matches!(
+            frame,
+            Frame::Relay(_)
+                | Frame::Setup(_)
+                | Frame::Result(_)
+                | Frame::WalletEndorsement(_)
+                | Frame::WalletRegistered(_)
+        );
         #[cfg(all(test, feature = "research-faults"))]
         let gated = gated && !(is_r4 && self.partial_probe.as_ref().unwrap().bypass_gate);
+        #[cfg(all(test, feature = "research-faults"))]
+        let gated = gated && !(process_target && self.process_probe.as_ref().unwrap().bypass);
         let send = || {
             self.tx
                 .send(frame)
@@ -170,6 +183,8 @@ pub fn stdio() -> (
     let writer = tokio::spawn(async move {
         let mut stdout = tokio::io::stdout();
         while let Some(frame) = outgoing.recv().await {
+            #[cfg(all(test, feature = "research-faults"))]
+            crate::process_probe::observe(&frame);
             let mut bytes = serde_json::to_vec(&frame)?;
             ensure!(bytes.len() <= MAX_FRAME, "oversized frame");
             bytes.push(b'\n');
@@ -217,6 +232,8 @@ pub fn stdio() -> (
             abort_watch: None,
             #[cfg(all(test, feature = "research-faults"))]
             partial_probe: None,
+            #[cfg(all(test, feature = "research-faults"))]
+            process_probe: None,
             tx,
             rx,
             control,
@@ -288,6 +305,10 @@ impl SetupChannel {
                 )
                 .map_err(|_| anyhow::anyhow!("setup encryption failed"))?,
         );
+        #[cfg(all(test, feature = "research-faults"))]
+        if let Some(probe) = &wire.process_probe {
+            probe.setup(label);
+        }
         wire.send(Frame::Setup(encrypted))?;
         let Frame::Setup(encrypted) = wire.receive().await? else {
             anyhow::bail!("wrong setup frame");

@@ -3,6 +3,7 @@ use crate::wire::{self, SetupChannel, Wire};
 use anyhow::{ensure, Context, Result};
 use ed25519_dalek::{Signature, VerifyingKey};
 use k256::elliptic_curve::group::GroupEncoding;
+use pairkey_dkls23_research::registration::WalletStore;
 use pairkey_dkls23_research::{fresh, reserve, Frame, Hello, Outcome, Root, Route};
 use pairkey_dkls23_research::{
     lifecycle::{pair_scope_dir, Failure, FailureKind, Phase, ReleaseGate},
@@ -246,6 +247,37 @@ impl Service {
                 elapsed_ms: 0.0,
                 compute_ms: 0.0,
             })),
+            Command::Register { record, hellos } => {
+                record.validate_hellos(&hellos)?;
+                ensure!(
+                    record.manifest.identities == self.boots.clone().map(|b| b.identity),
+                    "registration enrollment mismatch"
+                );
+                for (i, h) in hellos.iter().enumerate() {
+                    ensure!(
+                        h.ephemeral == self.boots[i].ephemeral,
+                        "registration boot mismatch"
+                    );
+                }
+                self.gate.release(|| {
+                    Ok(Frame::WalletEndorsement(
+                        WalletStore::new(self.controls.join("wallets"))
+                            .endorse(&record, &self.root, self.role)?,
+                    ))
+                })
+            }
+            Command::CommitWallet(wallet) => {
+                ensure!(
+                    wallet.record.manifest.identities == self.boots.clone().map(|b| b.identity),
+                    "registration enrollment mismatch"
+                );
+                self.gate.release(|| {
+                    Ok(Frame::WalletRegistered(
+                        WalletStore::new(self.controls.join("wallets"))
+                            .commit(&wallet, &self.root, self.role)?,
+                    ))
+                })
+            }
             Command::Setup { input, fault } => {
                 ensure!(
                     cfg!(feature = "research-faults") || fault.is_none(),
@@ -320,6 +352,15 @@ impl Service {
             "own signing DH substituted"
         );
         r.manifest.check_local(&self.root, self.role)?;
+        self.gate.release(|| {
+            ensure!(
+                r.wallet_record.is_some(),
+                "signing requires a registered wallet digest"
+            );
+            WalletStore::new(self.controls.join("wallets"))
+                .load(r.manifest.key_id)?
+                .validate_request(r, &self.root, self.role)
+        })?;
         let start = Instant::now();
         let reserved = self.pool.reserve(c)?; // ownership consumed BEFORE request validation/agreement
         if r.fault_is("disconnect") {
@@ -433,7 +474,8 @@ pub async fn run(role: u8, root_path: &Path, peer: [u8; 32]) -> Result<()> {
             let Frame::PoolCommand(command)=next else {anyhow::bail!("unexpected pooled control frame");};
             if matches!(*command,Command::Stop) {service.pool.invalidate();break;}
             let context=match &*command {
-                Command::Sign {consumption,..}=>consumption.digest(),Command::Setup {input,..}=>input.digest(),_=>[0;32],
+                Command::Sign {consumption,..}=>consumption.digest(),Command::Setup {input,..}=>input.digest(),
+                Command::Register {record,..}=>record.digest(),Command::CommitWallet(wallet)=>wallet.record.digest(),_=>[0;32],
             };
             // Test-only shorter deadline for explicit timeout fixtures.
             let fault_timeout=match &*command {
@@ -450,7 +492,7 @@ pub async fn run(role: u8, root_path: &Path, peer: [u8; 32]) -> Result<()> {
                 Ok(frame)=>wire.send(frame)?,
                 Err(error)=>{
                     service.pool.invalidate();
-                    let failure=error.downcast_ref::<Failure>().cloned().unwrap_or_else(||Failure::burn(Phase::Control,FailureKind::Local,format!("{error:#}")));
+                    let failure=error.downcast_ref::<Failure>().cloned().unwrap_or_else(||Failure::burn(Phase::Control,FailureKind::Local,format!("{error:#}"))).registration_perspective(service.own.identity);
                     wire.send(Frame::Failure(gate.apply(failure,context)))?;
                     break; // Any ambiguity destroys this generation and all unused entries.
                 }

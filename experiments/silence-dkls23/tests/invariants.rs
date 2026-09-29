@@ -65,6 +65,7 @@ impl Fixture {
             attempt: fresh(),
             path: "m".into(),
             prehash: [6; 32],
+            wallet_record: None,
             fault: None,
         }
     }

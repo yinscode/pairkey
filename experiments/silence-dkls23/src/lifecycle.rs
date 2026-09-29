@@ -55,6 +55,15 @@ impl std::fmt::Display for Failure {
 }
 impl std::error::Error for Failure {}
 impl Failure {
+    /// Registration validation can identify either endorser. A violation signed
+    /// by this worker's own identity is local compromise/failure, not peer blame.
+    pub fn registration_perspective(mut self, own: [u8; 32]) -> Self {
+        if self.phase == Phase::Admission && self.peer == Some(own) {
+            self.peer = None;
+            self.action = Action::FreezeConfiguration;
+        }
+        self
+    }
     pub fn burn(phase: Phase, kind: FailureKind, detail: impl Into<String>) -> Self {
         Self {
             phase,

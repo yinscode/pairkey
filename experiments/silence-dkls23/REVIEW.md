@@ -4,14 +4,109 @@ Keep DKLS23 experimental. A/B remain baselines; Spike C now uses a small RAM
 preprocessing pool in long-lived local workers. Production dependencies and
 architecture v0.4 are unchanged. The custom composition has not been adopted.
 
-## Local cross-process authority follow-up
+## Astra review of 0336e52 and assurance follow-up
+
+Astra reports independently reproducing 43 distinct tests, 58 signatures and 34
+refusal scenarios, plus Clippy in both configurations, with no new bypass,
+duplicate consumption or regression demonstrated. Within cooperating processes
+sharing an honest local filesystem, Astra recommends closing incident-check/queue-
+handoff atomicity, both-role fencing, single-winner reservation, original-error
+preservation and truthful persistence reporting. This review predates the newer
+registration implementation; it does not approve that ceremony or composition.
+
+The follow-up adds actual-native process tests: two separate workers generate
+real EndemicOT setup material and run combined DKLS23 signing. A third process
+publishes an incident only after both targets are paused before handoff. Setup
+base-OT message 1, native R4 and verified final results each have protected,
+positive and deliberate-bypass controls (nine schedules). An independent consumer
+observes the actual transport queue; no oracle relies on cancellation or the
+producer's error. These are Direct-route native executions using the common Wire
+gate, not overlapping C pool/signing multiplexing. Already released R4 material
+may permit signature assembly even when a later final-result frame is fenced.
+
+Two process tests additionally cover twelve reservation transitions with both
+injected I/O errors and SIGKILL (24 schedules). The competing process has already
+loaded the same synthetic RAM entry. Before marker creation, the failed actor
+releases no package and the competitor may become the single owner; after creation,
+0-byte, 16-byte and complete tombstones all deny further ownership. Retries remain
+retired. Sync failures are modeled at explicit checkpoints; these tests do not
+simulate storage hardware or prove power-loss durability.
+
+Native process probes and bypass controls compile only into the test binary with
+`research-faults`. Reservation checkpoint callbacks are crate-private; production
+research callers use no-op callbacks. Public metadata/control frames deliberately
+bypass the gate: Hello/boot, readiness, status, failure and closure notifications.
+Setup/native/result handoffs are gated; the newer registration also gates wallet
+endorsements/commit ACKs. Avoid the broader phrase "each output".
+
+Current validation: 56 runtime tests with `research-faults`, 51 without,
+57 distinct runtime tests plus two compile-fail tests (59 total). Clippy in both
+modes, release build, formatting, 59 demo signatures and 39 refusals pass.
+Evidence is recorded in `results-assurance.json`. The registration and
+older benchmark artifacts retain their own source inventories and revisions.
+Cryptographic/upstream review, independent review of new registration, real TEE
+provisioning/entropy, cross-host authority, hostile rollback/snapshots, recovery
+and licensing remain open.
+
+## Immutable public registration implemented
+
+Spike C replaces wallet key generation with deterministic root contributions and
+the fixed algebraic conversion `s_A=a/2`, `s_B=-b`, so `2s_A-s_B=a+b`. Ordinary
+DKG generally occurs at wallet creation, not per signature. Supplying fresh,
+single-use OT/PPRF preprocessing is a separate choice and proof obligation.
+Functional compatibility does not establish malicious security of either choice.
+
+C now requires a canonical, jointly endorsed `WalletRecord` before signing.
+Each worker binds its possession proof and identity endorsement to the complete
+record, durably saves its own prepare journal before releasing that endorsement,
+and commits only after verifying both endorsements and its own journal. The driver
+requires both commit acknowledgments and caches registration. Signing loads and
+verifies the immutable record and requires exact digest/manifest equality before
+consuming OT material. The recorded namespace preserves the existing key-ID KDF
+and addresses; approved build configuration and all share/derivation versions
+are fixed. Config migration and controller authorization remain unimplemented.
+
+Ten registration unit tests plus a real-process competing-candidate regression
+cover field/digest binding, valid and invalid proofs, idempotency, conflicting
+endorsements, signing substitutions, prepared-only state, partial files, injected
+write/sync errors and public storage parsing. The worker suite adds five refusal
+scenarios for unregistered wallets, missing/wrong digests, chain-code substitution
+and partial records. These refuse before OT consumption; a partial record remains
+blocked for the same wallet across replacement. A successful restart reuses the
+identical record/endorsements and public key while producing a fresh signature.
+
+Validation: 51 runtime tests with `research-faults`, 49 without, plus two shared
+compile-fail tests; 54 distinct tests total. The pooled demo passes 18 baseline
+signatures, one registered-wallet restart signature and 23 refusal scenarios.
+A/B retain 40 baseline signatures and 16 refusals. See `results-registration.json`
+for current source-bound evidence; earlier artifacts retain their recorded revisions.
+
+Authenticated invalid registration proofs retain typed incident attribution.
+Invalid signatures and mismatched contexts refuse without accusing a signer;
+a proof signed by the local identity freezes configuration without peer blame.
+
+Before production adoption, select the applicable signing theorem and review
+contribution proof context/extraction, adaptive contribution selection, independent
+root provisioning, deterministic multi-wallet derivation, the constructor's
+caller obligations and wallet-independent preprocessing composition. A commitment
+phase or stronger proofs are unresolved design questions, not established exploits.
+Upstream audit coverage must not be assumed to cover this constructor/ceremony.
+
+Root compromise spans that signer's wallet namespace; sequential exposure of both
+unchanged roots can expose aggregate wallet keys. OT freshness does not establish
+proactive refresh. Root replacement generally changes addresses; preserving them
+during recovery/refresh remains a separate design task. Native signing/OT arithmetic,
+parameters, patches and resolved dependency versions remain unchanged. Pooled
+control/signing messages changed; both workers must use the same new wrapper.
+
+## Local cross-process authority at 0336e52
 
 The pool/benchmark implementation is frozen at `4d2e21c` for review. The follow-up
 adds a local Unix advisory lock held across scope marker checks, reservations,
 native queue handoffs and incident publication. A marker for either role stops
 both roles. The public direct `incident()` path uses the same lock. Separate
 ledger locks serialize retirement writes through sync; lock files remain stable.
-Idle workers poll for remote cancellation; each output independently locks/checks.
+Idle workers poll for remote cancellation; each setup/native/result handoff independently locks/checks.
 
 Seven real-process regressions cover duplicate synthetic RAM entries (one winner),
 publication versus an in-progress queue handoff, both-role refusal and scope
@@ -21,7 +116,7 @@ actual synthetic queue with positive and deliberate-bypass controls. This is an
 authority fixture, not a complete native signing across-process race test. Existing
 actual-native R4 queue controls are rerun unchanged.
 
-Current validation: 40 runtime tests with `research-faults`, 38 without, plus the
+Validation at `0336e52`: 40 runtime tests with `research-faults`, 38 without, plus the
 same two compile-fail tests. The union is 41 runtime tests plus two compile-fail
 tests (43 distinct). The ignored child helper is explicitly executed by the seven
 parent tests, not counted as an additional test. Evidence is `results-authority.json`.
@@ -190,7 +285,7 @@ bypass observes two late handoffs and demonstrates the oracle catches the old
 false pass. It is a
 local synchronization test, not a cryptographic proof or network snapshot test.
 
-Across processes, each handoff checks its scoped filesystem marker, but marker
+Across processes, each setup/native/result handoff checks its scoped filesystem marker, but marker
 checking and output handoff are not atomic with remote publication. Cross-process
 and cross-replica authority, hostile-host rollback and snapshot protection remain
 production blockers. That revision had no long-lived worker/pool; Spike C adds them only as a research harness.

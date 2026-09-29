@@ -1,6 +1,10 @@
 mod measure;
+#[cfg(all(test, feature = "research-faults"))]
+mod native_process_tests;
 mod pool_driver;
 mod pool_worker;
+#[cfg(all(test, feature = "research-faults"))]
+mod process_probe;
 mod wire;
 mod worker;
 
@@ -235,6 +239,7 @@ async fn attempt_inner(
         attempt: fresh(),
         path: path.into(),
         prehash: Sha256::digest(b"PairKey root-only DKLS23 research exact message").into(),
+        wallet_record: None,
         fault: options.fault.clone(),
     };
     let mut byte_counts = [0usize; 2];

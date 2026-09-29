@@ -2,6 +2,9 @@
 mod authority;
 pub mod lifecycle;
 pub mod pool;
+pub mod registration;
+#[cfg(test)]
+mod reservation_tests;
 use anyhow::{bail, ensure, Context, Result};
 use ed25519_dalek::{Signature as IdentitySignature, Signer, SigningKey, VerifyingKey};
 use hkdf::Hkdf;
@@ -247,6 +250,8 @@ pub struct Request {
     pub path: String,
     pub prehash: [u8; 32],
     pub fault: Option<String>,
+    #[serde(default)]
+    pub wallet_record: Option<[u8; 32]>,
 }
 impl Request {
     pub fn fault_is(&self, name: &str) -> bool {
@@ -264,6 +269,7 @@ impl Request {
                 self.attempt,
                 &self.path,
                 self.prehash,
+                self.wallet_record,
             ),
         )
     }
@@ -321,24 +327,59 @@ pub enum Frame {
     PoolHello(pool::Boot),
     PoolCommand(Box<pool::Command>),
     PoolStatus(pool::Status),
+    WalletEndorsement(registration::Endorsement),
+    WalletRegistered([u8; 32]),
 }
 
 /// Public experiment ledger: create-new + fsync makes reservations irreversible
 /// across these process restarts. This is NOT a hostile-host durable authority.
 pub fn reserve(dir: &Path, role: u8, entry: [u8; 32], context: [u8; 32]) -> Result<()> {
+    reserve_checkpoint(dir, role, entry, context, |_| Ok(()))
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ReserveStep {
+    BeforeRemove,
+    Removed,
+    BeforeCreate,
+    Created,
+    PartiallyWritten,
+    Written,
+    BeforeFileSync,
+    FileSynced,
+    BeforeDirectorySync,
+    DirectorySynced,
+    BeforeProvenance,
+    Validated,
+}
+pub(crate) fn reserve_checkpoint(
+    dir: &Path,
+    role: u8,
+    entry: [u8; 32],
+    context: [u8; 32],
+    mut checkpoint: impl FnMut(ReserveStep) -> Result<()>,
+) -> Result<()> {
     ensure!(role < 2, "invalid reservation role");
     let _lock = authority::AuthorityLock::acquire(dir)?;
     fs::create_dir_all(dir)?;
     let name = entry.iter().map(|b| format!("{b:02x}")).collect::<String>();
     let path = dir.join(format!("{role}-{name}.retired"));
+    checkpoint(ReserveStep::BeforeCreate)?;
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(&path)
         .context("entry already reserved or ledger unavailable")?;
-    file.write_all(&context)?;
+    checkpoint(ReserveStep::Created)?;
+    file.write_all(&context[..16])?;
+    checkpoint(ReserveStep::PartiallyWritten)?;
+    file.write_all(&context[16..])?;
+    checkpoint(ReserveStep::Written)?;
+    checkpoint(ReserveStep::BeforeFileSync)?;
     file.sync_all()?;
+    checkpoint(ReserveStep::FileSynced)?;
+    checkpoint(ReserveStep::BeforeDirectorySync)?;
     fs::File::open(dir)?.sync_all()?;
+    checkpoint(ReserveStep::DirectorySynced)?;
     Ok(())
 }
 pub fn incident(dir: &Path, role: u8, context: [u8; 32]) -> Result<()> {
