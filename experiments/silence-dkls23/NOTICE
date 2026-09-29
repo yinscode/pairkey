@@ -20,6 +20,8 @@ involvement by Silence Laboratories:
   weighted aggregate checks. This does not validate the interactive ceremony.
 - Corrects duplicate party-ID validation to compare package IDs rather than
   complete (participant index, package ID) tuples.
+- Preserves migration protocol errors when best-effort abort delivery fails;
+  the research relay reports the transport failure separately.
 
 - Adds an explicit research feature and a migration PPRF-proof corruption fixture
   gated behind it; disabled in default builds.

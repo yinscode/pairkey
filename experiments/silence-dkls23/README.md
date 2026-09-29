@@ -75,7 +75,7 @@ coin exchange supplies the zero-share seed. Two native EndemicOT exchanges, one
 in each direction, plus native PPRF expansion create matching SenderOTSeed and
 ReceiverOTSeed material. The package is built in RAM, full `sign::run` generates
 the signature, and application-owned secrets are dropped. Native signing math
-is unchanged. The known duplicate-party-ID comparison is corrected separately. A third, feature-gated native fixture corrupts a migration PPRF proof before encryption; native arithmetic remains unchanged.
+is unchanged. The known duplicate-party-ID comparison is corrected separately. A feature-gated native fixture corrupts a migration PPRF proof before encryption; native arithmetic remains unchanged.
 
 This baseline generates OT setup synchronously for every attempt. It does not
 implement a wallet-independent background pool. The extra coin exchange,
@@ -101,8 +101,9 @@ record. The record never returns to availability. Cancellation, failure and
 restart leave it retired. Fresh retries use new IDs, setup and signing randomness.
 No reusable presignature API is exposed.
 
-Failures now carry structured phase, kind, authenticated peer attribution, incident
-action and persistence outcome. Direct setup parsing after successful AEAD,
+Failures carry structured phase, kind, authenticated peer attribution, incident
+action, publication-attempt/persistence outcome, and a separate abort-send-failure
+flag. Migration preserves the original violation even when its abort send fails. Direct setup parsing after successful AEAD,
 commit/reveal violations and native migration/signing violations use the same
 policy. Unattributed aggregate/local errors freeze configuration. See the
 failure-policy table in `REVIEW.md`.
@@ -113,7 +114,9 @@ serializes native Sink output handoff (including R4 partials) with publication,
 not just final result delivery. Publication stops the local gate before fsync
 and wakes active native signing futures. The same-process regression pauses two
 actual signings immediately before R4, publishes an incident, then verifies
-both affected attempts fail. Unused future ownership is denied by the same gate.
+no affected R4 reaches the actual transport queue after cutoff. A positive control
+observes both ordinary R4 handoffs; a deliberate test-only gate bypass observes
+both late handoffs, even when cancellation returns an error. Unused future ownership is denied by the same gate.
 
 The cutoff is transport-queue handoff under the shared gate's lock. Material
 queued before publication is already considered released and may arrive later;
@@ -130,6 +133,12 @@ ordering and gives both streams a bounded two-second drain grace before killing
 workers. A drain timeout explicitly reports unknown missing diagnostics and
 persistence; it is not evidence of a protocol violation. Host crashes can still
 prevent detection from reaching durable authority.
+
+Incident publication is applied once per failure; the outer handler only reports
+that result. An existing marker is checked for a complete 32-byte record and
+re-synced with its parent directory. An empty/partial marker keeps the gate closed
+but never counts as confirmed persistence. A new explicit publication can confirm
+a complete earlier record only after actually repeating the durability operations.
 
 The filesystem ledger assumes an honest authority and does not resist rollback.
 Tombstones remain burned after cancellation, errors and replacement; an explicit
@@ -163,7 +172,8 @@ See `results.json` for the current run, `results-baseline.json` for original mea
 ## Open gates
 
 Passing signatures establishes functional compatibility, not malicious security.
-Exact OT/VOLE parameter mapping to ePrint 2026/976 remains unresolved. The pinned
+The locked Silence OT/VOLE parameters stay unchanged. Upstream resolution of the
+2026/976 analysis and coverage of the custom composition remain open. The pinned
 candidate and dependencies are not certified by the historical audit. The
 constructor, registration, zero-sharing exchange, single-use setup composition,
 failure taxonomy and retry rules require independent review.

@@ -43,6 +43,10 @@ pub struct Failure {
     pub action: Action,
     pub detail: String,
     pub incident_persisted: bool,
+    #[serde(default)]
+    pub incident_attempted: bool,
+    #[serde(default)]
+    pub abort_send_failed: bool,
 }
 impl std::fmt::Display for Failure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -59,6 +63,8 @@ impl Failure {
             action: Action::Burn,
             detail: detail.into(),
             incident_persisted: false,
+            incident_attempted: false,
+            abort_send_failed: false,
         }
     }
     pub fn violation(phase: Phase, peer: [u8; 32], detail: impl Into<String>) -> Self {
@@ -69,6 +75,8 @@ impl Failure {
             action: Action::QuarantinePeer,
             detail: detail.into(),
             incident_persisted: false,
+            incident_attempted: false,
+            abort_send_failed: false,
         }
     }
     pub fn native_sign(error: &SignError, peer: [u8; 32]) -> Self {
@@ -191,10 +199,7 @@ impl ReleaseGate {
             state.stopped = true;
             self.0.changed.send_replace(true);
         }
-        ensure!(
-            !state.stopped,
-            "durable research quarantine; release fenced"
-        );
+        ensure!(!state.stopped, "research quarantine; release fenced");
         send()
     }
     pub fn publish(&self, context: [u8; 32]) -> Result<()> {
@@ -211,9 +216,31 @@ impl ReleaseGate {
         let mut receiver = self.0.changed.subscribe();
         let _ = receiver.wait_for(|stopped| *stopped).await;
     }
-    pub fn apply(&self, mut failure: Failure, context: [u8; 32]) -> Failure {
-        if failure.action != Action::Burn {
-            match self.publish(context) {
+    pub fn apply(&self, failure: Failure, context: [u8; 32]) -> Failure {
+        self.apply_using(failure, context, |dir, role, context| {
+            incident(dir, role, context)
+        })
+    }
+    fn apply_using(
+        &self,
+        mut failure: Failure,
+        context: [u8; 32],
+        publish: impl FnOnce(&Path, u8, [u8; 32]) -> Result<()>,
+    ) -> Failure {
+        if failure.action != Action::Burn && !failure.incident_attempted {
+            failure.incident_attempted = true;
+            failure.incident_persisted = false;
+            let result = (|| {
+                let mut state = self
+                    .0
+                    .state
+                    .lock()
+                    .map_err(|_| anyhow::anyhow!("release gate poisoned"))?;
+                state.stopped = true;
+                self.0.changed.send_replace(true);
+                publish(&state.dir, state.role, context)
+            })();
+            match result {
                 Ok(()) => failure.incident_persisted = true,
                 Err(e) => failure
                     .detail
@@ -315,5 +342,50 @@ impl ReservedEntry {
             "pool specification binding mismatch"
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod publication_tests {
+    use super::*;
+    use crate::{fresh, incident_with_checkpoint, IncidentStep};
+    #[test]
+    fn a_failure_is_published_once_and_retains_unconfirmed_status() {
+        let dir = std::env::temp_dir().join(format!("dkls-apply-{:?}", fresh()));
+        let gate = ReleaseGate::new(dir.clone(), 0);
+        let failure = Failure::violation(Phase::Migration, [8; 32], "PPRF error");
+        let failure = gate.apply_using(failure, [3; 32], |dir, role, context| {
+            incident_with_checkpoint(dir, role, context, |step| {
+                if step == IncidentStep::Created {
+                    anyhow::bail!("injected write failure after creation");
+                }
+                Ok(())
+            })
+        });
+        assert!(failure.incident_attempted);
+        assert!(!failure.incident_persisted);
+        assert!(std::fs::read(dir.join("0.quarantined")).unwrap().is_empty());
+        let failure = gate.apply_using(failure, [3; 32], |_, _, _| {
+            panic!("same failure published twice")
+        });
+        assert!(!failure.incident_persisted);
+        assert!(gate.release(|| Ok(())).is_err());
+        assert!(ReleaseGate::new(dir.clone(), 0).release(|| Ok(())).is_err());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn successful_publication_is_also_applied_only_once() {
+        let dir = std::env::temp_dir().join(format!("dkls-apply-{:?}", fresh()));
+        let gate = ReleaseGate::new(dir.clone(), 0);
+        let failure = gate.apply(
+            Failure::violation(Phase::Signing, [8; 32], "proof failure"),
+            [3; 32],
+        );
+        assert!(failure.incident_attempted && failure.incident_persisted);
+        let failure = gate.apply_using(failure, [3; 32], |_, _, _| {
+            panic!("already confirmed failure republished")
+        });
+        assert!(failure.incident_persisted);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

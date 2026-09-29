@@ -1,4 +1,4 @@
-"""Apply the documented constructor, participant-ID fix and gated fault fixture."""
+"""Apply the documented constructor, ID fix, abort preservation and gated fixture."""
 from pathlib import Path
 import sys
 import tarfile
@@ -30,6 +30,14 @@ with tarfile.open(source.parent / "dkls23.tar.gz") as archive:
             if old.encode() not in original:
                 raise SystemExit("Unexpected pinned participant-ID validation")
             expected = original.replace(old.encode(), new.encode(), 1)
+        elif relative == "src/keygen/migration.rs":
+            abort_send = b"            relay.send(abort_msg).await?;"
+            if original.count(abort_send) != 1:
+                raise SystemExit("Unexpected migration abort path")
+            expected = original.replace(abort_send, b"""            // Abort delivery is best effort. Preserve the authenticated
+            // protocol violation even when the transport also fails.
+            // The research relay records abort-send failure separately.
+            let _ = relay.send(abort_msg).await;""", 1)
         elif relative == "src/keygen/dkg.rs":
             if fault_old not in original: raise SystemExit("Unexpected migration fault location")
             expected = original.replace(fault_old, fault_new, 1)

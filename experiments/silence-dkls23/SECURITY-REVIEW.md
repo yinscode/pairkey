@@ -21,14 +21,23 @@ Both routes feed this same implementation into native signing; migration builds
 seeds through native DKG, while direct setup uses the exported base-OT/PPRF API.
 Fresh seed generation does not repair insufficient VOLE parameters.
 
-**2026 mapping remains unresolved.** The [2026/976 abstract](https://eprint.iacr.org/2026/976)
-reports required adjustments to original VOLE parameters and three analyzed
-variants. The full PDF returned HTTP 403 during this revision. No revised
-variant/theorem, attack probability bound, gadget requirement or concrete security
-level is inferred from parameter names. Closing the gate requires the full
-analysis and an equation-by-equation mapping of the actual gadget distribution,
-field, extension/check dimensions and number of invocations, plus independent
-cryptographic review. No parameters were changed speculatively.
+**Locked parameters stay unchanged, per the project decision.** We follow the
+existing Silence parameter set rather than inventing a patch from the newer
+paper. This choice is distinct from establishing historical audit coverage for
+this exact revision, dependencies, migration API and custom direct setup.
+
+The full [2026/976 paper](https://eprint.iacr.org/2026/976) is now available locally
+at `/Users/user/Downloads/2026-976.pdf` (55 PDF pages, SHA-256
+`48922c9af9dc759716207d01492967d3b826f6c52f7913839ad3b07a0e11b784`).
+Sections 2.2–2.3 and 4.2–4.6 discuss VOLE variants, concrete OT counts and
+challenge/transcript assumptions. These theoretical results do not by themselves
+establish a concrete attack against this locked Silence implementation or
+certify its security. Translating its exact extension, gadget distribution,
+field/check dimensions and transcript construction into the paper's assumptions
+requires qualified implementation analysis and upstream resolution. Parameter
+names alone do not establish a concrete security level. Keep vendor/auditor
+confirmation and independent review open; no OT/VOLE code or constants changed.
+The earlier HTTP-403 explanation is retired.
 
 ## Zeroization inventory
 

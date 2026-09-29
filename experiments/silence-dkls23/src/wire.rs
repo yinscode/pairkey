@@ -15,6 +15,10 @@ use sha2::Sha256;
 use sl_mpc_mate::coord::{MessageSendError, Relay};
 use std::{
     pin::Pin,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     task::{Context as TaskContext, Poll},
 };
 use tokio::{
@@ -24,10 +28,31 @@ use tokio::{
 use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroizing;
 
+pub struct AbortWatch {
+    id: [u8; 32],
+    failed: Arc<AtomicBool>,
+    inject: bool,
+}
+#[cfg(all(test, feature = "research-faults"))]
+#[derive(Default)]
+pub struct QueueTrace {
+    pub reached: std::sync::atomic::AtomicUsize,
+    pub cutoff: AtomicBool,
+    pub r4_handoffs: std::sync::Mutex<Vec<bool>>,
+    pub r4_ids: std::sync::Mutex<std::collections::BTreeSet<[u8; 32]>>,
+}
+#[cfg(all(test, feature = "research-faults"))]
+pub struct PartialProbe {
+    pub id: [u8; 32],
+    pub barrier: Arc<std::sync::Barrier>,
+    pub trace: Arc<QueueTrace>,
+    pub bypass_gate: bool,
+}
 pub struct Wire {
+    pub abort_watch: Option<AbortWatch>,
     pub gate: Option<ReleaseGate>,
     #[cfg(all(test, feature = "research-faults"))]
-    pub partial_barrier: Option<([u8; 32], std::sync::Arc<std::sync::Barrier>)>,
+    pub partial_probe: Option<PartialProbe>,
     pub tx: mpsc::UnboundedSender<Frame>,
     pub rx: mpsc::UnboundedReceiver<Vec<u8>>,
     pub control: mpsc::UnboundedReceiver<Frame>,
@@ -36,27 +61,71 @@ impl Wire {
     pub async fn receive(&mut self) -> Result<Frame> {
         self.control.recv().await.context("peer disconnected")
     }
+    pub fn watch_abort(
+        &mut self,
+        setup: &impl sl_dkls23::setup::ProtocolParticipant,
+        inject: bool,
+    ) -> Arc<AtomicBool> {
+        let failed = Arc::new(AtomicBool::new(false));
+        self.abort_watch = Some(AbortWatch {
+            id: setup
+                .msg_id(None, sl_dkls23::setup::ABORT_MESSAGE_TAG)
+                .as_ref()
+                .try_into()
+                .unwrap(),
+            failed: failed.clone(),
+            inject,
+        });
+        failed
+    }
     pub fn send(&self, frame: Frame) -> Result<()> {
+        let is_abort = matches!((&self.abort_watch,&frame),(Some(watch),Frame::Relay(bytes)) if bytes.get(..32)==Some(watch.id.as_slice()));
         #[cfg(all(test, feature = "research-faults"))]
-        if let (Some((id, barrier)), Frame::Relay(bytes)) = (&self.partial_barrier, &frame) {
-            if bytes.get(..32) == Some(id.as_slice()) {
-                barrier.wait();
-                barrier.wait();
-            }
+        let is_r4 = matches!((&self.partial_probe,&frame),(Some(probe),Frame::Relay(bytes)) if bytes.get(..32)==Some(probe.id.as_slice()));
+        #[cfg(all(test, feature = "research-faults"))]
+        if is_r4 {
+            let probe = self.partial_probe.as_ref().unwrap();
+            probe.trace.reached.fetch_add(1, Ordering::SeqCst);
+            probe.barrier.wait();
+            probe.barrier.wait();
+        }
+        if cfg!(feature = "research-faults")
+            && is_abort
+            && self.abort_watch.as_ref().unwrap().inject
+        {
+            self.abort_watch
+                .as_ref()
+                .unwrap()
+                .failed
+                .store(true, Ordering::SeqCst);
+            anyhow::bail!("injected abort-send failure");
         }
         let gated = matches!(frame, Frame::Relay(_) | Frame::Setup(_) | Frame::Result(_));
+        #[cfg(all(test, feature = "research-faults"))]
+        let gated = gated && !(is_r4 && self.partial_probe.as_ref().unwrap().bypass_gate);
         let send = || {
             self.tx
                 .send(frame)
-                .map_err(|_| anyhow::anyhow!("writer disconnected"))
+                .map_err(|_| anyhow::anyhow!("writer disconnected"))?;
+            Ok(())
         };
-        if let Some(gate) = &self.gate {
-            // All protocol output, including native R4 partials, is fenced.
-            if gated {
-                return gate.release(send);
+        let result = if gated {
+            if let Some(gate) = &self.gate {
+                gate.release(send)
+            } else {
+                send()
             }
+        } else {
+            send()
+        };
+        if is_abort && result.is_err() {
+            self.abort_watch
+                .as_ref()
+                .unwrap()
+                .failed
+                .store(true, Ordering::SeqCst);
         }
-        send()
+        result
     }
 }
 impl Stream for Wire {
@@ -138,8 +207,9 @@ pub fn stdio() -> (
     (
         Wire {
             gate: None,
+            abort_watch: None,
             #[cfg(all(test, feature = "research-faults"))]
-            partial_barrier: None,
+            partial_probe: None,
             tx,
             rx,
             control,

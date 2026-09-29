@@ -266,6 +266,7 @@ async fn execute_inner(
             )
             .with_key_id(Some(request.manifest.key_id))
             .with_ttl(Duration::from_secs(30));
+            let abort = wire.watch_abort(&setup, request.fault_is("migration-pprf-abort-send"));
             let seed = Zeroizing::new(fresh());
             migration::run(
                 setup,
@@ -277,7 +278,17 @@ async fn execute_inner(
             )
             .await
             .map_err(|error| {
-                Failure::native_migration(&error, request.manifest.identities[(1 - role) as usize])
+                let mut failure = Failure::native_migration(
+                    &error,
+                    request.manifest.identities[(1 - role) as usize],
+                );
+                failure.abort_send_failed = abort.load(std::sync::atomic::Ordering::SeqCst);
+                if failure.abort_send_failed {
+                    failure
+                        .detail
+                        .push_str("; abort send failed (original violation preserved)");
+                }
+                failure
             })?
         }
         Route::Direct => direct(root, role, request, &channel, wire).await?,
@@ -322,13 +333,14 @@ async fn execute_inner(
     .with_hash(request.prehash)
     .with_ttl(Duration::from_secs(30));
     #[cfg(all(test, feature = "research-faults"))]
-    if let Some((id, _)) = &mut wire.partial_barrier {
+    if let Some(probe) = &mut wire.partial_probe {
         use sl_dkls23::setup::ProtocolParticipant;
-        *id = setup
+        probe.id = setup
             .msg_id(None, sl_mpc_mate::message::MessageTag::tag(4))
             .as_ref()
             .try_into()
             .unwrap();
+        probe.trace.r4_ids.lock().unwrap().insert(probe.id);
     }
     let seed = Zeroizing::new(fresh());
     let started = Instant::now();
@@ -372,8 +384,7 @@ pub async fn run(role: u8, root_path: &Path, key_id: [u8; 32]) -> Result<()> {
     let hello = Hello::new(&root, role, key_id, PublicKey::from(&dh).to_bytes())?;
     let (mut wire, writer, reader) = wire::stdio();
     wire.send(Frame::Hello(hello.clone()))?;
-    let mut failure_gate = None;
-    let mut failure_context = [0; 32];
+
     let result = async {
         let Frame::Start(request) = wire.receive().await? else {
             anyhow::bail!("expected start");
@@ -388,8 +399,7 @@ pub async fn run(role: u8, root_path: &Path, key_id: [u8; 32]) -> Result<()> {
             .join("controls");
         request.validate()?;
         let gate = ReleaseGate::new(scope_dir(&controls, &request.manifest), role);
-        failure_gate = Some(gate.clone());
-        failure_context = request.context();
+
         tokio::time::timeout(
             Duration::from_secs(30),
             execute(&root, role, &request, &dh, &mut wire, &controls, &gate),
@@ -404,11 +414,6 @@ pub async fn run(role: u8, root_path: &Path, key_id: [u8; 32]) -> Result<()> {
             let failure = error.downcast_ref::<Failure>().cloned().unwrap_or_else(|| {
                 Failure::burn(Phase::Admission, FailureKind::Local, format!("{error:#}"))
             });
-            let failure = if let Some(gate) = &failure_gate {
-                gate.apply(failure, failure_context)
-            } else {
-                failure
-            };
             wire.send(Frame::Failure(failure))?;
         }
     }
@@ -427,8 +432,7 @@ mod tests {
     use std::sync::Barrier;
     use tokio::sync::mpsc;
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    async fn two_native_attempts_in_one_process_are_fenced_before_r4() {
+    async fn r4_case(publish_incident: bool, bypass_gate: bool) -> Arc<wire::QueueTrace> {
         let dir = std::env::temp_dir().join(format!("dkls-multi-{:?}", fresh()));
         std::fs::create_dir(&dir).unwrap();
         for role in 0..2 {
@@ -456,12 +460,24 @@ mod tests {
         };
         let gate = ReleaseGate::new(scope_dir(&dir.join("controls"), &manifest), 0);
         let barrier = Arc::new(Barrier::new(3));
+        let trace = Arc::new(wire::QueueTrace::default());
         let publisher = {
             let barrier = barrier.clone();
             let gate = gate.clone();
+            let trace = trace.clone();
             std::thread::spawn(move || {
                 barrier.wait();
-                gate.publish([9; 32]).unwrap();
+                assert_eq!(
+                    trace.reached.load(std::sync::atomic::Ordering::SeqCst),
+                    2,
+                    "both executions must reach native R4 before publication"
+                );
+                if publish_incident {
+                    gate.publish([9; 32]).unwrap();
+                    trace
+                        .cutoff
+                        .store(true, std::sync::atomic::Ordering::SeqCst);
+                }
                 barrier.wait();
             })
         };
@@ -499,8 +515,14 @@ mod tests {
                     rx,
                     control,
                     gate: None,
-                    partial_barrier: if role == 0 {
-                        Some(([0; 32], barrier.clone()))
+                    abort_watch: None,
+                    partial_probe: if role == 0 {
+                        Some(wire::PartialProbe {
+                            id: [0; 32],
+                            barrier: barrier.clone(),
+                            trace: trace.clone(),
+                            bypass_gate,
+                        })
                     } else {
                         None
                     },
@@ -511,10 +533,30 @@ mod tests {
                 let mut out = outputs.remove(0);
                 let peer = control_inputs[1 - role].clone();
                 let native = native_inputs[role].clone();
-                pumps.push(tokio::spawn(async move {loop {tokio::select! {
-                    frame=out.recv()=>match frame {Some(Frame::Setup(bytes))=>{let _=peer.send(Frame::Setup(bytes));},Some(Frame::Relay(bytes))=>{if relay.send(bytes).await.is_err(){break;}},Some(_)=>{},None=>break},
-                    bytes=relay.next()=>{if let Some(bytes)=bytes {if native.send(bytes).is_err(){break;}}else{break;}}
-                }}}));
+                let observed = trace.clone();
+                pumps.push(tokio::spawn(async move {
+                    let mut native_open=true;
+                    loop {tokio::select! {
+                        frame=out.recv()=>match frame {
+                            Some(Frame::Setup(bytes))=>{let _=peer.send(Frame::Setup(bytes));},
+                            Some(Frame::Relay(bytes))=>{
+                                // Observe the actual outgoing queue independently
+                                // of Wire::send, its gate and returned cancellation.
+                                if role==0 && bytes.get(..32).is_some_and(|id|observed.r4_ids.lock().unwrap().iter().any(|expected|expected.as_slice()==id)) {
+                                    observed.r4_handoffs.lock().unwrap().push(observed.cutoff.load(std::sync::atomic::Ordering::SeqCst));
+                                }
+                                let _=relay.send(bytes).await;
+                            },
+                            Some(_)=>{},None=>break
+                        },
+                        bytes=relay.next(),if native_open=>{
+                            match bytes {
+                                Some(bytes)=>if native.send(bytes).is_err(){native_open=false;},
+                                None=>native_open=false,
+                            }
+                        }
+                    }}
+                }));
             }
             for (role, (mut wire, dh)) in wires.into_iter().zip(dhs).enumerate() {
                 let root = roots[role].clone();
@@ -537,21 +579,52 @@ mod tests {
             }
         }
         for (role, task) in tasks {
-            if role == 0 {
+            if role == 0 || !publish_incident {
                 let result = tokio::time::timeout(Duration::from_secs(10), task)
                     .await
                     .unwrap()
                     .unwrap();
-                assert!(result.is_err(), "affected attempt released an R4/result");
+                if !publish_incident {
+                    assert!(result.is_ok(), "positive control did not sign");
+                }
             } else {
                 task.abort();
             }
         }
         publisher.join().unwrap();
-        assert!(gate.release(|| Ok(())).is_err());
+        assert_eq!(trace.reached.load(std::sync::atomic::Ordering::SeqCst), 2);
+        if publish_incident {
+            assert!(gate.release(|| Ok(())).is_err());
+        }
+        // Drain the real output queues through EOF before evaluating the
+        // handoff evidence; cancellation must not discard queued R4 frames.
         for pump in pumps {
-            pump.abort();
+            tokio::time::timeout(Duration::from_secs(10), pump)
+                .await
+                .unwrap()
+                .unwrap();
         }
         std::fs::remove_dir_all(dir).unwrap();
+        trace
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    async fn two_native_attempts_have_no_r4_handoffs_after_cutoff() {
+        let trace = r4_case(true, false).await;
+        assert!(
+            trace.r4_handoffs.lock().unwrap().is_empty(),
+            "R4 reached actual queue after cutoff"
+        );
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    async fn r4_positive_control_observes_two_actual_handoffs() {
+        let trace = r4_case(false, false).await;
+        assert_eq!(*trace.r4_handoffs.lock().unwrap(), vec![false, false]);
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    async fn r4_observer_detects_deliberate_gate_bypass_despite_cancellation() {
+        let trace = r4_case(true, true).await;
+        // Mutation control reproduces the old false-pass: regardless of returned
+        // cancellation/errors, the observer must detect both late queue handoffs.
+        assert_eq!(*trace.r4_handoffs.lock().unwrap(), vec![true, true]);
     }
 }

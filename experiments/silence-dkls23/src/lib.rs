@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256, Sha512};
 use std::{
     fs::{self, OpenOptions},
-    io::Write,
+    io::{Read, Write},
     path::Path,
 };
 use zeroize::Zeroizing;
@@ -332,23 +332,130 @@ pub fn reserve(dir: &Path, role: u8, entry: [u8; 32], context: [u8; 32]) -> Resu
     Ok(())
 }
 pub fn incident(dir: &Path, role: u8, context: [u8; 32]) -> Result<()> {
+    incident_with_checkpoint(dir, role, context, |_| Ok(()))
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum IncidentStep {
+    Created,
+    Written,
+    BeforeFileSync,
+    FileSynced,
+    BeforeDirectorySync,
+    DirectorySynced,
+}
+/// A filename always fences admission, but durability needs a complete record
+/// and successful file AND parent-directory sync. Never repair partial records
+/// implicitly or confirm them just because create_new returns AlreadyExists.
+pub(crate) fn incident_with_checkpoint(
+    dir: &Path,
+    role: u8,
+    context: [u8; 32],
+    mut checkpoint: impl FnMut(IncidentStep) -> Result<()>,
+) -> Result<()> {
     fs::create_dir_all(dir)?;
     let path = dir.join(format!("{role}.quarantined"));
-    match OpenOptions::new().create_new(true).write(true).open(path) {
+    let file = match OpenOptions::new().create_new(true).write(true).open(&path) {
         Ok(mut file) => {
+            checkpoint(IncidentStep::Created)?;
             file.write_all(&context)?;
-            file.sync_all()?;
-            fs::File::open(dir)?.sync_all()?;
+            checkpoint(IncidentStep::Written)?;
+            file
         }
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            let mut file = OpenOptions::new().read(true).open(&path)?;
+            let metadata = file.metadata()?;
+            ensure!(
+                metadata.is_file() && metadata.len() == 32,
+                "incomplete or invalid incident marker; durability unconfirmed"
+            );
+            let mut stored = [0; 32];
+            file.read_exact(&mut stored)?;
+            // First incident remains authoritative for this scope. Re-sync it;
+            // existence alone is not evidence of completed durability.
+            file
+        }
         Err(e) => return Err(e.into()),
-    }
+    };
+    checkpoint(IncidentStep::BeforeFileSync)?;
+    file.sync_all()?;
+    checkpoint(IncidentStep::FileSynced)?;
+    checkpoint(IncidentStep::BeforeDirectorySync)?;
+    fs::File::open(dir)?.sync_all()?;
+    checkpoint(IncidentStep::DirectorySynced)?;
     Ok(())
 }
 pub fn check_incident(dir: &Path, role: u8) -> Result<()> {
     match fs::metadata(dir.join(format!("{role}.quarantined"))) {
-        Ok(_) => bail!("durable research quarantine; signing refused"),
+        Ok(_) => bail!("research quarantine marker present; signing refused"),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.into()),
+    }
+}
+
+#[cfg(test)]
+mod incident_tests {
+    use super::*;
+    fn directory() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("dkls-incident-{:?}", fresh()));
+        fs::create_dir(&dir).unwrap();
+        dir
+    }
+    #[test]
+    fn incomplete_existing_markers_never_confirm_persistence() {
+        for bytes in [vec![], vec![1; 7], vec![1; 33]] {
+            let dir = directory();
+            fs::write(dir.join("0.quarantined"), &bytes).unwrap();
+            assert!(incident(&dir, 0, [4; 32]).is_err());
+            assert!(check_incident(&dir, 0).is_err());
+            assert_eq!(fs::read(dir.join("0.quarantined")).unwrap(), bytes);
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+    #[test]
+    fn failed_publication_at_each_durability_step_is_not_confirmed() {
+        use IncidentStep::*;
+        for failed in [
+            Created,
+            Written,
+            BeforeFileSync,
+            FileSynced,
+            BeforeDirectorySync,
+            DirectorySynced,
+        ] {
+            let dir = directory();
+            let error = incident_with_checkpoint(&dir, 0, [4; 32], |step| {
+                if step == failed {
+                    anyhow::bail!("injected {step:?} failure");
+                }
+                Ok(())
+            });
+            assert!(error.is_err(), "{failed:?}");
+            assert!(check_incident(&dir, 0).is_err());
+            let mut retry_steps = Vec::new();
+            let retry = incident_with_checkpoint(&dir, 0, [8; 32], |step| {
+                retry_steps.push(step);
+                Ok(())
+            });
+            if failed == Created {
+                assert!(retry.is_err());
+                assert!(retry_steps.is_empty());
+                assert!(fs::read(dir.join("0.quarantined")).unwrap().is_empty());
+            } else {
+                // A different explicit publication can confirm a complete record
+                // only by performing the file and directory syncs again.
+                retry.unwrap();
+                assert_eq!(
+                    retry_steps,
+                    vec![
+                        BeforeFileSync,
+                        FileSynced,
+                        BeforeDirectorySync,
+                        DirectorySynced
+                    ]
+                );
+                assert_eq!(fs::read(dir.join("0.quarantined")).unwrap(), [4; 32]);
+            }
+            fs::remove_dir_all(dir).unwrap();
+        }
     }
 }

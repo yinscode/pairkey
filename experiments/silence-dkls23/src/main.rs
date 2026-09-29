@@ -130,7 +130,10 @@ async fn attempt_inner(
         let mut command = Command::new(std::env::current_exe()?);
         if cfg!(feature = "research-faults")
             && role == 1
-            && options.fault.as_deref() == Some("migration-pprf")
+            && matches!(
+                options.fault.as_deref(),
+                Some("migration-pprf" | "migration-pprf-abort-send")
+            )
         {
             command.env("PAIRKEY_RESEARCH_BAD_MIGRATION_PPRF", "1");
         }
@@ -447,6 +450,7 @@ async fn demo(dir: &Path, samples: usize) -> Result<()> {
         "truncated-ot",
         "truncated-pprf",
         "migration-pprf",
+        "migration-pprf-abort-send",
         "bad-ot",
         "corrupt-ot",
         "duplicate-party",
@@ -457,7 +461,7 @@ async fn demo(dir: &Path, samples: usize) -> Result<()> {
         provision(&fault_dir)?;
         let error = attempt(
             &fault_dir,
-            if fault == "migration-pprf" {
+            if matches!(fault, "migration-pprf" | "migration-pprf-abort-send") {
                 Route::Migration
             } else {
                 Route::Direct
@@ -476,6 +480,17 @@ async fn demo(dir: &Path, samples: usize) -> Result<()> {
         let details = error
             .downcast_ref::<Terminals>()
             .map(|report| serde_json::to_value(report).unwrap());
+        if fault == "migration-pprf-abort-send" {
+            let report = error
+                .downcast_ref::<Terminals>()
+                .context("missing combined failure report")?;
+            ensure!(
+                report.failures.iter().any(|(_, f)| f.abort_send_failed
+                    && f.incident_persisted
+                    && f.action == pairkey_dkls23_research::lifecycle::Action::QuarantinePeer),
+                "original violation or abort transport failure lost"
+            );
+        }
         let error = format!("{error:#}");
         let expected = match fault {
             "unauthenticated-garbage" | "wrong-hash" | "wrong-chain-code" => {
@@ -487,7 +502,7 @@ async fn demo(dir: &Path, samples: usize) -> Result<()> {
             "bad-zero-reveal" => "zero-share commitment mismatch",
             "truncated-ot" => "invalid base OT reply length",
             "truncated-pprf" => "invalid PPRF length",
-            "migration-pprf" => "PPRF error",
+            "migration-pprf" | "migration-pprf-abort-send" => "PPRF error",
             "corrupt-ot" => "ban the party",
             "duplicate-party" => "invalid message format",
             "cancel-ready" => "injected cancellation",
@@ -520,6 +535,7 @@ async fn demo(dir: &Path, samples: usize) -> Result<()> {
             "truncated-ot",
             "truncated-pprf",
             "migration-pprf",
+            "migration-pprf-abort-send",
         ]
         .contains(&fault)
         {
@@ -532,7 +548,7 @@ async fn demo(dir: &Path, samples: usize) -> Result<()> {
                 .err()
                 .context("incident retry succeeded")?;
             ensure!(
-                format!("{retry:#}").contains("durable research quarantine"),
+                format!("{retry:#}").contains("research quarantine"),
                 "wrong retry refusal cause"
             );
             let alternate_wallet = digest(b"incident-other-wallet/v1", &id);
@@ -548,7 +564,7 @@ async fn demo(dir: &Path, samples: usize) -> Result<()> {
             .err()
             .context("incident bypass through another wallet/route")?;
             ensure!(
-                format!("{retry:#}").contains("durable research quarantine"),
+                format!("{retry:#}").contains("research quarantine"),
                 "wrong cross-wallet incident refusal"
             );
         }
