@@ -78,6 +78,12 @@ argument. Upstream/independent review must select and check the applicable model
 
 ## Transient package constructor security contract
 
+The versioned [draft constructor contract](CONSTRUCTOR-SECURITY-CONTRACT.md)
+maps existing enforcement and tests to environmental assumptions and open proof
+obligations O1–O6. The [draft questions for Silence](SILENCE-REVIEW-QUESTIONS.md)
+request the corresponding native input contract and audit evidence. Neither
+document changes registration or selects a new ceremony; C1 remains open.
+
 `pairkey_research_two_party` checks nonzero local secret, nonidentity public
 points, distinct public shares, local secret/public consistency and
 `2S_A-S_B=Q`. It fixes `n=t=2`, party IDs 0/1, coordinates 1/2 and ranks zero.
