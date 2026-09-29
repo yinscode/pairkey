@@ -35,6 +35,12 @@ impl Probe {
         }
     }
     pub fn pause(&self, frame: &Frame) -> bool {
+        if std::env::var("PAIRKEY_PROBE_ROLE")
+            .ok()
+            .is_some_and(|r| r != self.role.to_string())
+        {
+            return false;
+        }
         let selected = match frame {
             Frame::Setup(_) => {
                 matches!(self.stage.as_str(), "setup" | "consume")
@@ -42,7 +48,10 @@ impl Probe {
             }
             Frame::WalletEndorsement(_) => self.stage == "endorsement",
             Frame::WalletRegistered(_) => self.stage == "commit",
-            Frame::Relay(b) => self.stage == "r4" && b.get(..32) == Some(self.r4.as_slice()),
+            Frame::Relay(b) => {
+                (self.stage == "r4" && b.get(..32) == Some(self.r4.as_slice()))
+                    || (self.stage == "first-native" && !self.armed.swap(true, Ordering::SeqCst))
+            }
             Frame::Result(_) => self.stage == "result",
             _ => false,
         };
@@ -55,12 +64,37 @@ impl Probe {
         )
         .unwrap();
         fs::write(self.dir.join(format!("{}.reached", self.role)), []).unwrap();
+        self.wait_resume();
+        true
+    }
+    fn wait_resume(&self) {
         let deadline = Instant::now() + Duration::from_secs(15);
         while !self.dir.join("resume").exists() {
             assert!(Instant::now() < deadline, "native process barrier timeout");
             std::thread::sleep(Duration::from_millis(2));
         }
-        true
+    }
+    pub fn point(&self, stage: &str) -> anyhow::Result<()> {
+        if self.stage != stage {
+            return Ok(());
+        }
+        if std::env::var("PAIRKEY_PROBE_ROLE")
+            .ok()
+            .is_some_and(|r| r != self.role.to_string())
+        {
+            return Ok(());
+        }
+        fs::write(self.dir.join(format!("{}.reached", self.role)), []).unwrap();
+        self.wait_resume();
+        if self.dir.join("cancel").exists() {
+            return Err(pairkey_dkls23_research::lifecycle::Failure::burn(
+                pairkey_dkls23_research::lifecycle::Phase::Control,
+                pairkey_dkls23_research::lifecycle::FailureKind::Cancelled,
+                "test-only ownership cancellation",
+            )
+            .into());
+        }
+        Ok(())
     }
 }
 fn fingerprint(frame: &Frame) -> Vec<u8> {
@@ -75,6 +109,31 @@ pub fn observe(frame: &Frame) {
     };
     let dir = PathBuf::from(dir);
     let role = std::env::var("PAIRKEY_NATIVE_RACE_ROLE").unwrap();
+    if std::env::var_os("PAIRKEY_TRACE_ALL").is_some()
+        && matches!(
+            frame,
+            Frame::Relay(_)
+                | Frame::Setup(_)
+                | Frame::Result(_)
+                | Frame::WalletEndorsement(_)
+                | Frame::WalletRegistered(_)
+        )
+    {
+        use std::io::Write;
+        let kind = match frame {
+            Frame::Relay(_) => "native",
+            Frame::Setup(_) => "setup",
+            Frame::Result(_) => "result",
+            Frame::WalletEndorsement(_) => "endorsement",
+            _ => "commit",
+        };
+        let mut log = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.join(format!("{role}.handoffs")))
+            .unwrap();
+        writeln!(log,"{}",serde_json::json!({"kind":kind,"late":dir.join("published").exists(),"fingerprint":fingerprint(frame)})).unwrap();
+    }
     if fs::read(dir.join(format!("{role}.target"))).ok() == Some(fingerprint(frame)) {
         fs::write(
             dir.join(format!("{role}.queued")),

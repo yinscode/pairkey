@@ -4,6 +4,87 @@ Keep DKLS23 experimental. A/B remain baselines; Spike C now uses a small RAM
 preprocessing pool in long-lived local workers. Production dependencies and
 architecture v0.4 are unchanged. The custom composition has not been adopted.
 
+## Tasks 1–4: overlap, ownership, one-sided death and independent follow-up
+
+Task 4 completed independently in the existing "Audit FROST and DKLS23 signing"
+review chat: Astra reviewed the immutable `cd9f901` snapshot (including `1328e7f`)
+against `a061990`, using isolated sources/build/evidence rather than this evolving
+checkout. All three fixture findings closed, with no new actionable finding.
+It reproduced 69 distinct tests, both ordinary default-suite runs, all 56
+strengthened schedules, all 29 source hashes, Clippy in both configurations and
+formatting. Demos/release were not rerun by that review. This closure applies to
+those committed fixes; the new matrices below have not received Astra review.
+
+Tasks 1–3 add 41 schedules:
+
+- **Overlapping native attempts (12):** separate Direct and pooled worker pairs
+  share controls and ordered signer identities but sign different wallets. Both
+  attempts reach the selected R4 or result barrier before a third process
+  publishes through public `incident()` or `ReleaseGate::publish()`, with either
+  publisher role. Protected schedules observe zero target handoffs; positive and
+  deliberate bypass controls observe both targets for both routes. A different
+  signer pair then completes a real native signature using the same underlying
+  control directory, checking scope isolation beyond an authority API call.
+- **Native post-reservation ownership (11):** actual pooled workers pause after
+  reservation, after construction, or before their first native handoff. Incident,
+  injected cancellation and SIGKILL schedules observe no native/result handoff
+  after cutoff; first-native covers incident/death. All retired entries reject
+  reuse. Positive controls at all three boundaries verify complete signatures.
+  Crash/cancellation replacements use fresh boot-bound preprocessing and attempts,
+  preserving exact wallet/address identity. Incident replacements remain fenced.
+- **Inside construction (6):** two processes preload duplicate synthetic entries;
+  the owner pauses after scalar derivation or after the actual native constructor.
+  Cancellation and death leave zero observed package receipts, deny the competitor
+  and refuse retry. Positive controls observe one constructed-package receipt and
+  deny the competitor. These use synthetic OT seeds and do not run native signing;
+  they test ownership/cleanup, not setup correlations or cryptographic security.
+- **One-sided death (12):** kill just one role before endorsement or commit ACK
+  release, or after the actual released registration replies; additionally kill
+  either role before consumption or R4 handoff. The survivor must exit successfully.
+  Both replacement boot generations preserve exact prepared/committed bytes.
+  Released endorsements are compared frame -> journal -> replacement. Interrupted
+  signing yields no completed result, retired entries cannot be reacquired, and
+  fresh replacement attempts produce independently verified signatures. This
+  deliberately restarts the survivor too; attaching a replacement to a live old
+  pool generation is not covered or supported by these fixtures.
+
+The independent stdio consumer records hashes/counts for actual sensitive
+setup/native/result/registration handoffs, never payloads or secret packages.
+Queues/readers and surviving child exit statuses are drained before assertions.
+An expanded result-bypass rerun exposed a collector ordering bug: after a
+completed result, the pooled worker can publish its incident-shutdown control
+failure before the other worker's result arrives. The fixture now preserves the
+completed command reply, ignoring that role's later failure only when publication
+is recorded. A deterministic stream-order regression checks this case and also
+requires an unexpected failure without publication to remain visible. This
+changes fixture collection, not signer output fencing or protocol behavior.
+Fixture serialization limits competing heavy tests; overlapping attempts inside
+each fixture remain concurrent. Probe logic compiles only in the fault-enabled
+test binary. Constructor checkpoints are crate-private and normal callers use a
+no-op callback. Cancellation inside a checkpoint is injected failure handling,
+not a demonstration of arbitrary asynchronous interruption or hardware erasure.
+
+Validation and source-bound schedule evidence are recorded in
+`results-extended-assurance.json`: ordinary default suite 55 runtime plus two
+compile-fail tests; final fault-enabled full suite 71 runtime plus two compile-fail
+tests; union 74 distinct tests. All 130 schedule records passed, including the 41
+new schedules. Clippy in both configurations, release build and formatting passed.
+The failed intermediate collector rerun is retained as diagnostic evidence; its
+deterministic regression, repaired overlap matrix and final full suite passed.
+Demos were not repeated; the new process fixtures verify their actual native
+signatures independently. Native parameters, resolved dependencies,
+upstream patches and production signing paths are unchanged. Covered wrapper
+sources change configuration hashes: old experimental registration records remain
+refused, never rewritten. Fresh isolated fixtures are used for validation.
+
+This closes the requested local assurance matrix within cooperating processes
+sharing an honest filesystem. It does not establish cryptographic security,
+power-loss/storage-device durability, hostile rollback/snapshot resistance,
+cross-host authority or production TEE guarantees. It does not recall previously
+released contributions. Tasks 5 and 6 are specified in `FOLLOWUP-PLAN.md`:
+append-only upgrade authorization, explicit recovery/refresh tradeoffs and a
+separate independent cryptographic review with unchanged native parameters.
+
 ## Astra review of a061990 and fixture corrections
 
 The user reports that Astra reviewed `a061990` against `e9a6220` and reproduced

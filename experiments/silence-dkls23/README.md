@@ -280,3 +280,13 @@ fixture correction waits for child exit, compares released/journal/recovered
 endorsements, and rejects incomplete ACKs and worker errors. See `REVIEW.md` and
 `results-fixture-corrections.json` for the corrected validation; older artifacts
 retain their revision-specific inventories.
+
+The next assurance matrix adds overlapping Direct/pooled native attempts across
+wallets and publisher APIs/roles, post-reservation and constructor interruption,
+and one-sided worker death. Unrelated signer pairs sign using the same underlying
+control directory. Positive/bypass controls and independent queue observations
+remain mandatory. See `REVIEW.md` and `results-extended-assurance.json` for the
+41 additional schedules and their limits. Astra independently closed the prior
+fixture fixes at `cd9f901`; these new matrices still require their own review.
+`FOLLOWUP-PLAN.md` specifies tasks 5 and 6: configuration migration and
+address-preserving recovery design, followed by independent cryptographic review.

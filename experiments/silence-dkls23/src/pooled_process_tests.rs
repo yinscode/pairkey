@@ -29,6 +29,10 @@ const CHILD: &str = "pooled_process_tests::pooled_process_child";
 #[ignore = "explicit pooled subprocess fixture"]
 fn pooled_process_child() {
     let dir = PathBuf::from(std::env::var_os("PAIRKEY_NATIVE_RACE_DIR").expect("parent fixture"));
+    let storage = std::env::var_os("PAIRKEY_ACTOR_STORAGE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| dir.clone());
+    let direct = std::env::var("PAIRKEY_ACTOR_ROUTE").ok().as_deref() == Some("direct");
     let role: u8 = std::env::var("PAIRKEY_NATIVE_RACE_ROLE")
         .unwrap()
         .parse()
@@ -46,12 +50,14 @@ fn pooled_process_child() {
                 .parse()
                 .unwrap();
             // Exercise the public API, including role-1 publication.
-            incident(
-                &pair_scope_dir(&dir.join("controls"), peers, 1),
-                publisher_role,
-                [9; 32],
-            )
-            .unwrap();
+            let scope = pair_scope_dir(&storage.join("controls"), peers, 1);
+            if std::env::var("PAIRKEY_PUBLISH_API").ok().as_deref() == Some("gate") {
+                pairkey_dkls23_research::lifecycle::ReleaseGate::new(scope, publisher_role)
+                    .publish([9; 32])
+                    .unwrap();
+            } else {
+                incident(&scope, publisher_role, [9; 32]).unwrap();
+            }
             fs::write(dir.join("published"), []).unwrap();
         }
         fs::write(dir.join("publisher.done"), []).unwrap();
@@ -65,13 +71,35 @@ fn pooled_process_child() {
             .enable_all()
             .build()
             .unwrap();
-        let result = runtime.block_on(super::pool_worker::run(
-            role,
-            &dir.join(format!("root-{role}.bin")),
-            peer,
-        ));
+        let result = if direct {
+            let key = super::unhex(&std::env::var("PAIRKEY_ACTOR_KEY").unwrap()).unwrap();
+            runtime.block_on(super::worker::run(
+                role,
+                &storage.join(format!("root-{role}.bin")),
+                key,
+            ))
+        } else {
+            runtime.block_on(super::pool_worker::run(
+                role,
+                &storage.join(format!("root-{role}.bin")),
+                peer,
+            ))
+        };
         fs::write(dir.join(format!("{role}.done")), format!("{result:?}")).unwrap();
-        result.expect("non-killed pooled fixture worker failed");
+        if direct && result.is_err() {
+            // Direct run returns a gate refusal on its final Result send. Require
+            // a persisted incident; every other unexpected error fails the fixture.
+            let gate = pairkey_dkls23_research::lifecycle::ReleaseGate::new(
+                pair_scope_dir(&storage.join("controls"), peers, 1),
+                role,
+            );
+            assert!(
+                gate.release(|| Ok(())).is_err(),
+                "unexpected Direct worker error: {result:?}"
+            );
+        } else {
+            result.expect("non-killed pooled fixture worker failed");
+        }
     }
 }
 fn command(
@@ -109,16 +137,40 @@ struct Actors {
     inputs: Vec<Option<ChildStdin>>,
     events: mpsc::UnboundedReceiver<(usize, Frame)>,
     relays: [MessageRelay; 2],
-    boots: [Boot; 2],
+    boots: Option<[Boot; 2]>,
+    direct_hellos: Option<[Hello; 2]>,
+    probe_dir: PathBuf,
 }
 impl Actors {
     async fn start(dir: &Path, stage: &str, bypass: bool) -> Result<Self> {
+        Self::start_variant(dir, dir, stage, bypass, None).await
+    }
+    fn boots(&self) -> &[Boot; 2] {
+        self.boots.as_ref().expect("pooled boot pair")
+    }
+    async fn start_variant(
+        dir: &Path,
+        storage: &Path,
+        stage: &str,
+        bypass: bool,
+        direct_key: Option<[u8; 32]>,
+    ) -> Result<Self> {
+        Self::start_options(dir, storage, stage, bypass, direct_key, None).await
+    }
+    async fn start_options(
+        dir: &Path,
+        storage: &Path,
+        stage: &str,
+        bypass: bool,
+        direct_key: Option<[u8; 32]>,
+        single_role: Option<u8>,
+    ) -> Result<Self> {
         let peers = [
-            Root::load(&dir.join("root-0.bin"))?
+            Root::load(&storage.join("root-0.bin"))?
                 .identity(0)
                 .verifying_key()
                 .to_bytes(),
-            Root::load(&dir.join("root-1.bin"))?
+            Root::load(&storage.join("root-1.bin"))?
                 .identity(1)
                 .verifying_key()
                 .to_bytes(),
@@ -131,7 +183,19 @@ impl Actors {
         let mut inputs = vec![];
         let (tx, mut events) = mpsc::unbounded_channel();
         for role in 0..2 {
-            let mut child = command(dir, role, stage, false, bypass, 0)
+            let mut process = command(dir, role, stage, false, bypass, 0);
+            process
+                .env("PAIRKEY_ACTOR_STORAGE_DIR", storage)
+                .env("PAIRKEY_TRACE_ALL", "1");
+            if let Some(role) = single_role {
+                process.env("PAIRKEY_PROBE_ROLE", role.to_string());
+            }
+            if let Some(key) = direct_key {
+                process
+                    .env("PAIRKEY_ACTOR_ROUTE", "direct")
+                    .env("PAIRKEY_ACTOR_KEY", super::hex(&key));
+            }
+            let mut child = process
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::inherit())
@@ -166,31 +230,47 @@ impl Actors {
         }
         drop(tx);
         let mut boots: [Option<Boot>; 2] = [None, None];
-        while boots.iter().any(Option::is_none) {
-            let (role, Frame::PoolHello(boot)) = events.recv().await.context("startup closed")?
-            else {
-                anyhow::bail!("unexpected startup");
-            };
-            boot.validate()?;
-            let root = Root::load(&dir.join(format!("root-{role}.bin")))?;
-            ensure!(
-                boot.role as usize == role
-                    && boot.identity == root.identity(role as u8).verifying_key().to_bytes(),
-                "startup pin"
-            );
-            boots[role] = Some(boot);
+        let mut hellos: [Option<Hello>; 2] = [None, None];
+        let mut seen = [false; 2];
+        while !seen.iter().all(|v| *v) {
+            let (role, frame) = events.recv().await.context("startup closed")?;
+            ensure!(role < 2 && !seen[role], "startup role/duplicate");
+            if let Some(key) = direct_key {
+                let Frame::Hello(h) = frame else {
+                    anyhow::bail!("unexpected Direct startup");
+                };
+                h.validate()?;
+                ensure!(
+                    h.role as usize == role && h.identity == peers[role] && h.key_id == key,
+                    "Direct startup pin"
+                );
+                hellos[role] = Some(h);
+            } else {
+                let Frame::PoolHello(b) = frame else {
+                    anyhow::bail!("unexpected pooled startup");
+                };
+                b.validate()?;
+                ensure!(
+                    b.role as usize == role && b.identity == peers[role],
+                    "pool startup pin"
+                );
+                boots[role] = Some(b);
+            }
+            seen[role] = true;
         }
-        let boots = boots.map(Option::unwrap);
-        fs::write(
-            dir.join("peers.json"),
-            serde_json::to_vec(&boots.clone().map(|b| b.identity))?,
-        )?;
-        for input in &mut inputs {
-            send(
-                input.as_mut().unwrap(),
-                &Frame::PoolCommand(Box::new(Operation::Enroll(boots.clone()))),
-            )
-            .await?;
+        let boots = if direct_key.is_none() {
+            Some(boots.map(Option::unwrap))
+        } else {
+            None
+        };
+        if let Some(boots) = &boots {
+            for input in &mut inputs {
+                send(
+                    input.as_mut().unwrap(),
+                    &Frame::PoolCommand(Box::new(Operation::Enroll(boots.clone()))),
+                )
+                .await?;
+            }
         }
         let relay = SimpleMessageRelay::new();
         Ok(Self {
@@ -199,6 +279,8 @@ impl Actors {
             events,
             relays: [relay.connect(), relay.connect()],
             boots,
+            direct_hellos: direct_key.map(|_| hellos.map(Option::unwrap)),
+            probe_dir: dir.to_path_buf(),
         })
     }
     async fn call(&mut self, ops: [Operation; 2]) -> Result<Vec<(usize, Frame)>> {
@@ -209,9 +291,23 @@ impl Actors {
             )
             .await?;
         }
+        self.collect().await
+    }
+    async fn start_direct(&mut self, request: Request) -> Result<Vec<(usize, Frame)>> {
+        for input in &mut self.inputs {
+            send(
+                input.as_mut().context("input closed")?,
+                &Frame::Start(Box::new(request.clone())),
+            )
+            .await?;
+        }
+        self.collect().await
+    }
+    async fn collect(&mut self) -> Result<Vec<(usize, Frame)>> {
         let mut replies = vec![];
         let mut closed = [false; 2];
         let mut failed = false;
+        let mut poll = tokio::time::interval(Duration::from_millis(5));
         loop {
             if closed.iter().all(|v| *v) || (!failed && replies.len() == 2) {
                 return Ok(replies);
@@ -219,6 +315,7 @@ impl Actors {
             let [r0, r1] = &mut self.relays;
             let event = tokio::select! {
                 e=self.events.recv()=>e.context("events closed")?,
+                _=poll.tick()=>{for (role,input) in self.inputs.iter_mut().enumerate() {if self.probe_dir.join(format!("{role}.done")).exists() {input.take();}}continue;},
                 b=r0.next(),if !failed=>{if let (Some(b),Some(input))=(b,&mut self.inputs[0]) {let _=send(input,&Frame::Relay(b)).await;}continue;},
                 b=r1.next(),if !failed=>{if let (Some(b),Some(input))=(b,&mut self.inputs[1]) {let _=send(input,&Frame::Relay(b)).await;}continue;},
             };
@@ -234,8 +331,26 @@ impl Actors {
                 (role, Frame::Closed) => {
                     closed[role] = true;
                     self.inputs[role].take();
+                    if !replies.iter().any(|(r, _)| *r == role) {
+                        failed = true;
+                        for input in &mut self.inputs {
+                            input.take();
+                        }
+                    }
                 }
                 (role, Frame::Failure(f)) => {
+                    // After a deliberate result bypass, a pooled worker can
+                    // emit its unfenced incident-shutdown control frame before
+                    // the other role's completed result reaches this reader.
+                    // The result already received is this command's terminal
+                    // reply; the later control frame must not replace/count it.
+                    if self.probe_dir.join("published").exists()
+                        && replies
+                            .iter()
+                            .any(|(r, frame)| *r == role && matches!(frame, Frame::Result(_)))
+                    {
+                        continue;
+                    }
                     replies.push((role, Frame::Failure(f)));
                     failed = true;
                     for input in &mut self.inputs {
@@ -273,7 +388,7 @@ impl Actors {
         let manifest = Manifest {
             version: 1,
             key_id: key,
-            identities: self.boots.clone().map(|b| b.identity),
+            identities: self.boots().clone().map(|b| b.identity),
             additive_public: hellos.clone().map(|h| h.contribution),
             public_key: q.to_bytes().to_vec(),
             chain_code: digest(
@@ -419,8 +534,8 @@ async fn case(stage: &str, publish: bool, bypass: bool, publisher_role: u8) -> R
             let input = SetupInput {
                 version: 1,
                 recipe: 1,
-                peers: actors.boots.clone().map(|b| b.identity),
-                boots: actors.boots.clone().map(|b| b.generation),
+                peers: actors.boots().clone().map(|b| b.identity),
+                boots: actors.boots().clone().map(|b| b.generation),
                 configuration: pool::configuration(),
                 entry: fresh(),
             };
@@ -810,4 +925,83 @@ async fn pooled_fixture_worker_error_exits_unsuccessfully() {
         .unwrap()
         .starts_with("Err("));
     fs::write(dir.0.join("passed"), []).unwrap();
+}
+
+#[path = "extended_process_tests.rs"]
+mod extended;
+
+#[tokio::test]
+async fn collector_preserves_completed_results_before_incident_shutdown_control() {
+    // Synthetic frames test ordering only. Actual native signatures and queues
+    // are independently verified by the process matrix.
+    for published in [false, true] {
+        let dir =
+            Directory(std::env::temp_dir().join(format!("dkls-terminal-reply-{:?}", fresh())));
+        fs::create_dir(&dir.0).unwrap();
+        if published {
+            fs::write(dir.0.join("published"), []).unwrap();
+        }
+        let result = |role| {
+            Frame::Result(pairkey_dkls23_research::Outcome {
+                role,
+                route: Route::Pooled,
+                context: [1; 32],
+                public_key: vec![],
+                signature: vec![],
+                recovery_id: 0,
+                setup_ms: 0.0,
+                signing_ms: 0.0,
+                setup_active_poll_ms: None,
+                signing_active_poll_ms: 0.0,
+                package_bytes: 0,
+                setup_id: vec![],
+            })
+        };
+        let (tx, events) = mpsc::unbounded_channel();
+        tx.send((0, result(0))).unwrap();
+        tx.send((
+            0,
+            Frame::Failure(pairkey_dkls23_research::lifecycle::Failure::burn(
+                pairkey_dkls23_research::lifecycle::Phase::Control,
+                pairkey_dkls23_research::lifecycle::FailureKind::Quarantined,
+                "post-result incident shutdown",
+            )),
+        ))
+        .unwrap();
+        tx.send((1, result(1))).unwrap();
+        tx.send((0, Frame::Closed)).unwrap();
+        tx.send((1, Frame::Closed)).unwrap();
+        let relay = SimpleMessageRelay::new();
+        let mut actors = Actors {
+            group: ChildGroup {
+                children: vec![],
+                readers: vec![],
+            },
+            inputs: vec![None, None],
+            events,
+            relays: [relay.connect(), relay.connect()],
+            boots: None,
+            direct_hellos: None,
+            probe_dir: dir.0.clone(),
+        };
+        let replies = tokio::time::timeout(Duration::from_secs(2), actors.collect())
+            .await
+            .unwrap()
+            .unwrap();
+        if published {
+            assert_eq!(replies.len(), 2);
+            assert!(replies
+                .iter()
+                .enumerate()
+                .all(|(role, (r, f))| role == *r && matches!(f, Frame::Result(_))));
+        } else {
+            assert!(replies.iter().any(|(_, f)| matches!(f, Frame::Failure(_))));
+            assert_ne!(
+                replies.len(),
+                2,
+                "unexpected failure hidden without publication"
+            );
+        }
+        fs::write(dir.0.join("passed"), []).unwrap();
+    }
 }

@@ -382,9 +382,23 @@ impl AvailableEntry {
         })
     }
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PackageStep {
+    ShareDerived,
+    Constructed,
+}
 impl ReservedEntry {
     /// Consumes ownership even on mismatch, expiration, incident or constructor failure.
     pub fn into_package(self, r: &Request, root: &Root, role: u8) -> Result<Keyshare> {
+        self.package_checkpoint(r, root, role, |_| Ok(()))
+    }
+    pub(crate) fn package_checkpoint(
+        self,
+        r: &Request,
+        root: &Root,
+        role: u8,
+        mut checkpoint: impl FnMut(PackageStep) -> Result<()>,
+    ) -> Result<Keyshare> {
         self.gate.release(|| {
             ensure!(
                 self.role == role && Instant::now() < self.entry.expires,
@@ -397,7 +411,8 @@ impl ReservedEntry {
             } else {
                 -*a
             });
-            Keyshare::pairkey_research_two_party(
+            checkpoint(PackageStep::ShareDerived)?;
+            let package = Keyshare::pairkey_research_two_party(
                 role,
                 *s,
                 r.manifest.stored_public()?,
@@ -410,7 +425,9 @@ impl ReservedEntry {
                 &self.entry.material.receiver.0,
                 &self.consumption.digest(),
             )
-            .context("pooled constructor refused")
+            .context("pooled constructor refused")?;
+            checkpoint(PackageStep::Constructed)?;
+            Ok(package)
         })
     }
 }

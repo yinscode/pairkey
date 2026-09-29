@@ -363,6 +363,10 @@ impl Service {
         })?;
         let start = Instant::now();
         let reserved = self.pool.reserve(c)?; // ownership consumed BEFORE request validation/agreement
+        #[cfg(all(test, feature = "research-faults"))]
+        if let Some(probe) = &wire.process_probe {
+            probe.point("reserved")?;
+        }
         if r.fault_is("disconnect") {
             wire.send(Frame::Ready(c.digest()))?;
         }
@@ -389,6 +393,10 @@ impl Service {
             std::future::pending::<()>().await;
         }
         let package = reserved.into_package(r, &self.root, self.role)?;
+        #[cfg(all(test, feature = "research-faults"))]
+        if let Some(probe) = &wire.process_probe {
+            probe.point("constructed")?;
+        }
         let path = derivation_path::DerivationPath::from_str(&r.path)?;
         let (_, derived) = package.derive_with_offset(&path)?;
         ensure!(

@@ -35,6 +35,10 @@ fn wait(dir: &Path, name: &str) {
     }
 }
 fn fixture(dir: &Path) -> (pool::RamPool, pool::Consumption) {
+    let (p, c, _) = fixture_request(dir);
+    (p, c)
+}
+fn fixture_request(dir: &Path) -> (pool::RamPool, pool::Consumption, Request) {
     let roots = [
         Root::load(&dir.join("a")).unwrap(),
         Root::load(&dir.join("b")).unwrap(),
@@ -100,7 +104,7 @@ fn fixture(dir: &Path) -> (pool::RamPool, pool::Consumption) {
         .unwrap(),
     )
     .unwrap();
-    (p, c)
+    (p, c, r)
 }
 #[test]
 #[ignore = "explicit reservation subprocess fixture"]
@@ -258,4 +262,124 @@ fn every_reservation_transition_refuses_or_transfers_once_after_injected_io_fail
 #[test]
 fn every_reservation_transition_refuses_or_transfers_once_after_process_death() {
     schedules("crash");
+}
+
+// These constructor schedules use duplicate synthetic OT seeds, never native
+// signing. They establish ownership/cleanup behavior, not OT security. The
+// separate worker matrix covers real preprocessing before/after construction.
+#[test]
+#[ignore = "explicit package-construction subprocess fixture"]
+fn construction_child() {
+    let dir = PathBuf::from(std::env::var_os("PAIRKEY_RESERVATION_DIR").unwrap());
+    let actor = std::env::var("PAIRKEY_RESERVATION_ACTOR").unwrap();
+    let mode = std::env::var("PAIRKEY_RESERVATION_MODE").unwrap();
+    let index: usize = std::env::var("PAIRKEY_RESERVATION_STEP")
+        .unwrap()
+        .parse()
+        .unwrap();
+    let (pool, c, r) = fixture_request(&dir);
+    fs::write(dir.join(format!("{actor}.ready")), []).unwrap();
+    wait(&dir, &format!("{actor}.go"));
+    fs::write(dir.join(format!("{actor}.attempting")), []).unwrap();
+    let owned = pool.reserve(&c);
+    if actor == "first" {
+        let root = Root::load(&dir.join("a")).unwrap();
+        let package = owned.unwrap().package_checkpoint(&r, &root, 0, |step| {
+            if step
+                == [
+                    pool::PackageStep::ShareDerived,
+                    pool::PackageStep::Constructed,
+                ][index]
+            {
+                fs::write(dir.join("first.paused"), []).unwrap();
+                wait(&dir, "first.resume");
+                if mode == "cancel" {
+                    anyhow::bail!("injected constructor cancellation");
+                }
+            }
+            Ok(())
+        });
+        if mode == "positive" {
+            assert!(package.is_ok());
+            // Public queue receipt only; no package or seeds are persisted.
+            fs::write(dir.join("package.queued"), b"one").unwrap();
+        } else {
+            assert!(package.is_err());
+        }
+        drop(package);
+    } else {
+        assert!(owned.is_err(), "duplicate constructor ownership");
+    }
+    fs::write(dir.join(format!("{actor}.result")), b"finished").unwrap();
+}
+
+#[test]
+fn construction_ownership_survives_cancellation_and_death_with_positive_controls() {
+    for index in 0..2 {
+        for mode in ["cancel", "crash", "positive"] {
+            let dir = std::env::temp_dir().join(format!("dkls-construction-{:?}", fresh()));
+            fs::create_dir(&dir).unwrap();
+            fs::write(dir.join("a"), [11; 32]).unwrap();
+            fs::write(dir.join("b"), [22; 32]).unwrap();
+            let launch = |actor: &str| {
+                Actor(
+                    Command::new(std::env::current_exe().unwrap())
+                        .args([
+                            "--exact",
+                            "reservation_tests::construction_child",
+                            "--ignored",
+                            "--quiet",
+                        ])
+                        .env("PAIRKEY_RESERVATION_DIR", &dir)
+                        .env("PAIRKEY_RESERVATION_ACTOR", actor)
+                        .env("PAIRKEY_RESERVATION_MODE", mode)
+                        .env("PAIRKEY_RESERVATION_STEP", index.to_string())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::inherit())
+                        .spawn()
+                        .unwrap(),
+                )
+            };
+            let mut first = launch("first");
+            let mut second = launch("second");
+            wait(&dir, "first.ready");
+            wait(&dir, "second.ready");
+            fs::write(dir.join("first.go"), []).unwrap();
+            wait(&dir, "first.paused");
+            fs::write(dir.join("second.go"), []).unwrap();
+            wait(&dir, "second.attempting");
+            std::thread::sleep(Duration::from_millis(20));
+            assert!(
+                !dir.join("second.result").exists(),
+                "competitor bypassed constructor authority"
+            );
+            if mode == "crash" {
+                first.0.kill().unwrap();
+                assert!(!first.0.wait().unwrap().success());
+            } else {
+                fs::write(dir.join("first.resume"), []).unwrap();
+                first.finish();
+            }
+            second.finish();
+            let (retry, c) = fixture(&dir);
+            assert!(retry.reserve(&c).is_err());
+            let observed = fs::read(dir.join("package.queued")).ok();
+            assert_eq!(
+                observed.as_deref(),
+                if mode == "positive" {
+                    Some(b"one".as_slice())
+                } else {
+                    None
+                }
+            );
+            if let Some(output) = std::env::var_os("PAIRKEY_ASSURANCE_EVIDENCE_DIR") {
+                let output = PathBuf::from(output);
+                fs::create_dir_all(&output).unwrap();
+                fs::write(output.join(format!("construction-{index}-{mode}.json")), serde_json::to_vec_pretty(&serde_json::json!({"checkpoint":format!("{:?}",[pool::PackageStep::ShareDerived,pool::PackageStep::Constructed][index]),"mode":mode,"material":"synthetic OT, native constructor only","duplicate_ownership_refused":true,"replacement_reuse_refused":true,"observed_package_receipts":usize::from(observed.is_some()),"passed":true})).unwrap()).unwrap();
+            }
+            drop(first);
+            drop(second);
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
 }
