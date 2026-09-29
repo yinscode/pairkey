@@ -1,0 +1,703 @@
+mod wire;
+mod worker;
+
+use anyhow::{ensure, Context, Result};
+use futures_util::{SinkExt, StreamExt};
+use k256::{
+    ecdsa::{RecoveryId, Signature, VerifyingKey},
+    elliptic_curve::group::GroupEncoding,
+};
+use pairkey_dkls23_research::lifecycle::{scope_dir, Failure, FailureKind, Phase, Terminals};
+use pairkey_dkls23_research::{
+    digest, fresh, incident, point, Frame, Hello, Manifest, Outcome, Request, Route, MAX_FRAME,
+    REVISION,
+};
+use serde_json::json;
+use sha2::{Digest, Sha256};
+use signature::hazmat::PrehashVerifier;
+use sl_mpc_mate::coord::SimpleMessageRelay;
+use std::{
+    collections::BTreeSet,
+    fs::{self, OpenOptions},
+    io::Write,
+    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    path::{Path, PathBuf},
+    str::FromStr,
+    time::Instant,
+};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    process::{Child, ChildStdin, Command},
+    sync::mpsc,
+};
+use zeroize::Zeroizing;
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+fn unhex(s: &str) -> Result<[u8; 32]> {
+    ensure!(s.len() == 64, "expected 32-byte hex identifier");
+    let mut out = [0; 32];
+    for i in 0..32 {
+        out[i] = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16)?;
+    }
+    Ok(out)
+}
+async fn send(stdin: &mut (impl tokio::io::AsyncWrite + Unpin), frame: &Frame) -> Result<()> {
+    let mut bytes = serde_json::to_vec(frame)?;
+    ensure!(bytes.len() <= MAX_FRAME, "oversized parent frame");
+    bytes.push(b'\n');
+    stdin.write_all(&bytes).await?;
+    stdin.flush().await?;
+    Ok(())
+}
+async fn deliver(
+    inputs: &mut [Option<ChildStdin>],
+    terminals: &mut Terminals,
+    role: usize,
+    frame: &Frame,
+) -> Result<()> {
+    if let Some(input) = &mut inputs[role] {
+        if let Err(error) = send(input, frame).await {
+            if let Some(io) = error.downcast_ref::<std::io::Error>() {
+                if matches!(
+                    io.kind(),
+                    std::io::ErrorKind::BrokenPipe
+                        | std::io::ErrorKind::ConnectionReset
+                        | std::io::ErrorKind::NotConnected
+                ) {
+                    terminals.pipe(role, io);
+                    inputs[role].take();
+                    return Ok(());
+                }
+            }
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+struct ChildGroup {
+    children: Vec<Child>,
+    readers: Vec<tokio::task::JoinHandle<()>>,
+}
+impl Drop for ChildGroup {
+    fn drop(&mut self) {
+        for child in &mut self.children {
+            let _ = child.start_kill();
+        }
+        for reader in &self.readers {
+            reader.abort();
+        }
+    }
+}
+
+#[derive(Default)]
+struct Options {
+    fault: Option<String>,
+    reuse_entry: Option<[u8; 32]>,
+}
+async fn attempt(
+    dir: &Path,
+    route: Route,
+    key_id: [u8; 32],
+    path: &str,
+    pinned: Option<&Manifest>,
+    options: Options,
+) -> Result<(Manifest, Vec<Outcome>, serde_json::Value)> {
+    tokio::time::timeout(
+        std::time::Duration::from_secs(40),
+        attempt_inner(dir, route, key_id, path, pinned, options),
+    )
+    .await
+    .context("parent timeout")?
+}
+async fn attempt_inner(
+    dir: &Path,
+    route: Route,
+    key_id: [u8; 32],
+    path: &str,
+    pinned: Option<&Manifest>,
+    options: Options,
+) -> Result<(Manifest, Vec<Outcome>, serde_json::Value)> {
+    let started = Instant::now();
+    let mut group = ChildGroup {
+        children: vec![],
+        readers: vec![],
+    };
+    let mut inputs = vec![];
+    let (events, mut rx) = mpsc::unbounded_channel();
+    for role in 0..2u8 {
+        let mut command = Command::new(std::env::current_exe()?);
+        if cfg!(feature = "research-faults")
+            && role == 1
+            && options.fault.as_deref() == Some("migration-pprf")
+        {
+            command.env("PAIRKEY_RESEARCH_BAD_MIGRATION_PPRF", "1");
+        }
+        let mut child = command
+            .args(["worker", &role.to_string()])
+            .arg(dir.join(format!("root-{role}.bin")))
+            .arg(hex(&key_id))
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::inherit())
+            .kill_on_drop(true)
+            .spawn()?;
+        inputs.push(Some(child.stdin.take().context("child stdin")?));
+        let mut stdout = BufReader::new(child.stdout.take().context("child stdout")?);
+        let events = events.clone();
+        group.readers.push(tokio::spawn(async move {
+            let result: Result<()> = async {
+                loop {
+                    let mut bytes = Vec::new();
+                    let n = (&mut stdout)
+                        .take(MAX_FRAME as u64 + 1)
+                        .read_until(b'\n', &mut bytes)
+                        .await?;
+                    if n == 0 {
+                        break;
+                    }
+                    ensure!(
+                        bytes.len() <= MAX_FRAME && bytes.last() == Some(&b'\n'),
+                        "bad child frame"
+                    );
+                    let frame: Frame = serde_json::from_slice(&bytes)?;
+                    if events.send((role as usize, frame)).is_err() {
+                        break;
+                    }
+                }
+                Ok(())
+            }
+            .await;
+            if let Err(error) = result {
+                let _ = events.send((
+                    role as usize,
+                    Frame::Failure(Failure::burn(
+                        Phase::Transport,
+                        FailureKind::Transport,
+                        format!("reader: {error:#}"),
+                    )),
+                ));
+            }
+            let _ = events.send((role as usize, Frame::Closed));
+        }));
+        group.children.push(child);
+    }
+    drop(events);
+    let mut hellos: [Option<Hello>; 2] = [None, None];
+    while hellos.iter().any(Option::is_none) {
+        let (role, frame) = rx.recv().await.context("worker exited before hello")?;
+        let Frame::Hello(hello) = frame else {
+            anyhow::bail!("unexpected startup frame");
+        };
+        hello.validate()?;
+        ensure!(
+            hello.role as usize == role && hellos[role].is_none(),
+            "wrong/duplicate hello"
+        );
+        hellos[role] = Some(hello);
+    }
+    let hellos = hellos.map(Option::unwrap);
+    let q = point(&hellos[0].contribution)? + point(&hellos[1].contribution)?;
+    let manifest = Manifest {
+        version: 1,
+        key_id,
+        identities: [hellos[0].identity, hellos[1].identity],
+        additive_public: [
+            hellos[0].contribution.clone(),
+            hellos[1].contribution.clone(),
+        ],
+        public_key: q.to_bytes().to_vec(),
+        chain_code: digest(
+            b"pairkey/dkls-research/public-chain-code/v1",
+            &(key_id, q.to_bytes().to_vec()),
+        ),
+    };
+    manifest.validate()?;
+    if let Some(pin) = pinned {
+        ensure!(
+            pin == &manifest,
+            "restart changed public manifest/address metadata"
+        );
+    }
+    let request = Request {
+        route,
+        manifest: manifest.clone(),
+        hellos,
+        entry: options.reuse_entry.unwrap_or_else(fresh),
+        attempt: fresh(),
+        path: path.into(),
+        prehash: Sha256::digest(b"PairKey root-only DKLS23 research exact message").into(),
+        fault: options.fault.clone(),
+    };
+    let mut byte_counts = [0usize; 2];
+    let mut message_counts = [0usize; 2];
+    let mut outcomes = vec![];
+    let mut ready = [false; 2];
+    for (role, input) in inputs.iter_mut().enumerate() {
+        let mut delivered = request.clone();
+        if role == 1 {
+            match options.fault.as_deref() {
+                Some("wrong-hash") => delivered.prehash[0] ^= 1,
+                Some("wrong-chain-code") => delivered.manifest.chain_code[0] ^= 1,
+                Some("wrong-key-id") => delivered.manifest.key_id[0] ^= 1,
+                Some("wrong-peer") => {
+                    delivered.manifest.identities[0] = delivered.manifest.identities[1]
+                }
+                _ => {}
+            }
+        }
+        send(
+            input.as_mut().context("missing startup pipe")?,
+            &Frame::Start(Box::new(delivered)),
+        )
+        .await?;
+    }
+    let coordinator = SimpleMessageRelay::new();
+    let mut relays = [coordinator.connect(), coordinator.connect()];
+    let mut terminals = Terminals::default();
+    let mut grace = None;
+    while outcomes.len() < 2 {
+        if terminals.closed.iter().all(|closed| *closed) {
+            break;
+        }
+        if terminals.failed() && grace.is_none() {
+            // EOF cancels blocked reads but leaves stdout available for the
+            // originator's completed incident write and terminal diagnostic.
+            for input in &mut inputs {
+                input.take();
+            }
+            grace = Some(tokio::time::Instant::now() + std::time::Duration::from_secs(2));
+        }
+        let [relay_a, relay_b] = &mut relays;
+        let event = tokio::select! {
+            event = rx.recv() => match event { Some(event)=>event, None=>break },
+            _ = async { if let Some(deadline)=grace {tokio::time::sleep_until(deadline).await;} else {std::future::pending::<()>().await;} } => {terminals.drain_timed_out=true; break;},
+            bytes = relay_a.next() => { if let Some(bytes) = bytes { deliver(&mut inputs,&mut terminals,0,&Frame::Relay(bytes)).await?; } continue; },
+            bytes = relay_b.next() => { if let Some(bytes) = bytes { deliver(&mut inputs,&mut terminals,1,&Frame::Relay(bytes)).await?; } continue; },
+        };
+        let (role, frame) = event;
+        match frame {
+            Frame::Setup(mut bytes) => {
+                if cfg!(feature = "research-faults")
+                    && options.fault.as_deref() == Some("unauthenticated-garbage")
+                    && bytes.len() > 28
+                {
+                    bytes[28] ^= 1;
+                }
+                byte_counts[role] += bytes.len();
+                message_counts[role] += 1;
+                deliver(&mut inputs, &mut terminals, 1 - role, &Frame::Setup(bytes)).await?;
+            }
+            Frame::Relay(bytes) => {
+                byte_counts[role] += bytes.len();
+                message_counts[role] += 1;
+                relays[role]
+                    .send(bytes)
+                    .await
+                    .map_err(|_| anyhow::anyhow!("relay refused"))?;
+            }
+            Frame::Ready(context) => {
+                ensure!(context == request.context(), "wrong readiness context");
+                ready[role] = true;
+                if options.fault.as_deref() == Some("cancel-ready") && ready.iter().all(|r| *r) {
+                    anyhow::bail!("injected cancellation after both setup reservations");
+                }
+            }
+            Frame::Result(outcome) => {
+                ensure!(
+                    outcome.role as usize == role && outcome.context == request.context(),
+                    "result context mismatch"
+                );
+                ensure!(
+                    !outcomes.iter().any(|o: &Outcome| o.role == outcome.role),
+                    "duplicate result"
+                );
+                outcomes.push(outcome);
+            }
+            Frame::Failure(error) => terminals.failure(role, error),
+            Frame::Closed => {
+                if !outcomes.iter().any(|o| o.role as usize == role)
+                    && !terminals.failures.iter().any(|(r, _)| *r == role)
+                {
+                    terminals.failure(
+                        role,
+                        Failure::burn(
+                            Phase::Transport,
+                            FailureKind::Transport,
+                            "worker exited without terminal diagnostic",
+                        ),
+                    );
+                }
+                terminals.closed(role);
+                inputs[role].take();
+            }
+            _ => anyhow::bail!("unexpected worker frame"),
+        }
+    }
+    if terminals.failed() || outcomes.len() != 2 {
+        return Err(terminals.into());
+    }
+    outcomes.sort_by_key(|o| o.role);
+    ensure!(
+        outcomes[0].signature == outcomes[1].signature
+            && outcomes[0].public_key == outcomes[1].public_key
+            && outcomes[0].recovery_id == outcomes[1].recovery_id,
+        "workers disagree on signature"
+    );
+    let mut derived = point(&manifest.public_key)?;
+    let mut cc = manifest.chain_code;
+    for child in &derivation_path::DerivationPath::from_str(path)? {
+        let (_, p, code) = sl_mpc_mate::bip32::derive_child_pubkey(&derived, cc, child)?;
+        derived = p;
+        cc = code;
+    }
+    ensure!(
+        derived.to_bytes().as_slice() == outcomes[0].public_key,
+        "public derivation disagrees"
+    );
+    let key = VerifyingKey::from_affine(derived.to_affine())?;
+    let signature = Signature::from_slice(&outcomes[0].signature)?;
+    key.verify_prehash(&request.prehash, &signature)?;
+    ensure!(signature.normalize_s().is_none(), "high-S result");
+    let recovered = VerifyingKey::recover_from_prehash(
+        &request.prehash,
+        &signature,
+        RecoveryId::from_byte(outcomes[0].recovery_id).context("invalid recovery ID")?,
+    )?;
+    ensure!(recovered == key, "recovery ID mismatch");
+    drop(inputs); // EOF also releases Tokio's blocking stdin read in each worker.
+    for child in &mut group.children {
+        ensure!(child.wait().await?.success(), "worker exit failed");
+    }
+    let telemetry = json!({"route":route,"key_id":hex(&key_id),"path":path,"public_key":hex(&outcomes[0].public_key),
+        "entry":hex(&request.entry),"attempt":hex(&request.attempt),"wall_ms":started.elapsed().as_secs_f64()*1000.0,
+        "wire_messages_including_subscriptions":message_counts,"wire_bytes_including_setup":byte_counts,
+        "setup_ms":[outcomes[0].setup_ms,outcomes[1].setup_ms],"signing_ms":[outcomes[0].signing_ms,outcomes[1].signing_ms],
+        "signature":hex(&outcomes[0].signature),"package_bytes":outcomes[0].package_bytes});
+    Ok((manifest, outcomes, telemetry))
+}
+fn provision(dir: &Path) -> Result<()> {
+    fs::create_dir_all(dir)?;
+    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
+    for role in 0..2 {
+        let path = dir.join(format!("root-{role}.bin"));
+        if !path.exists() {
+            let root = Zeroizing::new(fresh());
+            let mut file = OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .mode(0o600)
+                .open(path)?;
+            file.write_all(root.as_ref())?;
+            file.sync_all()?;
+        }
+    }
+    Ok(())
+}
+fn has_quarantine(dir: &Path, role: u8) -> bool {
+    let scopes = dir.join("controls/scopes");
+    std::fs::read_dir(scopes)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|entry| entry.path().join(format!("{role}.quarantined")).exists())
+}
+async fn demo(dir: &Path, samples: usize) -> Result<()> {
+    ensure!(
+        cfg!(feature = "research-faults"),
+        "demo fault suite requires --features research-faults"
+    );
+    ensure!(samples > 0 && samples <= 100, "sample count must be 1..100");
+    provision(dir)?;
+    let mut records = vec![];
+    let mut signatures = BTreeSet::new();
+    let mut pins = vec![];
+    for wallet in 0..3u8 {
+        let id = digest(b"pairkey/dkls-research/wallet/v1", &wallet);
+        let mut pin = None;
+        for route in [Route::Migration, Route::Direct] {
+            for path in ["m", "m/7/3"] {
+                for _ in 0..samples {
+                    eprintln!("Research attempt: {route:?}, wallet {wallet}, path {path}");
+                    let (manifest, _, record) =
+                        attempt(dir, route, id, path, pin.as_ref(), Options::default()).await?;
+                    ensure!(
+                        signatures.insert(record["signature"].as_str().unwrap().to_owned()),
+                        "repeated signature across fresh attempts"
+                    );
+                    if pin.is_none() {
+                        pin = Some(manifest);
+                    }
+                    records.push(record);
+                }
+            }
+        }
+        pins.push(pin.unwrap());
+    }
+    let id = pins[0].key_id;
+    let mut refusals = vec![];
+    for fault in [
+        "unauthenticated-garbage",
+        "wrong-hash",
+        "wrong-chain-code",
+        "wrong-key-id",
+        "wrong-peer",
+        "bad-zero-reveal",
+        "truncated-ot",
+        "truncated-pprf",
+        "migration-pprf",
+        "bad-ot",
+        "corrupt-ot",
+        "duplicate-party",
+        "cancel-ready",
+    ] {
+        // Separate control domains keep deliberate faults from poisoning the baseline.
+        let fault_dir = dir.join(format!("fault-{fault}"));
+        provision(&fault_dir)?;
+        let error = attempt(
+            &fault_dir,
+            if fault == "migration-pprf" {
+                Route::Migration
+            } else {
+                Route::Direct
+            },
+            id,
+            "m",
+            None,
+            Options {
+                fault: Some(fault.into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .err()
+        .with_context(|| format!("fault {fault} unexpectedly succeeded"))?;
+        let details = error
+            .downcast_ref::<Terminals>()
+            .map(|report| serde_json::to_value(report).unwrap());
+        let error = format!("{error:#}");
+        let expected = match fault {
+            "unauthenticated-garbage" | "wrong-hash" | "wrong-chain-code" => {
+                "authenticated setup context mismatch"
+            }
+            "wrong-key-id" => "hello/manifest mismatch",
+            "wrong-peer" => "invalid manifest",
+            "bad-ot" => "ProtocolViolation",
+            "bad-zero-reveal" => "zero-share commitment mismatch",
+            "truncated-ot" => "invalid base OT reply length",
+            "truncated-pprf" => "invalid PPRF length",
+            "migration-pprf" => "PPRF error",
+            "corrupt-ot" => "ban the party",
+            "duplicate-party" => "invalid message format",
+            "cancel-ready" => "injected cancellation",
+            _ => unreachable!(),
+        };
+        ensure!(
+            error.contains(expected),
+            "unexpected refusal cause for {fault}: {error}"
+        );
+        if [
+            "unauthenticated-garbage",
+            "wrong-hash",
+            "wrong-chain-code",
+            "wrong-key-id",
+            "wrong-peer",
+            "cancel-ready",
+        ]
+        .contains(&fault)
+        {
+            ensure!(
+                !(0..2).any(|r| has_quarantine(&fault_dir, r)),
+                "routing/cancellation falsely quarantined"
+            );
+        }
+        if [
+            "bad-ot",
+            "corrupt-ot",
+            "duplicate-party",
+            "bad-zero-reveal",
+            "truncated-ot",
+            "truncated-pprf",
+            "migration-pprf",
+        ]
+        .contains(&fault)
+        {
+            ensure!(
+                (0..2).any(|r| has_quarantine(&fault_dir, r)),
+                "cryptographic incident was not persisted"
+            );
+            let retry = attempt(&fault_dir, Route::Direct, id, "m", None, Options::default())
+                .await
+                .err()
+                .context("incident retry succeeded")?;
+            ensure!(
+                format!("{retry:#}").contains("durable research quarantine"),
+                "wrong retry refusal cause"
+            );
+            let alternate_wallet = digest(b"incident-other-wallet/v1", &id);
+            let retry = attempt(
+                &fault_dir,
+                Route::Migration,
+                alternate_wallet,
+                "m/7/3",
+                None,
+                Options::default(),
+            )
+            .await
+            .err()
+            .context("incident bypass through another wallet/route")?;
+            ensure!(
+                format!("{retry:#}").contains("durable research quarantine"),
+                "wrong cross-wallet incident refusal"
+            );
+        }
+        if [
+            "cancel-ready",
+            "unauthenticated-garbage",
+            "wrong-hash",
+            "wrong-chain-code",
+        ]
+        .contains(&fault)
+        {
+            attempt(&fault_dir, Route::Direct, id, "m", None, Options::default())
+                .await
+                .context("fresh retry after cancellation failed")?;
+        }
+        refusals.push(json!({"fault":fault,"refused":true,"error":error,"failure_details":details,"quarantine_persisted":(0..2).any(|r|has_quarantine(&fault_dir,r)),"retry_blocked_across_wallet_and_route":(0..2).any(|r|has_quarantine(&fault_dir,r))}));
+    }
+    let replay_dir = dir.join("fault-reservation-replay");
+    provision(&replay_dir)?;
+    let entry = fresh();
+    let first = attempt(
+        &replay_dir,
+        Route::Direct,
+        id,
+        "m",
+        None,
+        Options {
+            reuse_entry: Some(entry),
+            ..Default::default()
+        },
+    )
+    .await?;
+    let replay = attempt(
+        &replay_dir,
+        Route::Direct,
+        id,
+        "m",
+        Some(&first.0),
+        Options {
+            reuse_entry: Some(entry),
+            ..Default::default()
+        },
+    )
+    .await
+    .err()
+    .context("reservation replay succeeded")?;
+    refusals.push(json!({"fault":"reservation-replay-after-process-restart","refused":true,"error":format!("{replay:#}")}));
+    let quarantine_dir = dir.join("fault-quarantine");
+    provision(&quarantine_dir)?;
+    let pin = attempt(
+        &quarantine_dir,
+        Route::Direct,
+        id,
+        "m",
+        None,
+        Options::default(),
+    )
+    .await?
+    .0;
+    incident(
+        &scope_dir(&quarantine_dir.join("controls"), &pin),
+        0,
+        fresh(),
+    )?;
+    let quarantined = attempt(
+        &quarantine_dir,
+        Route::Direct,
+        id,
+        "m",
+        None,
+        Options::default(),
+    )
+    .await
+    .err()
+    .context("quarantine did not survive restart")?;
+    refusals.push(json!({"fault":"durable-quarantine-at-worker-start","refused":true,"error":format!("{quarantined:#}")}));
+    let concurrent = futures_util::future::join_all((0..4).map(|_| {
+        attempt(
+            dir,
+            Route::Direct,
+            id,
+            "m",
+            Some(&pins[0]),
+            Options::default(),
+        )
+    }))
+    .await;
+    let mut concurrent_signatures = BTreeSet::new();
+    let mut concurrent_records = vec![];
+    for result in concurrent {
+        let (_, outcomes, record) = result?;
+        ensure!(
+            concurrent_signatures.insert(outcomes[0].signature.clone()),
+            "concurrent attempts repeated a signature"
+        );
+        concurrent_records.push(record);
+    }
+    let evidence = json!({"source_revision":REVISION,"scope":"local research; mock public ledger; no TEE or production authorization",
+        "dkls_spikes_executed":true,"samples_per_wallet_path_route":samples,"successful_attempts":records.len(),"wallets":pins,
+        "attempts":records,"concurrent_attempts":concurrent_records,"refusals":refusals,"limitations":["VOLE 2026 parameter analysis unresolved","custom setup unaudited",
+        "upstream opaque buffers and physical erasure unverified","public ledger assumes honest filesystem authority","snapshot cloning not prevented by roots or boot IDs",
+        "no background OT pool or product integration"]});
+    fs::write(
+        dir.join("evidence.json"),
+        serde_json::to_vec_pretty(&evidence)?,
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(
+            &json!({"evidence":dir.join("evidence.json"),"successful_attempts":evidence["successful_attempts"],"refusals":evidence["refusals"].as_array().unwrap().len()})
+        )?
+    );
+    Ok(())
+}
+#[tokio::main(flavor = "multi_thread")]
+async fn main() -> Result<()> {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    match args.first().map(String::as_str) {
+        Some("worker") if args.len() == 4 => {
+            worker::run(args[1].parse()?, Path::new(&args[2]), unhex(&args[3])?).await
+        }
+        Some("demo") => {
+            let dir = PathBuf::from(
+                args.get(1)
+                    .context("demo requires an ignored output directory")?,
+            );
+            let samples = args.get(2).map(|s| s.parse()).transpose()?.unwrap_or(1);
+            demo(&dir, samples).await
+        }
+        _ => anyhow::bail!("usage: dkls-spike demo <private ignored output directory> [samples]"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn closed_transport_retains_originator_diagnostic() {
+        let (mut writer, reader) = tokio::io::duplex(1024);
+        drop(reader);
+        let error = send(&mut writer, &Frame::Ready([1; 32])).await.unwrap_err();
+        let mut terminals = Terminals::default();
+        terminals.pipe(1, error.downcast_ref::<std::io::Error>().unwrap());
+        terminals.closed(1);
+        let mut failure = Failure::violation(Phase::Signing, [2; 32], "proof failed");
+        failure.incident_persisted = true;
+        terminals.failure(0, failure);
+        terminals.closed(0);
+        assert!(terminals.diagnostic().contains("proof failed"));
+        assert!(terminals.diagnostic().contains("persisted=true"));
+    }
+}

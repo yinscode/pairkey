@@ -1,0 +1,29 @@
+PairKey DKLS23 standalone research experiments, 2026-10-10.
+
+This resulting program uses Silence Laboratories dkls23, sl-oblivious and
+sl-mpc-mate. It is licensed under the Silence Laboratories License Agreement,
+Copyright © Silence Laboratories Pte. Ltd. All Rights Reserved.
+
+The applicable agreement is included as LICENSE.silence. Its non-commercial
+restrictions and notice requirements apply to this research resulting program.
+The surrounding PairKey workspace does not adopt these crates as dependencies.
+The user requested research experiments with no monetization at this stage;
+no commercial license or production suitability is asserted.
+
+Upstream dkls23 revision: af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7.
+Source archive SHA256:
+e7301fa0886c0232cdf7dad7b2827ef0ce0ea84c1853ea926fe781865d320c9b.
+
+PairKey independently modifies the downloaded research copy, without any
+involvement by Silence Laboratories:
+- Adds a restricted, typed 2-of-2 constructor with local secret/public and
+  weighted aggregate checks. This does not validate the interactive ceremony.
+- Corrects duplicate party-ID validation to compare package IDs rather than
+  complete (participant index, package ID) tuples.
+
+- Adds an explicit research feature and a migration PPRF-proof corruption fixture
+  gated behind it; disabled in default builds.
+
+Modifications were made on 2026-10-10. Exact modifications are maintained in
+patch-source.py and patches/research-keyshare.rs. Signing arithmetic is unchanged.
+Original source notices are retained in the downloaded source and dependencies.

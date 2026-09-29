@@ -1,0 +1,39 @@
+[package]
+name = "pairkey-dkls23-research"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = false
+license-file = "LICENSE.silence"
+
+# Deliberately separate from the production workspace and lockfile.
+[workspace]
+
+[features]
+default = []
+research-faults = ["sl-dkls23/pairkey-research-faults"]
+
+[dependencies]
+sl-dkls23 = { path = "../../.local/silence-dkls23/sources/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7", default-features = false }
+sl-oblivious = "=1.0.0-beta"
+sl-mpc-mate = { version = "=1.0.0-beta", features = ["simple-relay"] }
+k256 = { version = "=0.13.4", features = ["ecdsa"] }
+ed25519-dalek = "=2.2.0"
+signature = "=2.2.0"
+sha2 = "=0.10.9"
+hkdf = "=0.12.4"
+rand_core = { version = "=0.6.4", features = ["getrandom"] }
+zeroize = "=1.8.1"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+anyhow = "=1.0.100"
+futures-util = { version = "=0.3.31", features = ["sink"] }
+tokio = { version = "=1.48.0", features = ["macros", "rt-multi-thread", "process", "io-util", "io-std", "time", "sync"] }
+derivation-path = "=0.2.0"
+bytemuck = { version = "=1.25.0", features = ["min_const_generics", "extern_crate_alloc"] }
+x25519-dalek = { version = "=2.0.1", features = ["static_secrets"] }
+chacha20poly1305 = "=0.10.1"
+
+[[bin]]
+name = "dkls-spike"
+path = "src/main.rs"
