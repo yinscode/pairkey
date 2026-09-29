@@ -31,6 +31,8 @@ pub struct Config {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SignRequest {
+    #[serde(default)]
+    pub authorization: pairkey_types::policy::Authorization,
     pub registration: Registration,
     pub commit: Commit,
     pub message: Vec<u8>,
@@ -171,6 +173,7 @@ impl Relay {
         let mut random_id = [0; 32];
         OsRng.fill_bytes(&mut random_id);
         let attempt = Attempt {
+            authorization: request.authorization,
             commit: request.commit,
             random_id,
         };

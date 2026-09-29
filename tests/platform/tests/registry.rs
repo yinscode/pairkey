@@ -28,6 +28,8 @@ impl Fixture {
             .unwrap();
         svm.add_program_from_file(example_controller::id(), root.join("example_controller.so"))
             .unwrap();
+        svm.add_program_from_file(example_policy::id(), root.join("example_policy.so"))
+            .unwrap();
         let payer = Keypair::new();
         svm.airdrop(&payer.pubkey(), 20_000_000_000).unwrap();
         let identities = [Keypair::new(), Keypair::new()];
@@ -107,6 +109,7 @@ impl Fixture {
         let mut random_id = [0; 32];
         OsRng.fill_bytes(&mut random_id);
         let attempt = Attempt {
+            authorization: Default::default(),
             commit: commit.clone(),
             random_id,
         };
@@ -314,4 +317,235 @@ fn native_public_checks_reject_identity_torsion_noncanonical_and_wrong_interpola
         .collect();
     ixs.push(pairkey_sdk::register(controller, controller, reg));
     assert!(f.send(ixs).is_err());
+}
+
+#[test]
+#[ignore = "requires SBF programs"]
+fn controller_and_cpi_can_grant_revoke_and_version_sessions_but_cannot_reuse_ids_or_budget_promises(
+) {
+    use pair_registry::{PolicyRecord, SessionRecord};
+    use pairkey_types::policy::*;
+    let mut f = Fixture::new();
+    for (id, cpi) in [(71, false), (72, true)] {
+        let controller = if cpi {
+            example_controller::authority(&example_controller::id(), &f.payer.pubkey()).0
+        } else {
+            f.payer.pubkey()
+        };
+        let reg = f.registration(controller, id, cpi);
+        let payer = f.payer.pubkey();
+        let wrap = |ix| {
+            if cpi {
+                pairkey_sdk::through_controller(payer, ix)
+            } else {
+                ix
+            }
+        };
+        let policy = Policy {
+            version: 1,
+            allow_session: true,
+            require_commit: false,
+            require_session: true,
+            access: None,
+            simulation: None,
+        };
+        f.send(vec![wrap(pairkey_sdk::set_policy(
+            f.payer.pubkey(),
+            controller,
+            &reg,
+            policy.clone(),
+        ))])
+        .unwrap();
+        let ns = pair_registry::namespace_address(&pair_registry::id(), &reg).0;
+        let policy_address = pair_registry::policy_address(&pair_registry::id(), &ns).0;
+        let record: PolicyRecord =
+            borsh::from_slice(&f.svm.get_account(&policy_address).unwrap().data).unwrap();
+        assert_eq!(record.policy, policy);
+        let now = f
+            .svm
+            .get_sysvar::<solana_sdk::clock::Clock>()
+            .unix_timestamp;
+        let grant = SessionGrant {
+            session_id: [id; 32],
+            policy_version: 1,
+            account: AccountPath {
+                destination: solana_destination(reg.namespace.network),
+                path: vec![0],
+            },
+            credential: Credential::Service {
+                public_key: f.identities[0].pubkey().to_bytes(),
+            },
+            not_before: now,
+            expires_at: now + 60,
+            recipient: Pubkey::new_unique().to_bytes(),
+            max_lamports_per_operation: 100,
+            cumulative_budget: None,
+        };
+        let grant_ix = wrap(pairkey_sdk::grant_session(
+            f.payer.pubkey(),
+            controller,
+            &reg,
+            grant.clone(),
+        ));
+        f.send(vec![grant_ix.clone()]).unwrap();
+        assert!(f.send(vec![grant_ix]).is_err());
+        let session_address =
+            pair_registry::session_address(&pair_registry::id(), &ns, &grant.session_id).0;
+        let record: SessionRecord =
+            borsh::from_slice(&f.svm.get_account(&session_address).unwrap().data).unwrap();
+        assert_eq!(record.grant, grant);
+        assert!(!record.revoked);
+        f.send(vec![wrap(pairkey_sdk::revoke_session(
+            controller,
+            &reg,
+            grant.session_id,
+        ))])
+        .unwrap();
+        let record: SessionRecord =
+            borsh::from_slice(&f.svm.get_account(&session_address).unwrap().data).unwrap();
+        assert!(record.revoked);
+        let mut budget = grant.clone();
+        budget.session_id = [id + 2; 32];
+        budget.cumulative_budget = Some(100);
+        assert!(f
+            .send(vec![wrap(pairkey_sdk::grant_session(
+                f.payer.pubkey(),
+                controller,
+                &reg,
+                budget
+            ))])
+            .is_err());
+        let mut changed = policy.clone();
+        changed.version = 2;
+        changed.access = Some(Credential::Service {
+            public_key: f.identities[1].pubkey().to_bytes(),
+        });
+        f.send(vec![wrap(pairkey_sdk::set_policy(
+            f.payer.pubkey(),
+            controller,
+            &reg,
+            changed,
+        ))])
+        .unwrap();
+        assert!(f
+            .send(vec![wrap(pairkey_sdk::set_policy(
+                f.payer.pubkey(),
+                controller,
+                &reg,
+                policy
+            ))])
+            .is_err());
+    }
+}
+
+#[test]
+#[ignore = "requires SBF programs"]
+fn simulation_requires_real_enrolled_identity_proof_exact_state_and_no_preparatory_instructions() {
+    use pairkey_types::policy::*;
+    let mut f = Fixture::new();
+    let controller = f.payer.pubkey();
+    let reg = f.registration(controller, 81, false);
+    let policy = Policy {
+        version: 1,
+        allow_session: false,
+        require_commit: true,
+        require_session: false,
+        access: None,
+        simulation: Some(SimulationConfig {
+            program: example_policy::id().to_bytes(),
+            code_hash: pairkey_core::code_hash(
+                &f.svm.get_account(&example_policy::id()).unwrap().data,
+            ),
+            max_lamports: 100,
+        }),
+    };
+    f.send(vec![pairkey_sdk::set_policy(
+        controller,
+        controller,
+        &reg,
+        policy.clone(),
+    )])
+    .unwrap();
+    let ns = pair_registry::namespace_address(&pair_registry::id(), &reg).0;
+    let set = pair_registry::set_address(&pair_registry::id(), &reg.namespace.enclave_set).0;
+    let policy_address = pair_registry::policy_address(&pair_registry::id(), &ns).0;
+    let input = SimulationInput {
+        commit_digest: [9; 32],
+        policy_digest: policy.digest(),
+        authorization_digest: [10; 32],
+        state_digest: simulation_state(
+            &f.svm.get_account(&set).unwrap().data,
+            &f.svm.get_account(&ns).unwrap().data,
+            &f.svm.get_account(&policy_address).unwrap().data,
+        ),
+        recipient: Pubkey::new_unique().to_bytes(),
+        lamports: 50,
+    };
+    let challenge = simulation_message(&input);
+    let signature = f.identities[0]
+        .sign_message(&challenge)
+        .as_ref()
+        .try_into()
+        .unwrap();
+    let mut tx = pairkey_sdk::simulation_transaction(
+        example_policy::id(),
+        controller,
+        &reg,
+        f.identities[0].pubkey().to_bytes(),
+        signature,
+        input.clone(),
+    );
+    tx.try_sign(&[&f.payer], f.svm.latest_blockhash()).unwrap();
+    assert!(f.svm.simulate_transaction(tx.clone()).is_ok());
+    let unknown = Keypair::new();
+    let mut forged = pairkey_sdk::simulation_transaction(
+        example_policy::id(),
+        controller,
+        &reg,
+        unknown.pubkey().to_bytes(),
+        unknown
+            .sign_message(&challenge)
+            .as_ref()
+            .try_into()
+            .unwrap(),
+        input.clone(),
+    );
+    forged
+        .try_sign(&[&f.payer], f.svm.latest_blockhash())
+        .unwrap();
+    assert!(f.svm.simulate_transaction(forged).is_err());
+    let mut bad_state = input.clone();
+    bad_state.state_digest[0] ^= 1;
+    let sig = f.identities[0]
+        .sign_message(&simulation_message(&bad_state))
+        .as_ref()
+        .try_into()
+        .unwrap();
+    let mut changed = pairkey_sdk::simulation_transaction(
+        example_policy::id(),
+        controller,
+        &reg,
+        f.identities[0].pubkey().to_bytes(),
+        sig,
+        bad_state,
+    );
+    changed
+        .try_sign(&[&f.payer], f.svm.latest_blockhash())
+        .unwrap();
+    assert!(f.svm.simulate_transaction(changed).is_err());
+    let mut injected = tx.clone();
+    injected
+        .message
+        .instructions
+        .insert(0, injected.message.instructions[0].clone());
+    injected
+        .try_sign(&[&f.payer], f.svm.latest_blockhash())
+        .unwrap();
+    assert!(f.svm.simulate_transaction(injected).is_err());
+    let mut invalid = tx;
+    invalid.message.instructions[0].data[16] ^= 1;
+    invalid
+        .try_sign(&[&f.payer], f.svm.latest_blockhash())
+        .unwrap();
+    assert!(f.svm.simulate_transaction(invalid).is_err());
 }

@@ -2,13 +2,13 @@
 
 Status: adopted for controlled local tests only. Architecture v0.4 remains the reference. This decision does not establish production suitability or replace its recovery design.
 
-The platform plan governs implementation order over the older Hyperliquid MVP. Ed25519/FROST and exact-byte Solana COMMIT come first. ECDSA, SESSION, SIMULATE, consumer authentication, agents, Hyperliquid, and recovery implementation remain later phases.
+The platform plan governs implementation order over the older Hyperliquid MVP. Ed25519/FROST and exact-byte Solana COMMIT come first. The local Solana SESSION, service-key/passkey authentication, and constrained SIMULATE layers now build on that base. ECDSA, OAuth, agents, Hyperliquid and recovery implementation remain later work.
 
 ## Objects and invariants
 
 A **provider root** is a persistent, independent 32-byte secret for one signing domain. A **worker** is a replaceable process that reconstructs shares from that root and public metadata; its pending signing nonces exist only in memory. Worker statelessness does not mean there are no persistent secrets, no public registry state, or no memory rollback risk.
 
-A **namespace** is an immutable tuple of protocol version, scheme, authorization network identity, registry program, original derivation authority, namespace identifier, and enclave-set identity. Its current controller can be governed independently of its immutable derivation authority. A **derived account** adds a destination domain and bounded sequence of path components. A **request** permanently authorizes the hash and length of exact bytes for that account. An **attempt** adds a fresh random identifier. An enclave-set identity binds the two independently enrolled participant identities; an endpoint hostname alone is insufficient.
+A **namespace** is an immutable tuple of protocol version, scheme, authorization network identity, registry program, original derivation authority, namespace identifier, and enclave-set identity. Its current controller can be governed independently of its immutable derivation authority. A **derived account** adds a destination domain and bounded sequence of path components. A **request** permanently authorizes the hash and length of exact bytes for that account. An **attempt** adds a fresh random identifier and the public authorization envelope, bound under the v2 attempt digest. SESSION can use an exact-operation descriptor without a persisted COMMIT record; registry policy determines which approvals are required. An enclave-set identity binds the two independently enrolled participant identities; an endpoint hostname alone is insufficient.
 
 For participant IDs A=1 and B=2, each side derives its scalar with HKDF-SHA512 from its own root, a fixed salt, a scheme/version label, the canonical namespace digest, and its role. Public interpolation uses `P = 2*S_A - S_B`. No participant or relay computes the aggregate secret. Registration requires both role-bound possession proofs, prime-order nonidentity public shares, the interpolation check, and agreement authenticated by the enrolled domain identities.
 

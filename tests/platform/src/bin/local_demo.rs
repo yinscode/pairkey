@@ -180,6 +180,19 @@ async fn main() -> anyhow::Result<()> {
             break p;
         }
     };
+    let genesis_programs = run.join("genesis-programs");
+    std::fs::create_dir(&genesis_programs)?;
+    for (program, name) in [
+        (pair_registry::id(), "pair_registry"),
+        (example_controller::id(), "example_controller"),
+        (example_policy::id(), "example_policy"),
+    ] {
+        immutable_genesis_program(
+            &genesis_programs,
+            program,
+            &root.join(format!("target/deploy/{name}.so")),
+        )?;
+    }
     let mut processes = Processes(vec![]);
     let validator = Command::new("solana-test-validator")
         .args([
@@ -203,18 +216,7 @@ async fn main() -> anyhow::Result<()> {
         .stderr(Stdio::from(std::fs::File::create(
             run.join("validator-stderr.log"),
         )?))
-        .args([
-            "--bpf-program",
-            &pair_registry::id().to_string(),
-            root.join("target/deploy/pair_registry.so")
-                .to_str()
-                .unwrap(),
-            "--bpf-program",
-            &example_controller::id().to_string(),
-            root.join("target/deploy/example_controller.so")
-                .to_str()
-                .unwrap(),
-        ])
+        .args(["--account-dir", genesis_programs.to_str().unwrap()])
         .spawn()?;
     processes.0.push(Some(validator));
     let rpc = Rpc::new(format!("http://127.0.0.1:{rpc_port}"))?;
@@ -261,6 +263,21 @@ async fn main() -> anyhow::Result<()> {
         identities[0].verifying_key().to_bytes(),
         identities[1].verifying_key().to_bytes(),
     ];
+    send(
+        &rpc,
+        &payer,
+        identity_public
+            .iter()
+            .map(|key| {
+                system_instruction::transfer(
+                    &payer.pubkey(),
+                    &Pubkey::new_from_array(*key),
+                    1_000_000,
+                )
+            })
+            .collect(),
+    )
+    .await?;
     send(
         &rpc,
         &payer,
@@ -337,7 +354,10 @@ async fn main() -> anyhow::Result<()> {
     }
     let mut latency = Vec::new();
     let mut transfer_results = Vec::new();
-    for (id, cpi) in [(1u8, false), (2, true)] {
+    for (id, cpi) in [(1u8, false), (2, true)]
+        .into_iter()
+        .filter(|_| std::env::var_os("PAIRKEY_DEMO_POLICY_ONLY").is_none())
+    {
         let controller = if cpi {
             example_controller::authority(&example_controller::id(), &payer.pubkey()).0
         } else {
@@ -414,6 +434,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
         let request = SignRequest {
+            authorization: Default::default(),
             registration: reg.clone(),
             commit: commit.clone(),
             message: bytes.clone(),
@@ -542,6 +563,7 @@ async fn main() -> anyhow::Result<()> {
                 let mut random_id = [0; 32];
                 OsRng.fill_bytes(&mut random_id);
                 let attempt = Attempt {
+                    authorization: Default::default(),
                     commit: commit.clone(),
                     random_id,
                 };
@@ -708,6 +730,7 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
             let expired_request = SignRequest {
+                authorization: Default::default(),
                 registration: reg.clone(),
                 commit: expired_commit,
                 message: expired_bytes,
@@ -795,6 +818,7 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
             let req = SignRequest {
+                authorization: Default::default(),
                 registration: reg.clone(),
                 commit: nonce_commit.clone(),
                 message: nonce_bytes,
@@ -834,8 +858,17 @@ async fn main() -> anyhow::Result<()> {
         }
         transfer_results.push(json!({"namespace":id,"cpi":cpi,"derived_account":derived.to_string(),"recipient":recipient.to_string(),"execution_count":1}));
     }
+    let policy_results = policy_demo(
+        &rpc,
+        &payer,
+        &coordinator_url,
+        &relay,
+        genesis,
+        identity_public,
+    )
+    .await?;
     latency.sort();
-    let evidence = json!({"hardware_backed":false,"validator":"Agave 3.0.15","native_transfers":transfer_results,"signing_latency_ms":latency,"artifacts":run});
+    let evidence = json!({"hardware_backed":false,"validator":"Agave 3.0.15","native_transfers":transfer_results,"phase_6_7":policy_results,"signing_latency_ms":latency,"artifacts":run});
     std::fs::write(
         run.join("evidence.json"),
         serde_json::to_vec_pretty(&evidence)?,
@@ -844,5 +877,342 @@ async fn main() -> anyhow::Result<()> {
         "{}",
         json!({"event":"local_demo_passed","evidence":run.join("evidence.json"),"hardware_backed":false})
     );
+    Ok(())
+}
+async fn policy_demo(
+    rpc: &Rpc,
+    payer: &Keypair,
+    coordinator: &str,
+    relay: &Relay,
+    genesis: [u8; 32],
+    identity_public: [[u8; 32]; 2],
+) -> anyhow::Result<serde_json::Value> {
+    use pairkey_types::policy::*;
+    let sdk = pairkey_sdk::service::Client::new(coordinator.into())?;
+    let namespace = Namespace {
+        version: 1,
+        scheme: Scheme::FrostEd25519,
+        network: genesis,
+        registry: pair_registry::id().to_bytes(),
+        derivation_authority: payer.pubkey().to_bytes(),
+        namespace_id: [67; 32],
+        enclave_set: [5; 32],
+    };
+    let proposal = sdk
+        .namespace(namespace, payer.pubkey().to_bytes(), identity_public)
+        .await?;
+    let reg = proposal.registration;
+    let registration_message = pair_registry::registration_message(&reg, &payer.pubkey());
+    let mut ixs: Vec<_> = proposal
+        .identity_signatures
+        .iter()
+        .enumerate()
+        .map(|(i, sig)| {
+            pairkey_sdk::ed25519_instruction(
+                identity_public[i],
+                sig.as_slice().try_into().unwrap(),
+                &registration_message,
+            )
+        })
+        .collect();
+    ixs.push(pairkey_sdk::register(
+        payer.pubkey(),
+        payer.pubkey(),
+        reg.clone(),
+    ));
+    send(rpc, payer, ixs).await?;
+    let account = AccountPath {
+        destination: solana_destination(genesis),
+        path: vec![67],
+    };
+    let derived = pairkey_sdk::derived_address(&reg, &account)?;
+    send(
+        rpc,
+        payer,
+        vec![system_instruction::transfer(
+            &payer.pubkey(),
+            &derived,
+            10_000_000,
+        )],
+    )
+    .await?;
+    let delegate = ed25519_dalek::SigningKey::from_bytes(&[67; 32]);
+    let access = ed25519_dalek::SigningKey::from_bytes(&[68; 32]);
+    let recipient = Pubkey::new_unique();
+    let delegate_key = Credential::Service {
+        public_key: delegate.verifying_key().to_bytes(),
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs() as i64;
+    let mut policy = Policy {
+        version: 1,
+        allow_session: true,
+        require_commit: false,
+        require_session: true,
+        access: Some(Credential::Service {
+            public_key: access.verifying_key().to_bytes(),
+        }),
+        simulation: None,
+    };
+    send(
+        rpc,
+        payer,
+        vec![pairkey_sdk::set_policy(
+            payer.pubkey(),
+            payer.pubkey(),
+            &reg,
+            policy.clone(),
+        )],
+    )
+    .await?;
+    let mut grant = SessionGrant {
+        session_id: [67; 32],
+        policy_version: 1,
+        account: account.clone(),
+        credential: delegate_key,
+        not_before: now - 30,
+        expires_at: now + 600,
+        recipient: recipient.to_bytes(),
+        max_lamports_per_operation: 1_500_000,
+        cumulative_budget: None,
+    };
+    send(
+        rpc,
+        payer,
+        vec![pairkey_sdk::grant_session(
+            payer.pubkey(),
+            payer.pubkey(),
+            &reg,
+            grant.clone(),
+        )],
+    )
+    .await?;
+    let mut executions = 0;
+    for stage in 0..4 {
+        let simulate = stage > 0;
+        if stage > 0 {
+            let executable = rpc.executable(example_policy::id(), 0).await?;
+            policy.version = stage + 1;
+            policy.simulation = Some(SimulationConfig {
+                program: example_policy::id().to_bytes(),
+                code_hash: executable.hash()?,
+                max_lamports: 1_500_000,
+            });
+            grant.policy_version = policy.version;
+            grant.session_id = [67 + stage as u8; 32];
+            if stage >= 2 {
+                grant.credential = passkey_credential(69);
+                policy.access = Some(passkey_credential(70));
+            }
+            policy.require_commit = stage == 3;
+            send(
+                rpc,
+                payer,
+                vec![pairkey_sdk::set_policy(
+                    payer.pubkey(),
+                    payer.pubkey(),
+                    &reg,
+                    policy.clone(),
+                )],
+            )
+            .await?;
+            send(
+                rpc,
+                payer,
+                vec![pairkey_sdk::grant_session(
+                    payer.pubkey(),
+                    payer.pubkey(),
+                    &reg,
+                    grant.clone(),
+                )],
+            )
+            .await?;
+        }
+        let message = Message::new_with_blockhash(
+            &[system_instruction::transfer(
+                &derived, &recipient, 1_000_000,
+            )],
+            Some(&derived),
+            &blockhash(rpc).await?,
+        );
+        let bytes = message.serialize();
+        let commit = Commit::new(&reg, [67 + stage as u8; 32], account.clone(), &bytes)?;
+        let mut authorization = Authorization {
+            policy_version: policy.version,
+            session_id: Some(grant.session_id),
+            ..Default::default()
+        };
+        authorization.session_proof = Some(pairkey_sdk::policy::service_proof(
+            &delegate,
+            pairkey_sdk::policy::session_challenge(&authorization, &commit, &grant),
+        ));
+        authorization.access_proof = Some(pairkey_sdk::policy::service_proof(
+            &access,
+            pairkey_sdk::policy::access_challenge(&authorization, &commit),
+        ));
+        if stage >= 2 {
+            authorization.session_proof = Some(passkey_assertion(
+                69,
+                pairkey_sdk::policy::session_challenge(&authorization, &commit, &grant),
+            ));
+            authorization.access_proof = Some(passkey_assertion(
+                70,
+                pairkey_sdk::policy::access_challenge(&authorization, &commit),
+            ));
+        }
+        if policy.require_commit {
+            send(
+                rpc,
+                payer,
+                vec![pairkey_sdk::commit(
+                    payer.pubkey(),
+                    payer.pubkey(),
+                    &reg,
+                    commit.clone(),
+                )],
+            )
+            .await?;
+        }
+        let id = sdk
+            .submit_authorized(&reg, &commit, &bytes, &authorization)
+            .await?;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let result = loop {
+            match serde_json::from_value::<Job>(sdk.poll(&id).await?)? {
+                Job::Complete { result } => break result,
+                Job::Failed { error } => anyhow::bail!("policy job failed: {error}"),
+                _ => {}
+            }
+            ensure!(Instant::now() < deadline, "policy job timeout");
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        };
+        let signature: [u8; 64] = result.signature.as_slice().try_into()?;
+        ensure!(
+            pairkey_sdk::verify_signature(&reg, &commit, &bytes, &signature),
+            "session signature invalid"
+        );
+        let tx = Transaction {
+            signatures: vec![Signature::from(signature)],
+            message,
+        };
+        let sig = rpc.send_bytes(&bincode::serialize(&tx)?).await?;
+        confirmed(rpc, sig).await?;
+        executions += 1;
+        let request = SignRequest {
+            authorization: authorization.clone(),
+            registration: reg.clone(),
+            commit: commit.clone(),
+            message: bytes.clone(),
+        };
+        if stage == 0 {
+            let mut concurrent = Vec::new();
+            for _ in 0..8 {
+                let relay = relay.clone();
+                let request = request.clone();
+                concurrent.push(tokio::spawn(async move { relay.sign(request).await }));
+            }
+            let mut signatures = std::collections::BTreeSet::new();
+            for task in concurrent {
+                signatures.insert(task.await??.signature);
+            }
+            ensure!(
+                signatures.len() == 8,
+                "session concurrent signatures reused"
+            );
+        }
+        let mut downgraded = request.clone();
+        downgraded.authorization = Default::default();
+        ensure!(
+            relay.sign(downgraded).await.is_err(),
+            "policy downgrade accepted"
+        );
+        let mut forged = request.clone();
+        forged.authorization.access_proof = None;
+        ensure!(
+            relay.sign(forged).await.is_err(),
+            "missing access proof accepted"
+        );
+        send(
+            rpc,
+            payer,
+            vec![pairkey_sdk::revoke_session(
+                payer.pubkey(),
+                &reg,
+                grant.session_id,
+            )],
+        )
+        .await?;
+        ensure!(
+            relay.sign(request).await.is_err(),
+            "revoked session accepted"
+        );
+        println!(
+            "{}",
+            json!({"event":"policy_flow_passed","simulate":simulate,"session_without_per_operation_commit":!policy.require_commit,"revocation_refused":true})
+        );
+    }
+    ensure!(
+        balance(rpc, recipient).await? == 4_000_000,
+        "policy transfer balance mismatch"
+    );
+    Ok(
+        json!({"session_transfers":executions,"concurrent_session_jobs":8,"passkey_access_and_delegate":true,"commit_session_simulate_composition":true,"session_without_per_operation_commit":true,"service_access_proof":true,"simulation":true,"policy_downgrade_refused":true,"session_revocation_refused":true}),
+    )
+}
+
+fn passkey_credential(seed: u8) -> pairkey_types::policy::Credential {
+    let key = p256::ecdsa::SigningKey::from_slice(&[seed; 32]).unwrap();
+    pairkey_types::policy::Credential::Passkey {
+        public_key: key
+            .verifying_key()
+            .to_encoded_point(false)
+            .as_bytes()
+            .to_vec(),
+        rp_id: "pairkey.example".into(),
+        origin: "https://pairkey.example".into(),
+    }
+}
+/// Software authenticator fixture only; browser assertions use the same ES256 verifier.
+fn passkey_assertion(seed: u8, challenge: [u8; 32]) -> pairkey_types::policy::AccessProof {
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use p256::ecdsa::signature::Signer;
+    use sha2::{Digest, Sha256};
+    let key = p256::ecdsa::SigningKey::from_slice(&[seed; 32]).unwrap();
+    let client=serde_json::to_vec(&json!({"type":"webauthn.get","challenge":URL_SAFE_NO_PAD.encode(challenge),"origin":"https://pairkey.example","crossOrigin":false})).unwrap();
+    let mut authenticator = Sha256::digest(b"pairkey.example").to_vec();
+    authenticator.push(5);
+    authenticator.extend_from_slice(&0u32.to_be_bytes());
+    let mut signed = authenticator.clone();
+    signed.extend_from_slice(&Sha256::digest(&client));
+    let signature: p256::ecdsa::Signature = key.sign(&signed);
+    pairkey_types::policy::AccessProof::Passkey {
+        authenticator_data: authenticator,
+        client_data_json: client,
+        signature_der: signature.to_der().as_bytes().to_vec(),
+    }
+}
+
+/// Explicit loader-v3 None authority, avoiding CLI sentinel-authority behavior.
+fn immutable_genesis_program(directory: &Path, program: Pubkey, elf: &Path) -> anyhow::Result<()> {
+    use solana_sdk::bpf_loader_upgradeable::{self, UpgradeableLoaderState};
+    let loader = bpf_loader_upgradeable::id();
+    let data_address = Pubkey::find_program_address(&[program.as_ref()], &loader).0;
+    let pointer = bincode::serialize(&UpgradeableLoaderState::Program {
+        programdata_address: data_address,
+    })?;
+    let mut data = bincode::serialize(&UpgradeableLoaderState::ProgramData {
+        slot: 0,
+        upgrade_authority_address: None,
+    })?;
+    data.resize(UpgradeableLoaderState::size_of_programdata_metadata(), 0);
+    data.extend_from_slice(&std::fs::read(elf)?);
+    for (key, bytes, executable) in [(program, pointer, true), (data_address, data, false)] {
+        let account = json!({"pubkey":key.to_string(),"account":{"lamports":solana_sdk::rent::Rent::default().minimum_balance(bytes.len()),"owner":loader.to_string(),"executable":executable,"rentEpoch":0,"space":bytes.len(),"data":[STANDARD.encode(&bytes),"base64"]}});
+        std::fs::write(
+            directory.join(format!("{key}.json")),
+            serde_json::to_vec(&account)?,
+        )?;
+    }
     Ok(())
 }

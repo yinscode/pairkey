@@ -40,11 +40,21 @@ impl Client {
         commit: &Commit,
         message: &[u8],
     ) -> anyhow::Result<String> {
+        self.submit_authorized(reg, commit, message, &Default::default())
+            .await
+    }
+    pub async fn submit_authorized(
+        &self,
+        reg: &Registration,
+        commit: &Commit,
+        message: &[u8],
+        authorization: &pairkey_types::policy::Authorization,
+    ) -> anyhow::Result<String> {
         commit.authorize(reg, message)?;
         let response = self
             .http
             .post(format!("{}/jobs", self.endpoint))
-            .json(&json!({"registration":reg,"commit":commit,"message":message}))
+            .json(&json!({"registration":reg,"commit":commit,"message":message,"authorization":authorization}))
             .send()
             .await
             .map_err(reqwest::Error::without_url)?;

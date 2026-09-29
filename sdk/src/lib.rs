@@ -1,5 +1,6 @@
 //! Public derivation and Solana request helpers; no provider-root access.
 pub mod http;
+pub mod policy;
 pub mod rpc;
 pub mod service;
 use pair_registry::{
@@ -127,7 +128,10 @@ pub fn through_controller(owner: Pubkey, registry_ix: Instruction) -> Instructio
     let authority = example_controller::authority(&example_controller::id(), &owner).0;
     assert_eq!(registry_ix.program_id, pair_registry::id());
     let registry_instruction = borsh::from_slice::<RegistryInstruction>(&registry_ix.data).unwrap();
-    let start = if matches!(registry_instruction, RegistryInstruction::Freeze { .. }) {
+    let start = if matches!(
+        registry_instruction,
+        RegistryInstruction::Freeze { .. } | RegistryInstruction::RevokeSession { .. }
+    ) {
         assert_eq!(registry_ix.accounts[0].pubkey, authority);
         1
     } else {
@@ -198,4 +202,108 @@ pub fn respond(
             RegistryInstruction::Respond { message, signature },
         ),
     ]
+}
+
+pub fn set_policy(
+    payer: Pubkey,
+    controller: Pubkey,
+    reg: &Registration,
+    policy: pairkey_types::policy::Policy,
+) -> Instruction {
+    let ns = namespace_address(&pair_registry::id(), reg).0;
+    instruction(
+        pair_registry::id(),
+        vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new_readonly(controller, true),
+            AccountMeta::new_readonly(ns, false),
+            AccountMeta::new(
+                pair_registry::policy_address(&pair_registry::id(), &ns).0,
+                false,
+            ),
+            AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+        ],
+        RegistryInstruction::SetPolicy { policy },
+    )
+}
+pub fn grant_session(
+    payer: Pubkey,
+    controller: Pubkey,
+    reg: &Registration,
+    grant: pairkey_types::policy::SessionGrant,
+) -> Instruction {
+    let ns = namespace_address(&pair_registry::id(), reg).0;
+    instruction(
+        pair_registry::id(),
+        vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new_readonly(controller, true),
+            AccountMeta::new_readonly(ns, false),
+            AccountMeta::new_readonly(
+                pair_registry::policy_address(&pair_registry::id(), &ns).0,
+                false,
+            ),
+            AccountMeta::new_readonly(
+                set_address(&pair_registry::id(), &reg.namespace.enclave_set).0,
+                false,
+            ),
+            AccountMeta::new(
+                pair_registry::session_address(&pair_registry::id(), &ns, &grant.session_id).0,
+                false,
+            ),
+            AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+        ],
+        RegistryInstruction::GrantSession { grant },
+    )
+}
+pub fn revoke_session(controller: Pubkey, reg: &Registration, session_id: [u8; 32]) -> Instruction {
+    let ns = namespace_address(&pair_registry::id(), reg).0;
+    instruction(
+        pair_registry::id(),
+        vec![
+            AccountMeta::new_readonly(controller, true),
+            AccountMeta::new_readonly(ns, false),
+            AccountMeta::new(
+                pair_registry::session_address(&pair_registry::id(), &ns, &session_id).0,
+                false,
+            ),
+        ],
+        RegistryInstruction::RevokeSession { session_id },
+    )
+}
+
+/// Only these two instructions are ever simulated; no client transaction is replayed.
+pub fn simulation_transaction(
+    program: Pubkey,
+    payer: Pubkey,
+    reg: &Registration,
+    identity: [u8; 32],
+    signature: [u8; 64],
+    input: pairkey_types::policy::SimulationInput,
+) -> solana_sdk::transaction::Transaction {
+    let ns = namespace_address(&pair_registry::id(), reg).0;
+    let challenge = pairkey_types::policy::simulation_message(&input);
+    let instructions = vec![
+        ed25519_instruction(identity, signature, &challenge),
+        Instruction {
+            program_id: program,
+            accounts: vec![
+                AccountMeta::new_readonly(
+                    set_address(&pair_registry::id(), &reg.namespace.enclave_set).0,
+                    false,
+                ),
+                AccountMeta::new_readonly(ns, false),
+                AccountMeta::new_readonly(
+                    pair_registry::policy_address(&pair_registry::id(), &ns).0,
+                    false,
+                ),
+                AccountMeta::new_readonly(solana_sdk::sysvar::instructions::id(), false),
+            ],
+            data: borsh::to_vec(&input).unwrap(),
+        },
+    ];
+    solana_sdk::transaction::Transaction::new_unsigned(solana_sdk::message::Message::new(
+        &instructions,
+        Some(&payer),
+    ))
 }

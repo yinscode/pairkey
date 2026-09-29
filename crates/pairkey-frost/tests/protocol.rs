@@ -33,6 +33,7 @@ fn attempt(reg: &Registration, path: u32, msg: &[u8]) -> Attempt {
     let mut random_id = [0; 32];
     OsRng.fill_bytes(&mut random_id);
     Attempt {
+        authorization: Default::default(),
         commit: Commit::new(
             reg,
             [9; 32],

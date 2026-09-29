@@ -4,7 +4,7 @@
 
 Updated October 10, 2026. Status: numbered implementation plan; no implementation tasks have been completed by writing this plan.
 
-Execution evidence: the local Phase 0–3 track is implemented and tested; the original Task 5 hardware probe and full Phase 0 hardware exit remain open because provider accounts are unavailable. See [task-by-task status](implementation-status.md).
+Execution evidence: the local Phase 0–3 track is implemented and tested; the original Task 5 hardware probe and full Phase 0 hardware exit remain open because provider accounts are unavailable. The user explicitly deferred provider probes on October 10, 2026 and selected the local Solana Phase 6–7 track before ECDSA. The local Solana Phase 6–7 extension is now implemented and tested; EVM and hardware-dependent exit requirements remain open. Service keys and passkeys are the requested access methods; OAuth is deferred. See [task-by-task status](implementation-status.md).
 
 Build the general PairKey platform first: two independent signers, deterministic accounts, replaceable enclave workers, fresh signing, and requests authorized by Solana accounts or programs. Start with FROST Ed25519, add two-party ECDSA, then SESSION, broader authentication, SIMULATE, and application integrations. Hyperliquid is an integration rather than the first platform milestone.
 
@@ -18,7 +18,7 @@ Build the general PairKey platform first: two independent signers, deterministic
 
 **Second scheme milestone:** the common request flow supports native ECDSA, and a derived account executes an EVM transaction on a local development chain.
 
-Tasks have stable numbers. Complete a phase's exit criteria before treating its dependent behavior as established. Hardware feasibility work starts in Phase 0; it is not postponed until all software is written. Cryptographic spikes and local test funds do not constitute a public production release.
+Tasks have stable numbers. Complete a phase's exit criteria before treating its dependent behavior as established. The original sequence starts hardware feasibility in Phase 0. Under the user-directed deferral, local software work continues, while all original hardware and production exit gates remain open. Cryptographic spikes and local test funds do not constitute a public production release.
 
 Each completed task produces the relevant code or configuration, focused validation evidence, and a concise record of unresolved assumptions. Do not begin all tasks as one undifferentiated implementation prompt. Start with Task 1 and work through bounded tasks or closely dependent groups.
 

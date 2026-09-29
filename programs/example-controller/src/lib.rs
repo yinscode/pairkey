@@ -51,8 +51,11 @@ pub fn process_instruction(
     ];
     let rest: Vec<_> = iter.cloned().collect();
     match call.registry_instruction {
-        RegistryInstruction::Register { .. } | RegistryInstruction::Commit { .. } => {}
-        RegistryInstruction::Freeze { .. } => {
+        RegistryInstruction::Register { .. }
+        | RegistryInstruction::Commit { .. }
+        | RegistryInstruction::SetPolicy { .. }
+        | RegistryInstruction::GrantSession { .. } => {}
+        RegistryInstruction::Freeze { .. } | RegistryInstruction::RevokeSession { .. } => {
             metas = vec![AccountMeta::new_readonly(pda, true)];
         }
         _ => return Err(ProgramError::InvalidInstructionData),

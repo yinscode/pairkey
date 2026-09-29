@@ -181,12 +181,14 @@ impl Commit {
 #[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Attempt {
+    #[serde(default)]
+    pub authorization: policy::Authorization,
     pub commit: Commit,
     pub random_id: [u8; 32],
 }
 impl Attempt {
     pub fn digest(&self) -> [u8; 32] {
-        digest(b"pairkey/attempt/v1", self)
+        digest(b"pairkey/attempt/v2", self)
     }
 }
 
@@ -309,6 +311,7 @@ mod onchain {
     }
 }
 
+pub mod policy;
 pub mod receipt;
 
 pub mod attestation;

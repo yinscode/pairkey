@@ -26,3 +26,4 @@ solana-sdk.workspace = true
 rand_core.workspace = true
 zeroize.workspace = true
 borsh.workspace = true
+bincode.workspace = true

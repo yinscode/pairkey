@@ -17,6 +17,9 @@ use solana_program::{
     },
 };
 
+mod policy;
+pub use policy::{policy_address, session_address, PolicyRecord, SessionRecord};
+
 solana_program::declare_id!("Fg6PaFpoGXkYsidMpWxTWqkZ6W2BeZ7FEfcYkgMQHGDL");
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
@@ -69,6 +72,15 @@ pub enum RegistryInstruction {
     },
     Retire {
         retired: bool,
+    },
+    SetPolicy {
+        policy: pairkey_types::policy::Policy,
+    },
+    GrantSession {
+        grant: pairkey_types::policy::SessionGrant,
+    },
+    RevokeSession {
+        session_id: [u8; 32],
     },
 }
 pub fn set_address(program: &Pubkey, id: &[u8; 32]) -> (Pubkey, u8) {
@@ -174,7 +186,7 @@ fn word(data: &[u8], offset: usize) -> Option<usize> {
     Some(u16::from_le_bytes(data.get(offset..offset + 2)?.try_into().ok()?) as usize)
 }
 /// Only exact, already executed, self-contained native Ed25519 instructions count.
-fn ed_verified(
+pub fn ed_verified(
     sysvar: &AccountInfo,
     key: &[u8; 32],
     message: &[u8],
@@ -224,6 +236,9 @@ pub fn process_instruction(
     let ix = RegistryInstruction::try_from_slice(data).map_err(|_| bad())?;
     let mut iter = accounts.iter();
     match ix {
+        ix @ (RegistryInstruction::SetPolicy { .. }
+        | RegistryInstruction::GrantSession { .. }
+        | RegistryInstruction::RevokeSession { .. }) => policy::process(program, accounts, ix),
         RegistryInstruction::CreateSet {
             set_id,
             identities,

@@ -8,3 +8,5 @@ if [[ ! -x "$pairkey_sbf_rustc" ]]; then
 fi
 RUSTC="$pairkey_sbf_rustc" cargo build-sbf --manifest-path programs/pair-registry/Cargo.toml --tools-version v1.56 --no-rustup-override --sbf-out-dir target/deploy -- --locked --target-dir target/sbf-v1.56
 RUSTC="$pairkey_sbf_rustc" cargo build-sbf --manifest-path programs/example-controller/Cargo.toml --tools-version v1.56 --no-rustup-override --sbf-out-dir target/deploy -- --locked --target-dir target/sbf-v1.56
+
+RUSTC="$pairkey_sbf_rustc" cargo build-sbf --manifest-path programs/example-policy/Cargo.toml --tools-version v1.56 --no-rustup-override --sbf-out-dir target/deploy -- --locked --target-dir target/sbf-v1.56

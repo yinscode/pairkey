@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/pairkey-types", "crates/pairkey-frost", "crates/pairkey-core", "crates/pairkey-channel", "crates/pairkey-worker", "crates/pairkey-coordinator", "programs/pair-registry", "programs/example-controller", "sdk", "tests/platform"]
+members = ["crates/pairkey-types", "crates/pairkey-frost", "crates/pairkey-core", "crates/pairkey-channel", "crates/pairkey-worker", "crates/pairkey-coordinator", "programs/pair-registry", "programs/example-controller", "programs/example-policy", "sdk", "tests/platform"]
 
 [workspace.package]
 version = "0.1.0"

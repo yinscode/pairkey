@@ -1,0 +1,18 @@
+[package]
+name = "example-policy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+solana-program.workspace = true
+borsh.workspace = true
+pairkey-types = { path = "../../crates/pairkey-types" }
+pair-registry = { path = "../pair-registry", features = ["no-entrypoint"] }

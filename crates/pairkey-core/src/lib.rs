@@ -1,4 +1,4 @@
-//! Pure COMMIT authorization over an injected chain observation.
+//! COMMIT, SESSION, credential and SIMULATE authorization over an injected chain observation.
 //! RPC correctness and the observation's authenticated clock are adapter assumptions.
 use borsh::BorshDeserialize;
 use pair_registry::{
@@ -47,7 +47,18 @@ pub struct ObservedAccount {
     pub owner: Pubkey,
     pub data: Vec<u8>,
 }
+pub mod access;
+pub mod operation;
+mod policy;
+pub use policy::{
+    code_hash, immutable_loader, simulation_input, ExecutableObservation, Freshness,
+    SimulationObservation,
+};
+
 pub struct Observation {
+    pub policy: Option<ObservedAccount>,
+    pub session: Option<ObservedAccount>,
+    pub simulation: Option<SimulationObservation>,
     pub network: [u8; 32],
     pub finalized: bool,
     pub slot: u64,
@@ -86,13 +97,14 @@ fn decode<T: BorshDeserialize>(account: &ObservedAccount, owner: &Pubkey) -> Res
     }
     T::try_from_slice(&account.data).map_err(|_| Error::Authorization)
 }
-pub fn authorize(
+fn authorize_impl(
     trust: &Trust,
     observation: &Observation,
     attempt: &Attempt,
     message: &[u8],
     now: i64,
     minimum_slot: u64,
+    check_simulation: bool,
 ) -> Result<Registration, Error> {
     if trust.max_observation_age_secs <= 0
         || trust.max_chain_lag_secs <= 0
@@ -109,7 +121,7 @@ pub fn authorize(
     }
     let set: EnclaveSet = decode(&observation.set, &trust.registry)?;
     let ns: NamespaceRecord = decode(&observation.namespace, &trust.registry)?;
-    let req: RequestRecord = decode(&observation.request, &trust.registry)?;
+
     if observation.set.address != trust.enclave_set
         || observation.set.address
             != set_address(&trust.registry, &ns.registration.namespace.enclave_set).0
@@ -124,29 +136,63 @@ pub fn authorize(
     if ns.registration.namespace.registry != trust.registry.to_bytes()
         || ns.registration.namespace.network != trust.network
         || observation.namespace.address != namespace_address(&trust.registry, &ns.registration).0
-        || observation.request.address
-            != request_address(
-                &trust.registry,
-                &observation.namespace.address,
-                &attempt.commit.request_id,
-            )
-            .0
-        || req.namespace_address != observation.namespace.address.to_bytes()
-        || req.commit != attempt.commit
     {
         return Err(Error::Authorization);
     }
-    req.commit
+    attempt
+        .commit
         .authorize(&ns.registration, message)
         .map_err(|_| Error::Authorization)?;
-    if req.derived_key
-        != derive_public(&ns.registration, &req.commit.account).map_err(|_| Error::Authorization)?
-    {
-        return Err(Error::Authorization);
-    }
+    policy::authorize_policy(
+        trust,
+        observation,
+        attempt,
+        message,
+        now,
+        &ns,
+        check_simulation,
+    )?;
     // Only well-formed, correctly bound records may advance a negative-control fence.
     if set.retired || ns.frozen {
         return Err(Error::Inactive);
     }
     Ok(ns.registration)
+}
+
+/// Prepare verifies all authority before a worker constructs its own simulation call.
+pub fn prepare(
+    trust: &Trust,
+    observation: &Observation,
+    attempt: &Attempt,
+    message: &[u8],
+    now: i64,
+    minimum_slot: u64,
+) -> Result<Registration, Error> {
+    authorize_impl(
+        trust,
+        observation,
+        attempt,
+        message,
+        now,
+        minimum_slot,
+        false,
+    )
+}
+pub fn authorize(
+    trust: &Trust,
+    observation: &Observation,
+    attempt: &Attempt,
+    message: &[u8],
+    now: i64,
+    minimum_slot: u64,
+) -> Result<Registration, Error> {
+    authorize_impl(
+        trust,
+        observation,
+        attempt,
+        message,
+        now,
+        minimum_slot,
+        true,
+    )
 }

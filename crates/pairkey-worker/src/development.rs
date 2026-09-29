@@ -9,7 +9,10 @@ use axum::{
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 use pairkey_channel::{Channel, Envelope};
-use pairkey_core::{authorize, ControlFence, Observation, ObservedAccount, Trust};
+use pairkey_core::{
+    authorize, prepare, ControlFence, Freshness, Observation, ObservedAccount,
+    SimulationObservation, Trust,
+};
 use pairkey_frost::{aggregate, register, Possession, Root, RoundOne, RoundTwo, Signer};
 use pairkey_sdk::rpc::Rpc;
 use pairkey_types::{derive_public, Attempt, Namespace, Role};
@@ -55,6 +58,9 @@ struct Worker {
     highest_slot: AtomicU64,
     controls: ControlFence,
     incident: AtomicBool,
+    freshness: Freshness,
+    started: Instant,
+    policies: Mutex<BTreeMap<Pubkey, (u64, u64)>>,
     capacity: Arc<tokio::sync::Semaphore>,
 }
 type W = Arc<Worker>;
@@ -120,7 +126,17 @@ impl Worker {
         let request =
             pair_registry::request_address(&program, &namespace, &begin.attempt.commit.request_id)
                 .0;
-        let response = self.rpc.call("getMultipleAccounts", json!([[self.trust.enclave_set.to_string(), namespace.to_string(), request.to_string()], {"encoding":"base64", "commitment":"finalized", "minContextSlot": minimum_slot}])).await?;
+        let policy_address = pair_registry::policy_address(&program, &namespace).0;
+        let session_address = begin
+            .attempt
+            .authorization
+            .session_id
+            .map(|id| pair_registry::session_address(&program, &namespace, &id).0);
+        let mut addresses = vec![self.trust.enclave_set, namespace, request, policy_address];
+        if let Some(session) = session_address {
+            addresses.push(session);
+        }
+        let response = self.rpc.call("getMultipleAccounts", json!([addresses.iter().map(ToString::to_string).collect::<Vec<_>>(), {"encoding":"base64", "commitment":"finalized", "minContextSlot": minimum_slot}])).await?;
         let slot = response["context"]["slot"]
             .as_u64()
             .context("invalid slot")?;
@@ -128,14 +144,14 @@ impl Worker {
         let accounts = response["value"]
             .as_array()
             .context("invalid account response")?;
-        ensure!(accounts.len() == 3, "missing accounts");
-        let decode = |index: usize, address: Pubkey| -> anyhow::Result<ObservedAccount> {
+        ensure!(accounts.len() == addresses.len(), "missing accounts");
+        let decode = |index: usize| -> anyhow::Result<ObservedAccount> {
             let value = &accounts[index];
             let owner: Pubkey = value["owner"].as_str().context("account owner")?.parse()?;
             ensure!(value["data"][1] == "base64", "invalid account encoding");
             let data = STANDARD.decode(value["data"][0].as_str().context("account bytes")?)?;
             Ok(ObservedAccount {
-                address,
+                address: addresses[index],
                 owner,
                 data,
             })
@@ -146,17 +162,137 @@ impl Worker {
             .await?
             .as_i64()
             .context("missing finalized block time")?;
-        let observation = Observation {
+        let mut observation = Observation {
+            policy: if accounts[3].is_null() {
+                None
+            } else {
+                Some(decode(3)?)
+            },
+            session: if session_address.is_some() {
+                Some(decode(4)?)
+            } else {
+                None
+            },
+            simulation: None,
             network: self.trust.network,
             finalized: true,
             slot,
             block_time,
             observed_at,
             provider_domain: self.trust.provider_domain.clone(),
-            set: decode(0, self.trust.enclave_set)?,
-            namespace: decode(1, namespace)?,
-            request: decode(2, request)?,
+            set: decode(0)?,
+            namespace: decode(1)?,
+            request: if accounts[2].is_null() {
+                ObservedAccount {
+                    address: request,
+                    owner: program,
+                    data: Vec::new(),
+                }
+            } else {
+                decode(2)?
+            },
         };
+        // Authenticate the entire authorization before contacting the simulator.
+        let preparation = prepare(
+            &self.trust,
+            &observation,
+            &begin.attempt,
+            &begin.message,
+            now(),
+            minimum_slot,
+        );
+        if let Err(error) = preparation {
+            if matches!(error, pairkey_core::Error::Inactive) {
+                self.controls.observe_inactive(slot)?;
+                self.highest_slot.fetch_max(slot, Ordering::SeqCst);
+            }
+            return Err(error.into());
+        }
+        {
+            let mut policies = self.policies.lock().unwrap();
+            let version = begin.attempt.authorization.policy_version;
+            if let Some((old_version, old_slot)) = policies.get(&namespace) {
+                ensure!(
+                    version >= *old_version && (version == *old_version || slot >= *old_slot),
+                    "stale policy observation"
+                );
+            } else {
+                ensure!(policies.len() < 1024, "policy fence capacity reached");
+            }
+            let highest = policies
+                .get(&namespace)
+                .map(|(_, old_slot)| (*old_slot).max(slot))
+                .unwrap_or(slot);
+            policies.insert(namespace, (version, highest));
+        }
+        if let Some(input) =
+            pairkey_core::simulation_input(&observation, &begin.attempt, &begin.message)?
+        {
+            let record: pair_registry::PolicyRecord =
+                borsh::from_slice(&observation.policy.as_ref().context("policy")?.data)?;
+            let config = record.policy.simulation.context("simulation config")?;
+            let program_key = Pubkey::new_from_array(config.program);
+            let executable = self.rpc.executable(program_key, slot).await?;
+            ensure!(
+                executable.hash()? == config.code_hash,
+                "unapproved simulation program"
+            );
+            let challenge = pairkey_types::policy::simulation_message(&input);
+            let signature = self
+                .channel
+                .sign_public(&challenge)
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("identity signature"))?;
+            let mut tx = pairkey_sdk::simulation_transaction(
+                program_key,
+                Pubkey::new_from_array(self.channel.identity()),
+                &begin.registration,
+                self.channel.identity(),
+                signature,
+                input,
+            );
+            let blockhash = self
+                .rpc
+                .call(
+                    "getLatestBlockhash",
+                    json!([{"commitment":"finalized","minContextSlot":slot}]),
+                )
+                .await?;
+            tx.message.recent_blockhash = blockhash["value"]["blockhash"]
+                .as_str()
+                .context("simulation blockhash")?
+                .parse()?;
+            tx.signatures[0] = solana_sdk::signature::Signature::from(
+                <[u8; 64]>::try_from(self.channel.sign_public(&tx.message.serialize()).as_slice())
+                    .map_err(|_| anyhow::anyhow!("transaction signature"))?,
+            );
+            let simulated = self.rpc.call("simulateTransaction",json!([STANDARD.encode(bincode::serialize(&tx)?),{"encoding":"base64","commitment":"finalized","minContextSlot":slot,"replaceRecentBlockhash":false,"sigVerify":true}])).await?;
+            ensure!(
+                simulated["value"].get("err") == Some(&Value::Null),
+                "simulation refused"
+            );
+            let returned = &simulated["value"]["returnData"];
+            ensure!(
+                returned["programId"].as_str() == Some(&program_key.to_string())
+                    && returned["data"][1] == "base64",
+                "simulation return program mismatch"
+            );
+            let bytes =
+                STANDARD.decode(returned["data"][0].as_str().context("simulation output")?)?;
+            observation.simulation = Some(SimulationObservation {
+                slot: simulated["context"]["slot"]
+                    .as_u64()
+                    .context("simulation slot")?,
+                program: executable,
+                output: borsh::from_slice(&bytes)?,
+            });
+        }
+        self.freshness.check(
+            slot,
+            block_time,
+            self.started.elapsed().as_millis() as u64,
+            self.trust.max_observation_age_secs as u64 * 1000,
+        )?;
         let decision = authorize(
             &self.trust,
             &observation,
@@ -181,6 +317,14 @@ impl Worker {
         self.highest_slot.fetch_max(slot, Ordering::SeqCst);
         // Also fences older reads which began before another request saw the freeze.
         self.controls.check_active(slot)?;
+        {
+            let policies = self.policies.lock().unwrap();
+            let (version, _) = policies.get(&namespace).context("policy fence")?;
+            ensure!(
+                *version == begin.attempt.authorization.policy_version,
+                "policy changed during authorization"
+            );
+        }
         Ok(slot)
     }
     fn decode_rounds(&self, request: &Finish) -> anyhow::Result<[RoundOne; 2]> {
@@ -422,6 +566,9 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
         highest_slot: AtomicU64::new(0),
         controls: ControlFence::default(),
         incident: AtomicBool::new(false),
+        freshness: Freshness::default(),
+        started: Instant::now(),
+        policies: Mutex::new(BTreeMap::new()),
         capacity: Arc::new(tokio::sync::Semaphore::new(16)),
     });
     let router = Router::new()
