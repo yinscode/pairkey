@@ -71,6 +71,7 @@ fn pooled_process_child() {
             peer,
         ));
         fs::write(dir.join(format!("{role}.done")), format!("{result:?}")).unwrap();
+        result.expect("non-killed pooled fixture worker failed");
     }
 }
 fn command(
@@ -317,6 +318,28 @@ impl Actors {
         Ok(())
     }
 }
+/// Require observed ACKs from both transport roles, exactly once, before a
+/// schedule can claim successful registration. An empty reply list is failure.
+fn commit_ack_roles(frames: &[(usize, Frame)], digest: [u8; 32]) -> Result<[usize; 2]> {
+    ensure!(
+        frames.len() == 2,
+        "expected exactly two commit acknowledgments"
+    );
+    let mut roles = [0; 2];
+    for (role, frame) in frames {
+        ensure!(*role < roles.len(), "invalid commit acknowledgment role");
+        ensure!(
+            matches!(frame, Frame::WalletRegistered(d) if *d == digest),
+            "commit acknowledgment mismatch"
+        );
+        roles[*role] += 1;
+    }
+    ensure!(
+        roles == [1, 1],
+        "expected one commit acknowledgment from each role"
+    );
+    Ok(roles)
+}
 fn wallet(record: WalletRecord, mut frames: Vec<(usize, Frame)>) -> Result<RegisteredWallet> {
     frames.sort_by_key(|(r, _)| *r);
     let endorsements: Vec<Endorsement> = frames
@@ -392,12 +415,7 @@ async fn case(stage: &str, publish: bool, bypass: bool, publisher_role: u8) -> R
         let w = wallet(record.clone(), first)?;
         let commits = actors.commit(&w).await?;
         if stage != "commit" || !publish {
-            ensure!(
-                commits
-                    .iter()
-                    .all(|(_, f)| matches!(f,Frame::WalletRegistered(d) if *d==record.digest())),
-                "commit ACK mismatch"
-            );
+            commit_ack_roles(&commits, record.digest())?;
             let input = SetupInput {
                 version: 1,
                 recipe: 1,
@@ -585,15 +603,24 @@ async fn registration_release_death_case(stage: &str, after_release: bool) -> Re
             Ok::<_, anyhow::Error>(())
         }
     });
+    let mut released_endorsements: [Option<Endorsement>; 2] = [None, None];
     // Keep driving stdio while the workers reach their actual gated releases.
     if after_release {
         let frames = actors.call(operation).await?;
         ensure!(frames.len() == 2, "both releases required");
+        if stage == "commit" {
+            commit_ack_roles(&frames, record.digest())?;
+        }
         for (role, frame) in frames {
             match frame {
                 Frame::WalletEndorsement(e) if stage == "endorsement" => {
-                    ensure!(e.role as usize == role, "role");
+                    ensure!(role < 2 && e.role as usize == role, "role");
+                    ensure!(
+                        released_endorsements[role].is_none(),
+                        "duplicate endorsement release"
+                    );
                     e.validate(&record)?;
+                    released_endorsements[role] = Some(e);
                 }
                 Frame::WalletRegistered(d) if stage == "commit" => {
                     ensure!(d == record.digest(), "commit ACK")
@@ -628,6 +655,14 @@ async fn registration_release_death_case(stage: &str, after_release: bool) -> Re
             Ok(serde_json::from_value(v["endorsement"].clone())?)
         })
         .collect::<Result<_>>()?;
+    if stage == "endorsement" && after_release {
+        for (role, saved) in expected.iter().enumerate() {
+            ensure!(
+                released_endorsements[role].as_ref() == Some(saved),
+                "released endorsement differs from saved journal"
+            );
+        }
+    }
     let committed_path = dir
         .0
         .join("controls/wallets")
@@ -668,16 +703,21 @@ async fn registration_release_death_case(stage: &str, after_release: bool) -> Re
         recovered.endorsements.as_slice() == expected.as_slice(),
         "replacement changed endorsements"
     );
+    for (role, released) in released_endorsements.iter().enumerate() {
+        if let Some(released) = released {
+            ensure!(
+                *released == recovered.endorsements[role],
+                "released endorsement differs from replacement endorsement"
+            );
+        }
+    }
     if let Some(candidate) = candidate {
         ensure!(candidate == recovered, "commit candidate changed");
     }
     let acknowledgments = replacement.commit(&recovered).await?;
-    ensure!(
-        acknowledgments
-            .iter()
-            .all(|(_, f)| matches!(f,Frame::WalletRegistered(d) if *d==record.digest())),
-        "replacement commit ACK mismatch"
-    );
+    let acknowledgment_roles = commit_ack_roles(&acknowledgments, record.digest())?;
+    let acknowledgment_count: usize = acknowledgment_roles.iter().sum();
+    let released_endorsement_count = released_endorsements.iter().flatten().count();
     for (role, bytes) in original.iter().enumerate() {
         ensure!(
             fs::read(
@@ -701,7 +741,7 @@ async fn registration_release_death_case(stage: &str, after_release: bool) -> Re
         fs::write(
             output.join(format!("registration-release-{stage}-{after_release}.json")),
             serde_json::to_vec_pretty(
-                &serde_json::json!({"stage":stage,"death_after_queue_handoff":after_release,"observed_queue_handoffs":queued,"both_workers_killed":true,"replacement_endorsements_identical":true,"existing_bytes_unchanged":true,"replacement_commit_acknowledgments":2,"passed":true}),
+                &serde_json::json!({"stage":stage,"death_after_queue_handoff":after_release,"observed_queue_handoffs":queued,"both_workers_killed":true,"replacement_endorsements_identical":true,"existing_bytes_unchanged":true,"replacement_commit_acknowledgments":acknowledgment_count,"replacement_commit_acknowledgment_roles":acknowledgment_roles,"observed_released_endorsements":released_endorsement_count,"released_journal_replacement_match":if released_endorsement_count > 0 {Some(true)} else {None},"replacement_workers_completed_successfully":true,"passed":true}),
             )?,
         )?;
     }
@@ -722,4 +762,52 @@ async fn pooled_registration_process_death_before_and_after_release_recovers_exa
             .unwrap();
         }
     }
+}
+
+#[test]
+fn commit_acknowledgment_validation_rejects_empty_missing_duplicate_and_invalid_replies() {
+    let digest = [9; 32];
+    let ack = |role| (role, Frame::WalletRegistered(digest));
+    assert_eq!(commit_ack_roles(&[ack(1), ack(0)], digest).unwrap(), [1, 1]);
+    for frames in [
+        vec![],
+        vec![ack(0)],
+        vec![ack(0), ack(0)],
+        vec![ack(1), ack(1)],
+        vec![ack(0), ack(2)],
+        vec![ack(0), (1, Frame::WalletRegistered([8; 32]))],
+        vec![ack(0), (1, Frame::Closed)],
+        vec![ack(0), ack(1), ack(1)],
+    ] {
+        assert!(commit_ack_roles(&frames, digest).is_err());
+    }
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn pooled_fixture_worker_error_exits_unsuccessfully() {
+    let _slot = crate::process_probe::native_fixture_slot().await;
+    let dir =
+        Directory(std::env::temp_dir().join(format!("dkls-pooled-worker-error-{:?}", fresh())));
+    fs::create_dir(&dir.0).unwrap();
+    fs::write(
+        dir.0.join("peers.json"),
+        serde_json::to_vec(&[[1u8; 32], [2u8; 32]]).unwrap(),
+    )
+    .unwrap();
+    // Missing own root makes run() return Err before stdio starts. The child
+    // helper must fail, even though it can publish a diagnostic completion file.
+    let mut child = command(&dir.0, 0, "", false, false, 0)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let status = tokio::time::timeout(Duration::from_secs(10), child.wait())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!status.success(), "fixture hid pool_worker::run failure");
+    assert!(fs::read_to_string(dir.0.join("0.done"))
+        .unwrap()
+        .starts_with("Err("));
+    fs::write(dir.0.join("passed"), []).unwrap();
 }

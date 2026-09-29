@@ -83,21 +83,43 @@ fn registration_process_child() {
             .commit_checkpoint(&wallet, &root, 0, checkpoint)
             .is_ok()
     };
-    fs::write(
-        dir.join("returned"),
-        if ok {
-            b"ok".as_slice()
-        } else {
-            b"error".as_slice()
-        },
-    )
-    .unwrap();
+    let outcome = if ok {
+        b"ok".as_slice()
+    } else {
+        b"error".as_slice()
+    };
+    if std::env::var_os("PAIRKEY_REGISTRATION_PAUSE_RETURNED").is_some() {
+        // Deterministically expose the same creation-before-write window Astra
+        // reproduced. The parent must wait for process completion, not existence.
+        let mut file = fs::File::create(dir.join("returned")).unwrap();
+        fs::write(dir.join("returned.created"), []).unwrap();
+        wait(&dir, "returned.resume");
+        file.write_all(outcome).unwrap();
+    } else {
+        fs::write(dir.join("returned"), outcome).unwrap();
+    }
 }
 struct Actor(Child);
 impl Drop for Actor {
     fn drop(&mut self) {
         let _ = self.0.kill();
         let _ = self.0.wait();
+    }
+}
+impl Actor {
+    fn finish(&mut self) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            if let Some(status) = self.0.try_wait().unwrap() {
+                assert!(status.success(), "registration fixture failed: {status}");
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "registration fixture did not finish"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
     }
 }
 fn schedules(mode: &str) {
@@ -173,9 +195,9 @@ fn schedules(mode: &str) {
                 assert!(!dir.join("returned").exists());
             } else {
                 fs::write(dir.join("resume"), []).unwrap();
-                wait(&dir, "returned");
+                // Existence does not imply the child finished writing the file.
+                child.finish();
                 assert_eq!(fs::read(dir.join("returned")).unwrap(), b"error");
-                assert!(child.0.wait().unwrap().success());
             }
             let retry = if operation == "prepare" {
                 let recovered = store.endorse(&r, &roots[0], 0);
@@ -235,4 +257,57 @@ fn registration_process_death_recovers_exact_records_or_refuses_incomplete_recor
 #[test]
 fn registration_checkpoint_errors_recover_exact_records_or_refuse_incomplete_records() {
     schedules("error");
+}
+
+#[test]
+fn completion_reader_waits_for_child_exit_even_when_returned_file_already_exists() {
+    let dir = std::env::temp_dir().join(format!("dkls-registration-completion-{:?}", fresh()));
+    fs::create_dir(&dir).unwrap();
+    fs::write(dir.join("a"), [11; 32]).unwrap();
+    fs::write(dir.join("b"), [22; 32]).unwrap();
+    fs::write(
+        dir.join("record.json"),
+        serde_json::to_vec(&record(&dir)).unwrap(),
+    )
+    .unwrap();
+    let child = Actor(
+        Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "registration::process_tests::registration_process_child",
+                "--quiet",
+            ])
+            .env("PAIRKEY_REGISTRATION_DIR", &dir)
+            .env("PAIRKEY_REGISTRATION_OPERATION", "prepare")
+            .env("PAIRKEY_REGISTRATION_STEP", "1")
+            .env("PAIRKEY_REGISTRATION_MODE", "error")
+            .env("PAIRKEY_REGISTRATION_PAUSE_RETURNED", "1")
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap(),
+    );
+    wait(&dir, "paused");
+    fs::write(dir.join("resume"), []).unwrap();
+    wait(&dir, "returned.created");
+    assert!(fs::read(dir.join("returned")).unwrap().is_empty());
+    let (tx, rx) = std::sync::mpsc::channel();
+    let reader_dir = dir.clone();
+    let reader = std::thread::spawn(move || {
+        let mut child = child;
+        child.finish();
+        tx.send(fs::read(reader_dir.join("returned")).unwrap())
+            .unwrap();
+    });
+    let blocked = rx.recv_timeout(Duration::from_millis(20)).is_err();
+    // Always release the child before asserting, including the bypass outcome.
+    fs::write(dir.join("returned.resume"), []).unwrap();
+    reader.join().unwrap();
+    assert!(
+        blocked,
+        "completion reader accepted a file still being written"
+    );
+    assert_eq!(rx.recv().unwrap(), b"error");
+    fs::remove_dir_all(dir).unwrap();
 }
