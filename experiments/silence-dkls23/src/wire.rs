@@ -1,4 +1,4 @@
-use anyhow::{ensure, Context, Result};
+use anyhow::{ensure, Result};
 use chacha20poly1305::{
     aead::{Aead, Payload},
     ChaCha20Poly1305, KeyInit,
@@ -59,7 +59,14 @@ pub struct Wire {
 }
 impl Wire {
     pub async fn receive(&mut self) -> Result<Frame> {
-        self.control.recv().await.context("peer disconnected")
+        self.control.recv().await.ok_or_else(|| {
+            Failure::burn(
+                Phase::Transport,
+                FailureKind::Transport,
+                "peer disconnected",
+            )
+            .into()
+        })
     }
     pub fn watch_abort(
         &mut self,
@@ -227,11 +234,23 @@ pub struct SetupChannel {
 }
 impl SetupChannel {
     pub fn new(secret: &StaticSecret, request: &Request, role: u8) -> Result<Self> {
-        let shared = secret.diffie_hellman(&PublicKey::from(
+        Self::bound(
+            secret,
             request.hellos[(1 - role) as usize].ephemeral,
-        ));
+            request.context(),
+            role,
+            request.manifest.identities[(1 - role) as usize],
+        )
+    }
+    pub fn bound(
+        secret: &StaticSecret,
+        ephemeral: [u8; 32],
+        context: [u8; 32],
+        role: u8,
+        peer: [u8; 32],
+    ) -> Result<Self> {
+        let shared = secret.diffie_hellman(&PublicKey::from(ephemeral));
         ensure!(shared.was_contributory(), "noncontributory peer DH key");
-        let context = request.context();
         let hk = Hkdf::<Sha256>::new(
             Some(b"pairkey/dkls-research/setup-channel/v1"),
             shared.as_bytes(),
@@ -243,7 +262,7 @@ impl SetupChannel {
             cipher: ChaCha20Poly1305::new(key.as_ref().into()),
             context,
             role,
-            peer: request.manifest.identities[(1 - role) as usize],
+            peer,
         })
     }
     fn aad(&self, sender: u8, label: &str) -> Vec<u8> {

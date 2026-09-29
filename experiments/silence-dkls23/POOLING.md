@@ -1,10 +1,15 @@
-# Proposed RAM preprocessing pool — specification only
+# Spike C — experimental RAM preprocessing pool
 
-No pool is implemented. Spike A (native migration per attempt) and Spike B
-(deterministic shares with fresh interactive setup per attempt) remain baselines.
-Current setup includes the exact request context, so its material cannot be
-precomputed and relabeled. The following composition requires cryptographic
-review before code that carries OT material is added.
+Spike C implements this design for local research, using two long-lived worker
+processes and a two-slot RAM pool. Spikes A and B retain per-attempt setup as
+comparison baselines. Architecture v0.4 and production dependencies are unchanged.
+This demonstrates functional compatibility and lifecycle behavior; the custom
+composition is not cryptographically approved or adopted.
+
+`src/pool.rs` defines canonical contexts and ownership; `src/pool_worker.rs`
+performs setup/consumption/signing; `src/pool_driver.rs` orchestrates idle refill,
+process failures and measurements. No pool entry, OT package, coin or zero seed
+is written to disk. Roots and public retirement/incident records persist.
 
 ## Setup inputs, completed transcript, and consumption
 
@@ -45,8 +50,8 @@ Canonical stage order is zero-coin commitments (role 0 then 1), zero-coin reveal
 (0 then 1), base-OT message 1 (receiver 0 then receiver 1), and base-OT message 2
 plus PPRF payload (sender 0 then sender 1). Every expected record appears once.
 Conflicting duplicates or missing/invalid records refuse; reordering does not
-change the canonical digest. This ordering is a proposed pool specification;
-current baseline wire bodies remain unchanged.
+change the canonical digest. Spike C implements this ordering. Each record has fixed stage/type and emitter/recipient roles; base-OT msg1 is emitted by the receiver.
+All duplicate records are refused; there is no retransmission layer. Baseline wire bodies remain unchanged.
 
 Directional base-OT SID:
 `H(base-OT domain, SetupInputDigest, receiver role, sender role)`.
@@ -60,11 +65,15 @@ The common zero seed binds a separate domain, SetupInputDigest and the ordered
 revealed coins. This depends only on already-known inputs, not the completed
 transcript. Coin records are included in CompletedSetupDigest afterward.
 
-A proposed package final_session_id would bind completed setup provenance;
-`extra` would bind wallet and consumption metadata and be checked on load.
-These fields provide binding; they do **not** prevent reuse or enforce policy.
-Mapping these proposed identifiers to the native package/extension semantics
-requires composition review. Current setup remains request-bound.
+Spike C maps the agreed ConsumptionContext digest to native signing InstanceId
+and package `extra_data`. Package `final_session_id` is
+`H(package domain, CompletedSetupDigest, ConsumptionContext digest)`. The native
+`dsg.rs` combines that package SID with fresh R1 session contributions to produce
+its signing final SID, then includes sender/receiver IDs in its directional MtA
+SIDs. This propagates consumption into the existing native extension instance
+identifiers without changing its arithmetic or OT/VOLE parameters. Package key ID,
+chain code, weighted public shares and local secret mapping are also validated.
+These identifiers bind data; they do **not** enforce single use or policy.
 
 **Later OT-extension transcript binding is separate.** CompletedSetupDigest covers
 base OT/PPRF setup, not future signing/VOLE messages. Each extension needs a
@@ -72,8 +81,9 @@ consumption-bound instance with sender/receiver roles, and its concrete native
 challenge/Fiat-Shamir transcripts must have the required binding to the actual
 OT-extension messages. Wrapping a setup digest in `extra`, signing outer frames,
 or naming an extension SID does not establish that the internal challenge
-construction has this property. This remains an upstream/composition review
-question; no native OT-extension algorithm or parameters are changed here.
+construction has this property. The exact internal challenge/message binding remains an upstream/composition review
+question; source-level SID propagation and successful signatures are not a proof.
+No native OT-extension algorithm or parameters are changed here.
 
 ## Ownership and retirement
 
@@ -90,11 +100,39 @@ question; no native OT-extension algorithm or parameters are changed here.
    tombstones remain. A pairing/configuration incident invalidates active attempts
    and all unused/reserved entries in its scope before further output handoff.
 
-`lifecycle::ReservedEntry` is a public-metadata specification scaffold with tests
-for ownership, substitution, cancellation and restart retirement. It contains
-**no OT material**, does not authenticate the contexts, and is not a pool.
-Compiler or process snapshots can clone ownership despite Rust types. Rewinding
-public tombstones also permits reuse. Neither boundary is solved here.
+`pool::AvailableEntry` owns clearing wrappers around native sender/receiver seeds
+and the common zero seed. `RamPool::reserve` removes an entry before any fallible
+binding check, persists its public consumption tombstone under the release gate,
+and moves it into `pool::ReservedEntry`. A mismatch or dropped reservation burns
+ownership. `into_package(self)` checks the gate, expiry and request binding and
+moves material into one transient native package; compile-fail tests prohibit
+cloning entries or consuming a reservation twice. Seeds remain copy-valued in
+upstream APIs, so these types do not prove complete erasure or prevent malicious
+new code from copying native package bytes. The worker protocol has no package,
+seed export or presign/finish operation. It calls combined `sign::run` only.
+
+Setup IDs are separately retired **before** exchange, preventing repeated setup
+under one ID. Available entries expire after 300 seconds. The pool has two slots;
+a generation admits at most 1,024 IDs. A miss refuses immediately, without hidden
+synchronous refill. The trusted driver schedules refill while idle, before the
+next wallet/message is selected. Refill and native signing are serialized per
+worker; overlapping signing/refill and transport multiplexing are not implemented.
+
+Every command failure clears unused entries and ends that worker generation. The
+supervisor closes the other worker's input, drains both terminal streams and
+discards the pair; retry requires replacement workers and fresh setup. Incidents
+also stop the shared release gate, fence reserved packages, and block replacements
+across wallets, paths and routes. C uses the existing conservative A/B incident
+scope, so changing the pool recipe cannot bypass an earlier quarantine. Public
+setup/consumption records live in `controls/pool-setups` and `controls/entries`.
+Enrollment/configuration approval and policy receipts are trusted local fixtures.
+
+`lifecycle::ReservedEntry` remains the older metadata-only specification scaffold;
+the actual seed-owning implementation is `pool::ReservedEntry`. Ownership tests
+cover races, binding substitution, capacity, expiry, cancellation and restart;
+the process suite exercises authenticated faults, timeout/disconnect, repeated
+setup/consumption, incidents and replacement retries. Rust ownership and public
+filesystem tombstones do not resist hostile snapshots, cloning or rollback.
 
 ## Seed and randomness requirements
 
@@ -121,10 +159,24 @@ clones roots, entropy, attempt IDs and authority state together.
 
 ## Gates and measurements
 
-No pool adoption until attributable failure handling, scoped cancellation,
-partial-output fencing, authoritative controls and the exact OT/VOLE security
-mapping are independently reviewed. After that, measure compute in isolation,
-serialization and IPC separately, refill throughput and empty-pool behavior,
-then injected RTT and realistic transport/TEE measurements. Current wall/setup/
-signing timings combine computation and IPC waits; wire message counts include
-subscriptions. They establish neither network flights nor a latency target.
+The pool is experimental only. Production adoption still requires independent
+cryptographic/upstream sign-off, real attestation/provisioning, authoritative
+cross-process/replica release and reservation controls, rollback/snapshot
+protection, recovery, and licensing for the intended use. The locked Silence
+parameters remain unchanged, as requested.
+
+`pool-demo` records real pooled signatures and 18 refusal scenarios. `compare`
+compares A/B/C across three wallets and two paths at 0, 10 and 50 ms of injected
+one-way peer delay. Delayed deliveries are scheduled independently in each
+direction; library subscriptions and registration/policy RPCs are undelayed.
+Active-future poll timers exclude suspended awaits, but include synchronous
+crypto, framing, filesystem calls and OS preemption. Separate setup timers omit
+exchange awaits; parent framing CPU and a 100-sample pipe/control round-trip
+probe are also reported. These are local measurements, not a CPU profiler,
+network-flight proof, TEE/geographic benchmark or production latency promise.
+
+C online wall time excludes its separately measured startup and wallet
+registration. Refill wall time and sequential entries/second are reported
+separately; keeping two entries ready moves setup off the online path but does
+not remove its sustained throughput cost. See `results-pool.json`,
+`results-comparison.json` and `REVIEW.md` for reproducible evidence and limits.

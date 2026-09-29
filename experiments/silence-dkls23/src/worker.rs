@@ -254,45 +254,49 @@ async fn execute_inner(
         .map(|bytes| Ok(Identity(VerifyingKey::from_bytes(bytes)?)))
         .collect::<Result<Vec<_>>>()?;
     let started = Instant::now();
-    let mut package = match request.route {
-        Route::Migration => {
-            let setup = keygen::SetupMessage::<_, _, Signature>::new(
-                InstanceId::new(request.context()),
-                root.identity(role),
-                role as usize,
-                identities.clone(),
-                &[0, 0],
-                2,
-            )
-            .with_key_id(Some(request.manifest.key_id))
-            .with_ttl(Duration::from_secs(30));
-            let abort = wire.watch_abort(&setup, request.fault_is("migration-pprf-abort-send"));
-            let seed = Zeroizing::new(fresh());
-            migration::run(
-                setup,
-                *seed,
-                &mut *wire,
-                *contribution,
-                point(&request.manifest.public_key)?,
-                request.manifest.chain_code,
-            )
-            .await
-            .map_err(|error| {
-                let mut failure = Failure::native_migration(
-                    &error,
-                    request.manifest.identities[(1 - role) as usize],
-                );
-                failure.abort_send_failed = abort.load(std::sync::atomic::Ordering::SeqCst);
-                if failure.abort_send_failed {
+    let (setup_future, setup_active) = crate::measure::active(async {
+        Ok::<_, anyhow::Error>(match request.route {
+            Route::Migration => {
+                let setup = keygen::SetupMessage::<_, _, Signature>::new(
+                    InstanceId::new(request.context()),
+                    root.identity(role),
+                    role as usize,
+                    identities.clone(),
+                    &[0, 0],
+                    2,
+                )
+                .with_key_id(Some(request.manifest.key_id))
+                .with_ttl(Duration::from_secs(30));
+                let abort = wire.watch_abort(&setup, request.fault_is("migration-pprf-abort-send"));
+                let seed = Zeroizing::new(fresh());
+                migration::run(
+                    setup,
+                    *seed,
+                    &mut *wire,
+                    *contribution,
+                    point(&request.manifest.public_key)?,
+                    request.manifest.chain_code,
+                )
+                .await
+                .map_err(|error| {
+                    let mut failure = Failure::native_migration(
+                        &error,
+                        request.manifest.identities[(1 - role) as usize],
+                    );
+                    failure.abort_send_failed = abort.load(std::sync::atomic::Ordering::SeqCst);
+                    if failure.abort_send_failed {
+                        failure
+                            .detail
+                            .push_str("; abort send failed (original violation preserved)");
+                    }
                     failure
-                        .detail
-                        .push_str("; abort send failed (original violation preserved)");
-                }
-                failure
-            })?
-        }
-        Route::Direct => direct(root, role, request, &channel, wire).await?,
-    };
+                })?
+            }
+            Route::Direct => direct(root, role, request, &channel, wire).await?,
+            Route::Pooled => anyhow::bail!("pooled route requires pool-worker"),
+        })
+    });
+    let mut package = setup_future.await?;
     let setup_ms = started.elapsed().as_secs_f64() * 1000.0;
     ensure!(
         package.party_id == role
@@ -344,10 +348,12 @@ async fn execute_inner(
     }
     let seed = Zeroizing::new(fresh());
     let started = Instant::now();
+    let (sign_future, sign_active) =
+        crate::measure::active(sl_dkls23::sign::run(setup, *seed, &mut *wire));
     let result = tokio::select! {
         biased;
         _ = gate.cancelled() => return Err(Failure::burn(Phase::Signing,FailureKind::Quarantined,"active attempt cancelled by incident cutoff").into()),
-        result = sl_dkls23::sign::run(setup, *seed, &mut *wire) => result,
+        result = sign_future => result,
     };
     let (signature, recovery) = match result {
         Ok(result) => result,
@@ -372,6 +378,8 @@ async fn execute_inner(
         recovery_id: recovery.to_byte(),
         setup_ms,
         signing_ms: started.elapsed().as_secs_f64() * 1000.0,
+        setup_active_poll_ms: Some(crate::measure::milliseconds(&setup_active)),
+        signing_active_poll_ms: crate::measure::milliseconds(&sign_active),
         package_bytes,
         setup_id,
     })

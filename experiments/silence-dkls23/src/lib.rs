@@ -1,5 +1,6 @@
 //! Isolated research harness. No production authorization or TEE claims.
 pub mod lifecycle;
+pub mod pool;
 use anyhow::{bail, ensure, Context, Result};
 use ed25519_dalek::{Signature as IdentitySignature, Signer, SigningKey, VerifyingKey};
 use hkdf::Hkdf;
@@ -232,6 +233,7 @@ fn proof_challenge(hello: &Hello) -> Scalar {
 pub enum Route {
     Migration,
     Direct,
+    Pooled,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -299,6 +301,8 @@ pub struct Outcome {
     pub recovery_id: u8,
     pub setup_ms: f64,
     pub signing_ms: f64,
+    pub setup_active_poll_ms: Option<f64>,
+    pub signing_active_poll_ms: f64,
     pub package_bytes: usize,
     pub setup_id: Vec<u8>,
 }
@@ -313,6 +317,9 @@ pub enum Frame {
     Result(Outcome),
     Failure(lifecycle::Failure),
     Closed,
+    PoolHello(pool::Boot),
+    PoolCommand(Box<pool::Command>),
+    PoolStatus(pool::Status),
 }
 
 /// Public experiment ledger: create-new + fsync makes reservations irreversible

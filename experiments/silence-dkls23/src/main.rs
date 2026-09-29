@@ -1,3 +1,6 @@
+mod measure;
+mod pool_driver;
+mod pool_worker;
 mod wire;
 mod worker;
 
@@ -17,7 +20,7 @@ use sha2::{Digest, Sha256};
 use signature::hazmat::PrehashVerifier;
 use sl_mpc_mate::coord::SimpleMessageRelay;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, VecDeque},
     fs::{self, OpenOptions},
     io::Write,
     os::unix::fs::{OpenOptionsExt, PermissionsExt},
@@ -95,6 +98,7 @@ impl Drop for ChildGroup {
 struct Options {
     fault: Option<String>,
     reuse_entry: Option<[u8; 32]>,
+    delay_ms: u64,
 }
 async fn attempt(
     dir: &Path,
@@ -260,6 +264,7 @@ async fn attempt_inner(
     let mut relays = [coordinator.connect(), coordinator.connect()];
     let mut terminals = Terminals::default();
     let mut grace = None;
+    let mut pending = VecDeque::new();
     while outcomes.len() < 2 {
         if terminals.closed.iter().all(|closed| *closed) {
             break;
@@ -273,11 +278,17 @@ async fn attempt_inner(
             grace = Some(tokio::time::Instant::now() + std::time::Duration::from_secs(2));
         }
         let [relay_a, relay_b] = &mut relays;
+        let deadline = pending
+            .front()
+            .map(|p: &(tokio::time::Instant, usize, Frame)| p.0);
         let event = tokio::select! {
             event = rx.recv() => match event { Some(event)=>event, None=>break },
             _ = async { if let Some(deadline)=grace {tokio::time::sleep_until(deadline).await;} else {std::future::pending::<()>().await;} } => {terminals.drain_timed_out=true; break;},
-            bytes = relay_a.next() => { if let Some(bytes) = bytes { deliver(&mut inputs,&mut terminals,0,&Frame::Relay(bytes)).await?; } continue; },
-            bytes = relay_b.next() => { if let Some(bytes) = bytes { deliver(&mut inputs,&mut terminals,1,&Frame::Relay(bytes)).await?; } continue; },
+            bytes = relay_a.next(),if !terminals.failed() => { if let Some(bytes) = bytes {pending.push_back((tokio::time::Instant::now()+std::time::Duration::from_millis(options.delay_ms),0,Frame::Relay(bytes)));} continue; },
+            bytes = relay_b.next(),if !terminals.failed() => { if let Some(bytes) = bytes {pending.push_back((tokio::time::Instant::now()+std::time::Duration::from_millis(options.delay_ms),1,Frame::Relay(bytes)));} continue; },
+            _ = async {if let Some(t)=deadline {tokio::time::sleep_until(t).await;}else {std::future::pending::<()>().await;}},if !terminals.failed()=>{
+                let (_,role,frame)=pending.pop_front().unwrap();deliver(&mut inputs,&mut terminals,role,&frame).await?;continue;
+            },
         };
         let (role, frame) = event;
         match frame {
@@ -290,7 +301,12 @@ async fn attempt_inner(
                 }
                 byte_counts[role] += bytes.len();
                 message_counts[role] += 1;
-                deliver(&mut inputs, &mut terminals, 1 - role, &Frame::Setup(bytes)).await?;
+                pending.push_back((
+                    tokio::time::Instant::now()
+                        + std::time::Duration::from_millis(options.delay_ms),
+                    1 - role,
+                    Frame::Setup(bytes),
+                ));
             }
             Frame::Relay(bytes) => {
                 byte_counts[role] += bytes.len();
@@ -377,6 +393,7 @@ async fn attempt_inner(
         "entry":hex(&request.entry),"attempt":hex(&request.attempt),"wall_ms":started.elapsed().as_secs_f64()*1000.0,
         "wire_messages_including_subscriptions":message_counts,"wire_bytes_including_setup":byte_counts,
         "setup_ms":[outcomes[0].setup_ms,outcomes[1].setup_ms],"signing_ms":[outcomes[0].signing_ms,outcomes[1].signing_ms],
+        "setup_active_poll_ms":[outcomes[0].setup_active_poll_ms,outcomes[1].setup_active_poll_ms],"signing_active_poll_ms":[outcomes[0].signing_active_poll_ms,outcomes[1].signing_active_poll_ms],"one_way_delay_ms":options.delay_ms,
         "signature":hex(&outcomes[0].signature),"package_bytes":outcomes[0].package_bytes});
     Ok((manifest, outcomes, telemetry))
 }
@@ -679,10 +696,128 @@ async fn demo(dir: &Path, samples: usize) -> Result<()> {
     );
     Ok(())
 }
+fn median(mut values: Vec<f64>) -> f64 {
+    values.sort_by(f64::total_cmp);
+    let n = values.len();
+    if n % 2 == 0 {
+        (values[n / 2 - 1] + values[n / 2]) / 2.0
+    } else {
+        values[n / 2]
+    }
+}
+async fn compare(dir: &Path, samples: usize) -> Result<()> {
+    ensure!((1..=100).contains(&samples), "samples 1..100");
+    provision(dir)?;
+    let mut runs = vec![];
+    let mut summary = vec![];
+    for delay in [0u64, 10, 50] {
+        let delay_dir = dir.join(format!("delay-{delay}"));
+        provision(&delay_dir)?;
+        let mut records = vec![];
+        let mut pins = vec![];
+        for wallet in 0..3u8 {
+            let id = digest(b"pairkey/dkls-research/wallet/v1", &wallet);
+            let mut pin = None;
+            for route in [Route::Migration, Route::Direct] {
+                for path in ["m", "m/7/3"] {
+                    for _ in 0..samples {
+                        let (manifest, _, record) = attempt(
+                            &delay_dir,
+                            route,
+                            id,
+                            path,
+                            pin.as_ref(),
+                            Options {
+                                delay_ms: delay,
+                                ..Default::default()
+                            },
+                        )
+                        .await?;
+                        if pin.is_none() {
+                            pin = Some(manifest);
+                        }
+                        records.push(record);
+                    }
+                }
+            }
+            pins.push(pin.unwrap());
+        }
+        let pooled = pool_driver::benchmark(&delay_dir, samples, delay).await?;
+        for record in pooled["attempts"].as_array().unwrap() {
+            let id = record["key_id"].as_str().unwrap();
+            let pin = pins.iter().find(|m| hex(&m.key_id) == id).unwrap();
+            ensure!(
+                serde_json::from_value::<Manifest>(record["manifest"].clone())? == *pin,
+                "A/B/C manifest mismatch"
+            );
+        }
+        for route in ["Migration", "Direct"] {
+            let selected = records
+                .iter()
+                .filter(|r| r["route"] == route)
+                .collect::<Vec<_>>();
+            summary.push(json!({"route":route,"one_way_delay_ms":delay,"samples":selected.len(),
+                "wall_median_ms":median(selected.iter().map(|r|r["wall_ms"].as_f64().unwrap()).collect()),
+                "protocol_setup_median_ms":median(selected.iter().map(|r|r["setup_ms"].as_array().unwrap().iter().map(|v|v.as_f64().unwrap()).fold(0.0,f64::max)).collect()),
+                "signing_median_ms":median(selected.iter().map(|r|r["signing_ms"].as_array().unwrap().iter().map(|v|v.as_f64().unwrap()).fold(0.0,f64::max)).collect()),
+                "setup_active_poll_median_ms":median(selected.iter().map(|r|r["setup_active_poll_ms"].as_array().unwrap().iter().map(|v|v.as_f64().unwrap()).fold(0.0,f64::max)).collect()),
+                "signing_active_poll_median_ms":median(selected.iter().map(|r|r["signing_active_poll_ms"].as_array().unwrap().iter().map(|v|v.as_f64().unwrap()).fold(0.0,f64::max)).collect())}));
+        }
+        let selected = pooled["attempts"].as_array().unwrap();
+        let refills = pooled["refills"].as_array().unwrap();
+        summary.push(json!({"route":"Pooled","one_way_delay_ms":delay,"samples":selected.len(),
+            "online_wall_median_ms":median(selected.iter().map(|r|r["online_wall_ms"].as_f64().unwrap()).collect()),
+            "signing_active_poll_median_ms":median(selected.iter().map(|r|r["signing_active_poll_ms"].as_array().unwrap().iter().map(|v|v.as_f64().unwrap()).fold(0.0,f64::max)).collect()),
+            "idle_refill_median_ms":median(refills.iter().map(|r|r["wall_ms"].as_f64().unwrap()).collect()),
+            "isolated_ot_compute_median_ms":median(refills.iter().map(|r|r["isolated_ot_compute_ms"].as_array().unwrap().iter().map(|v|v.as_f64().unwrap()).fold(0.0,f64::max)).collect()),
+            "parent_framing_cpu_refill_median_ms":median(refills.iter().map(|r|r["parent_framing_probe_ms"].as_f64().unwrap()).collect())}));
+        eprintln!("Compared A/B/C at {delay}ms one-way delay");
+        runs.push(json!({"one_way_delay_ms":delay,"baseline_attempts":records,"pooled":pooled}));
+    }
+    let transport = pool_driver::transport_probe(&dir.join("transport-probe")).await?;
+    let evidence = json!({"configuration":hex(&pairkey_dkls23_research::pool::configuration()),"samples_per_wallet_path":samples,"summary":summary,"runs":runs,"transport_probe":transport,
+        "method":["Each logical peer delivery delayed once; both directions scheduled independently; subscriptions and policy/registration RPCs undelayed",
+        "A/B wall includes worker launch/registration, C online excludes separately reported startup and wallet registration",
+        "Active poll timing excludes suspended awaits, includes synchronous crypto/framing/control I/O and OS preemption; not CPU profiler data",
+        "Isolated OT compute timers omit exchange awaits; parent framing timing measures actual parent serialization only",
+        "Idle refill throughput is sequential two-party setup throughput; no overlapping native attempts or refill/sign multiplexing",
+        "Local synthetic delay; no geographic/TEE production latency claim"],"native_parameters":"locked unchanged"});
+    fs::write(
+        dir.join("comparison.json"),
+        serde_json::to_vec_pretty(&evidence)?,
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(
+            &json!({"evidence":dir.join("comparison.json"),"summary":evidence["summary"]})
+        )?
+    );
+    Ok(())
+}
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     match args.first().map(String::as_str) {
+        Some("compare") => {
+            compare(
+                Path::new(args.get(1).context("compare requires ignored directory")?),
+                args.get(2).map(|s| s.parse()).transpose()?.unwrap_or(3),
+            )
+            .await
+        }
+        Some("pool-worker") if args.len() == 4 => {
+            pool_worker::run(args[1].parse()?, Path::new(&args[2]), unhex(&args[3])?).await
+        }
+        Some("pool-demo") => {
+            pool_driver::demo(
+                Path::new(
+                    args.get(1)
+                        .context("pool-demo requires ignored directory")?,
+                ),
+                args.get(2).map(|s| s.parse()).transpose()?.unwrap_or(3),
+            )
+            .await
+        }
         Some("worker") if args.len() == 4 => {
             worker::run(args[1].parse()?, Path::new(&args[2]), unhex(&args[3])?).await
         }

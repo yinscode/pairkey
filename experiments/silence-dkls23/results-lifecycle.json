@@ -1,0 +1,2781 @@
+{
+  "attempts": [
+    {
+      "attempt": "81ba2878eed573f0a7eea5679bfb9e2518707941b6cbe00b270c74d5157604c1",
+      "entry": "b6a818d83195cd26ebb7bb3f5eeade438559d211de1fc682399a5f31957f36ec",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "route": "Migration",
+      "setup_ms": [
+        106.735958,
+        106.77925
+      ],
+      "signature": "7cd6ad1f77e5b26a61b2d3293e6ec43a461fe0be735b891d172b6ccbdf484f855bc1561dae987427ae9b8c7adf86f02ffa16fd8ff8f1b95c15035b68aedffc79",
+      "signing_ms": [
+        16.470709,
+        16.27175
+      ],
+      "wall_ms": 155.400083,
+      "wire_bytes_including_setup": [
+        115388,
+        115388
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "70c5346d76a18a6e0252f96e286cda24fefc636b42a90559ff9a16bdbd1426fe",
+      "entry": "928e8e617edb20f3e72795a5e29ec1748b288273ab30bb78d0e5218cf703638e",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "route": "Migration",
+      "setup_ms": [
+        113.184542,
+        113.137708
+      ],
+      "signature": "7bed98adae7bb30a68842822c9623a60b830eec905ba2d1c11be128944b2cebc484643105a4159a129b1c0ba6b57595347fe0dfbfe39200ee9e28c15a36dbbcb",
+      "signing_ms": [
+        12.860958,
+        12.931583
+      ],
+      "wall_ms": 141.762208,
+      "wire_bytes_including_setup": [
+        115384,
+        115384
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "898aad0dd6c1c87b4c40b1008bdf8b386e9c1b9c3cf70a01cc4a8f1f3ac8b9be",
+      "entry": "c8631be7a1944bb4c731ef1be7377618f9b1abcdf699d9be29ed36cd30b3d490",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "route": "Migration",
+      "setup_ms": [
+        228.485,
+        229.037
+      ],
+      "signature": "9ca75727276afb8b40de4303252c9b9d91885a23a6d80db017e36e8cea5f852e0c1e603a8d41764afbcb92626529e5e42d1e79a384100da2ae2138efc5398c96",
+      "signing_ms": [
+        14.778042,
+        15.231459
+      ],
+      "wall_ms": 257.73600000000005,
+      "wire_bytes_including_setup": [
+        115394,
+        115394
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "0800163c8644647826fd2b1e9731cd44816c8be038499f7bbbffef9c9212650c",
+      "entry": "eddc826be4c9b461ebf4b12714a80389d4f14d3eb3cce4694ce42a1e0f22fa48",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
+      "route": "Migration",
+      "setup_ms": [
+        115.284042,
+        116.433791
+      ],
+      "signature": "48182dea45ba454f3a040da7182cec7a9fdbf2a307b2b0c6ccc620c4fb1644031b86fefb0b15acb4d962af63d402767aeaba962e301bf3435d10076ee0f7ba3b",
+      "signing_ms": [
+        13.15475,
+        13.271292
+      ],
+      "wall_ms": 146.38662499999998,
+      "wire_bytes_including_setup": [
+        115382,
+        115382
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "a77ebf74fbcd3b72b72bb99464e82415dbe56996c4738daa452989bd2bb47d41",
+      "entry": "ef1c423433db31003afa097afb0a047422c2874ed0f934e3b41a0f5b6fff1485",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
+      "route": "Migration",
+      "setup_ms": [
+        103.524667,
+        103.550042
+      ],
+      "signature": "3abdd8b78372cf812734c9cd68a0f65b2c5a8711d902e90ec4895bcea500cc545a8679007b6cf150364baaa8092bc575d146e764497e19cf3455f7920c8df5ca",
+      "signing_ms": [
+        13.572833,
+        13.729625
+      ],
+      "wall_ms": 132.928792,
+      "wire_bytes_including_setup": [
+        115382,
+        115382
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "84f6cd7bd56e6b2567f90202d52046ee1e7c363524c06ac72ed2ddd504777ff0",
+      "entry": "bf242dc81944a6b05c5f8bc7fe7e5e91a7d86ce5fd0d27872f2d4a5338cfe611",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
+      "route": "Migration",
+      "setup_ms": [
+        117.01375,
+        117.026916
+      ],
+      "signature": "584cf079a7d9c838a6adc233b97d89b87bada3a9748a6f515377d9cfd78867d2348c06c72adae85113e99593228f06ec506790ede6caba4318f2e90990dcb3ec",
+      "signing_ms": [
+        14.439875,
+        14.276042
+      ],
+      "wall_ms": 147.394291,
+      "wire_bytes_including_setup": [
+        115384,
+        115384
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "ea1f4c8b6f3bee729706e8da1563f7468f3132c1a92f62dfea70f662a87a4280",
+      "entry": "b4565260a05c507bdacad7230977844f37093aea81e62447f22a4766ba86d9a8",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "route": "Direct",
+      "setup_ms": [
+        109.770625,
+        111.720333
+      ],
+      "signature": "302c0e00a5b1222e04c663d39bea5af238ec854fc2c73b9c5f4df1b2b119cba72082b7b66c3e6003f9a2ef0f6528b14b559c756d3b677ea4cacd39419f63ab78",
+      "signing_ms": [
+        12.677875,
+        12.658167
+      ],
+      "wall_ms": 142.509084,
+      "wire_bytes_including_setup": [
+        252017,
+        252416
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "3352fe1a112908dbb67396381f19e42232ac2bedb6da5b5237b05a3f5bbce4ae",
+      "entry": "a69543a49eb9ca9fce3b07f07f4b4fd2fd085f3e49079f2553cd5744f9819b35",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "route": "Direct",
+      "setup_ms": [
+        111.994375,
+        114.048041
+      ],
+      "signature": "04e828c819ec0f43ebdfdb499fe77af7dafd0de885dc17b7e6f2c13ebb7cb73f036b53cb7ddd650ad9f7df5ace395fbb24897cffd946665ada000fc9817ca301",
+      "signing_ms": [
+        12.698042,
+        12.713708
+      ],
+      "wall_ms": 143.998417,
+      "wire_bytes_including_setup": [
+        252278,
+        252203
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "add453e94f60bf1c26393d228fd4babd9bfb822d51ac40aa11494871d418a391",
+      "entry": "3a2b432b6b2faff6bbc3b0ab2eb0b7bc01b9cc40bfa6c327a5a54a6ddfee6c56",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "route": "Direct",
+      "setup_ms": [
+        114.038625,
+        115.973708
+      ],
+      "signature": "e526695132f629edb3d451cecae0ab5e8c48c9e01f000adf8e039913f958bae77b846718b04c8912a00e318ba807f7932ebb96b4c2eda89a6e0b85777d7d79fb",
+      "signing_ms": [
+        15.974042,
+        15.405833
+      ],
+      "wall_ms": 146.921417,
+      "wire_bytes_including_setup": [
+        252280,
+        252264
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "aed6e277015a0e83d7733f180f2c4377a9cf6c618382e77427fcafab7ca4282d",
+      "entry": "4d6866a8cbd105f4e2cb03aeca9cfd53494c267743a77f4527ce20a1cc696665",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
+      "route": "Direct",
+      "setup_ms": [
+        124.347584,
+        126.97129099999998
+      ],
+      "signature": "fc3ab90ac9c43c9cee18a9dad05d6560e8895abcd9e68625cb485d52d46e3bfb7a1064b6cfafeab26522e7f861562f31dcd90f3da50b49bc6b028c82e22c152c",
+      "signing_ms": [
+        22.204916,
+        22.379875
+      ],
+      "wall_ms": 168.40025,
+      "wire_bytes_including_setup": [
+        252347,
+        252446
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "81c9dd1b33ca6bddb229f9b7eff5c1e96ecec81e30844583645a5a27b08a021e",
+      "entry": "dc4a55a1bbd2921151cc1100a3dea651e0bcc5f11d455fc42e1714dd68544b6c",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
+      "route": "Direct",
+      "setup_ms": [
+        139.306667,
+        140.994334
+      ],
+      "signature": "5871bdcaa215616eb4238a20b496f34eea508217b5871f38e97dfde468e00a1342cf379b049ab6a61ad26112dbbe3119ca6239419b3630026f3639e8c42b9326",
+      "signing_ms": [
+        13.311584,
+        13.360957999999998
+      ],
+      "wall_ms": 168.8495,
+      "wire_bytes_including_setup": [
+        252231,
+        252197
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "28a3ddc8eafc40b899a980e02baef274f5cbd37d117cec3331b1295e27abc064",
+      "entry": "bd3c5862f204819592fa757de2d5d7e0c26557c816fadcf9401a56ed7aa3d25a",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
+      "route": "Direct",
+      "setup_ms": [
+        118.363958,
+        122.691084
+      ],
+      "signature": "455238aafaa22de5bf793171e348ea02806e3063638985f2ec711bb4908b56de0134925cbe1a26b03c67b252be1004f7f11753d098a9d59eaab7dd376a2a7a8e",
+      "signing_ms": [
+        14.379375,
+        14.40375
+      ],
+      "wall_ms": 154.50704100000002,
+      "wire_bytes_including_setup": [
+        252147,
+        252474
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "2278a4e778b7c05147462fae78cebf12b2dd6a5afefabe888d87e49a2ca5aed7",
+      "entry": "343556cff55cae2a94d94c5c249bdd836475bcbe41418bb1c0f0910b5ecc86ad",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
+      "route": "Migration",
+      "setup_ms": [
+        123.895291,
+        123.335958
+      ],
+      "signature": "86986519ff4aba00c07b69afe934ff39be39a723d9a684d5ebb4a78630d0652407b553074ba69a19ed36824d35b4c5918b00b01494cffdc6ff0ba933033436e3",
+      "signing_ms": [
+        14.367333,
+        14.214375
+      ],
+      "wall_ms": 160.693916,
+      "wire_bytes_including_setup": [
+        115390,
+        115390
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "3e7ba55d2826e271d4694c146133a6d5e726f1cf119f282fe2c718254571c627",
+      "entry": "13552eeed99140e26e11c0bdfd526ae50c87bf556bfa8f7aaad4344680ae0176",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
+      "route": "Migration",
+      "setup_ms": [
+        140.459167,
+        140.548375
+      ],
+      "signature": "5ec29da6ea768b7ff64e3848f74948fb95c50032ff94e109dfcfec2dfa3ed3a9697a023e9179bef1ea1ccfb5848474d00a85716b6f51a0432c8e1922085618fc",
+      "signing_ms": [
+        17.490667000000002,
+        18.068375
+      ],
+      "wall_ms": 170.23874999999998,
+      "wire_bytes_including_setup": [
+        115388,
+        115388
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "e37d953a5d9b40b4471b70ad760fa53ada31e83c42df6aef396b8e074fb08582",
+      "entry": "84f28a92f5d843d700a662713f175f73e639af7e48852c4d6f3937d20c420f04",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
+      "route": "Migration",
+      "setup_ms": [
+        109.458208,
+        109.500542
+      ],
+      "signature": "1ed3f20cddb28c7606cfe68e425d2c5b088c2d410aca5ba5727dddb15703ab7a73b7a1c6c58c749d24c5e69c6f44c1a37ca79b90740b1d08750550be4305e4db",
+      "signing_ms": [
+        12.830083,
+        12.76975
+      ],
+      "wall_ms": 139.430917,
+      "wire_bytes_including_setup": [
+        115382,
+        115382
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "24bcebc466c179eef7cfe1ab44482d7f930bd70161cd8b32359892c197d96334",
+      "entry": "785dcfac90af92e5c5684c9bdcc8efb6b63fef80434f389086e2da6644455edb",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
+      "route": "Migration",
+      "setup_ms": [
+        111.114458,
+        110.821583
+      ],
+      "signature": "bed75358eb650c3f873b94f361b4f7fb11ff70bef83fd9cb386f5647cd896f912a5f56c8b358a05ac1346a2e878e5c18ec69039a43d34d6682fdf569860d6f89",
+      "signing_ms": [
+        13.485333,
+        13.3835
+      ],
+      "wall_ms": 141.13887499999998,
+      "wire_bytes_including_setup": [
+        115378,
+        115378
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "7c227dcc199ee9f08154d017ff7a188a0559df3176d4bbb6340652a5312e2a49",
+      "entry": "94481b8d123c600f11f61eb9d953733a14f451a1f238ddbd4d3efa1f0afe4dda",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
+      "route": "Migration",
+      "setup_ms": [
+        107.377375,
+        107.542667
+      ],
+      "signature": "7fd5fd87943b994268916c469e3726bac2e28cea4dbab569d39f1d878404014e7f4a4b95336400b769cfa18e7eb67f3488231ba767948461e58f618cde8487f2",
+      "signing_ms": [
+        13.845584,
+        13.744333
+      ],
+      "wall_ms": 135.063292,
+      "wire_bytes_including_setup": [
+        115392,
+        115392
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "f1012512b9b52a3080f3afdd33c333f637281fb9802b85b125acf57e8e2ee968",
+      "entry": "fb87eb5b5d7724aada6129debef56e8fc82ea15f9582e9962a0339eaa9aca37c",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
+      "route": "Migration",
+      "setup_ms": [
+        121.4585,
+        121.180958
+      ],
+      "signature": "db165617fc1b1e286ff91c7ac0319fba1689cf05232f4f7aaffa87169fe972cb6f8a98b65bddbca0073fc546cf31f4cb8984edad919cd10c1210bd2b2ff7f994",
+      "signing_ms": [
+        18.258875,
+        18.179583
+      ],
+      "wall_ms": 156.914791,
+      "wire_bytes_including_setup": [
+        115380,
+        115380
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "2658bc666057398cb451b51166801f4f1b35b183f2a582311eb795901b1264d3",
+      "entry": "74d5d0235c27c31400935b179364d71400313e0310c323bf6a090fcbcd03b189",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
+      "route": "Direct",
+      "setup_ms": [
+        178.237042,
+        182.870542
+      ],
+      "signature": "6127289aef0dde2fc6caae557241284f47ee2035a2ed8f3bea6063ab6780feda4fda452b905d3701acc3bbb2833713e599dd8b229a33c703ece83a02feae957a",
+      "signing_ms": [
+        17.333084,
+        16.818915999999998
+      ],
+      "wall_ms": 221.790459,
+      "wire_bytes_including_setup": [
+        252228,
+        252272
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "f422ef83b552ded8985f58372726acd3c280092e35291b527de666e6f6a265ed",
+      "entry": "0e1df7dd44e4d85e858aa918215b45701c2d7f04e0d4766163eb90a3dc438307",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
+      "route": "Direct",
+      "setup_ms": [
+        126.724084,
+        124.1805
+      ],
+      "signature": "1bc14fcd406c6148e92f69d7c17a1fde293f98760fdc666a307ad4e2eeaeab766ef0133c371ea744224b51636e28d201a61029784bda5cbb50f266d788ba74a3",
+      "signing_ms": [
+        14.036666,
+        13.96875
+      ],
+      "wall_ms": 157.77712499999998,
+      "wire_bytes_including_setup": [
+        252298,
+        252292
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "e5d52bac5d91d562124132dc982d88953bb5c49f16d1fca2064462225edf5a2a",
+      "entry": "00dd1ba06ce5e35472196ffeac5cc9c439f9a5c2879aaf359e9c9a89d852acb2",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
+      "route": "Direct",
+      "setup_ms": [
+        111.752791,
+        115.427792
+      ],
+      "signature": "26239f2cf7ca1ad1eb54db4090b248d990414d4b8ec32d19e638ad327b23934c1833f05572a3b23b79ac4da9775bd654b99e91b94632f9739de2b8e4dad45655",
+      "signing_ms": [
+        13.452917,
+        13.891334
+      ],
+      "wall_ms": 148.603708,
+      "wire_bytes_including_setup": [
+        252392,
+        252478
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "7bfd1c5268081b288ffa84575e51c770b96cb936660d5e689154299f0d4ba779",
+      "entry": "d54968e6d844ec3c90d85e8d2072153c7d216a447668e2c16357b6c43cf2fa0d",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
+      "route": "Direct",
+      "setup_ms": [
+        109.176625,
+        107.369542
+      ],
+      "signature": "2d8766646439f360707e075124cd00627ea1fb117e6a37bde665534ebedc8ba539d62674ec8dca7fc54a72b794bdfb0cb28f59fd4e618d97ab80262a329c4928",
+      "signing_ms": [
+        13.249875,
+        12.97725
+      ],
+      "wall_ms": 134.296542,
+      "wire_bytes_including_setup": [
+        252291,
+        252499
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "d3edf246da47978227ef840c967e2dc34a4cc64e054d707c506eab06bd424c45",
+      "entry": "f45fab11db27bf260178435a0dcc3da3079e9c3c062162d6a1578ba2a9b85a2a",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
+      "route": "Direct",
+      "setup_ms": [
+        107.49075,
+        105.677667
+      ],
+      "signature": "3888d91d76598e9cc6230e425bbc732c0e7e09d78b1d0eaa587e6eaf59e8afad73a5022a763f70a64a711b0baa463e4a65a850ef523de85b7d70ff879d8407b4",
+      "signing_ms": [
+        12.520791,
+        12.534042
+      ],
+      "wall_ms": 131.807958,
+      "wire_bytes_including_setup": [
+        252285,
+        252406
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "680e7b21d9ae851d54206c0f118e27b6665c247456cf015f408879d5522a8ba0",
+      "entry": "0d8aa2f5e76859ab4702652562b1812397f0ff8425b5082e16858fbb96019463",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
+      "route": "Direct",
+      "setup_ms": [
+        106.291083,
+        104.394709
+      ],
+      "signature": "4ce34c405b73602497a2478586db35705f3c1bcea9c0d7ad93e1ae2504f248ca2d821bc3c05d4eec2367b7729b6be6783b120a74d2cea205c6bcb5523a0daf2c",
+      "signing_ms": [
+        12.534916,
+        12.527584
+      ],
+      "wall_ms": 127.702375,
+      "wire_bytes_including_setup": [
+        252448,
+        252414
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "da58c29f8be93da4cb62046b5de444d3df83042b24ea3f053f38d94f46509c12",
+      "entry": "0289da47a5e1b0d72d137201bf251b5de2fcab83cd9f16d096182897ac912464",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
+      "route": "Migration",
+      "setup_ms": [
+        98.47775,
+        98.328541
+      ],
+      "signature": "5ed2c94a1652ba23548746462e0a0e8f115b03a36e79e4b14e67e84534b54632086ea494a12d3bdb1f507ba31691cdf5b5b9eb2069e330f8ed3feb81da471ca7",
+      "signing_ms": [
+        12.534708,
+        12.48575
+      ],
+      "wall_ms": 126.00029200000002,
+      "wire_bytes_including_setup": [
+        115382,
+        115382
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "3d62e664e63c1a0c59a8e0360c2787f19ee6b64ce5c7c96dfe4f455f3e1d56ba",
+      "entry": "79ca19313a5a8a6a73c2f9b40768d44c9875d92200cbb990ee18dc83fd3c99c3",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
+      "route": "Migration",
+      "setup_ms": [
+        101.6425,
+        101.752208
+      ],
+      "signature": "1108153d18e9fb90d6ac1a5b77c946c76c929d5d07a974ad80dbcc2fe3d3fecd11c7ea0a9e664df27151c12d62a8629b6e99affbfdcc637c60569ef526a16f59",
+      "signing_ms": [
+        12.839583,
+        13.053875
+      ],
+      "wall_ms": 125.09358300000001,
+      "wire_bytes_including_setup": [
+        115376,
+        115376
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "21be24e71a5c02d0b9e8aefce98e45e3eb82fe2392050f9000388b6c2a1eefb5",
+      "entry": "4f59a13026621599c47533d85b5ec8f826fa45cd69fbe2af578995043e6e933d",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
+      "route": "Migration",
+      "setup_ms": [
+        104.12425,
+        104.20275
+      ],
+      "signature": "4e12dc17342430e30f6a7c17c5da21e0ae63b57fb79984062f3a6eabcd315bb20974a8224e1580f84ecda4056c2a6add273fabeac1d356013358162312a1a56a",
+      "signing_ms": [
+        12.866209,
+        12.789625
+      ],
+      "wall_ms": 129.534666,
+      "wire_bytes_including_setup": [
+        115398,
+        115398
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "fe04ab29b2b00907b54d068903adfc6bfa723bae34391b17e10c04c097a2205c",
+      "entry": "9240e2816a6eac764bd90498998a384a67780128713ca95c45c8951b70b7a7e4",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
+      "route": "Migration",
+      "setup_ms": [
+        102.91325,
+        103.024833
+      ],
+      "signature": "fb64855ca55ff01ecbb70cbff46357f92f302d568c98f6d842aec45ea248d7145267c5f9322985a8cf7612bca7ebcc981b4354104d124ec3d712c6ef19b7dfdd",
+      "signing_ms": [
+        12.532208,
+        12.709458
+      ],
+      "wall_ms": 128.126834,
+      "wire_bytes_including_setup": [
+        115394,
+        115394
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "ba925c3b36f03724e7d4e21848c73953c370604e666a4d493111608b9c1d4ac3",
+      "entry": "8fcd648509bb60d504dca1c0294c9a445290dc875665690daa2725ff6dce5901",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
+      "route": "Migration",
+      "setup_ms": [
+        101.997041,
+        101.897666
+      ],
+      "signature": "3c6e68403d45a35848aed204449cc7696b0ca94bb7c212ba6357b850a0f2c8937b7879944775db5760f41535e734a7975f5565dc38c1c3306662cde0b6691caa",
+      "signing_ms": [
+        12.855542,
+        12.647958
+      ],
+      "wall_ms": 126.90608300000001,
+      "wire_bytes_including_setup": [
+        115388,
+        115388
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "1f9f68d12b29e470d3416e1426d6b65402447f2badb941a92df8f8c8fa64564a",
+      "entry": "a4c31da03dad2e9c9b89db71c03401d8e584ad2ee6debd855bbe2f48235100df",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
+      "route": "Migration",
+      "setup_ms": [
+        110.348416,
+        110.452584
+      ],
+      "signature": "efa6dc3f457d83cbb9cda0daa3ba48b9671b07673ab7604715bfe1b90ccf7c8e71713fa59d19f794896b3dafa10faaf80669fd27dacc6a26685c8759efc16379",
+      "signing_ms": [
+        13.125666,
+        13.292209
+      ],
+      "wall_ms": 135.781958,
+      "wire_bytes_including_setup": [
+        115386,
+        115386
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "18753bdb5ca7f7332baa27fd8e785bc7dc988eef4e2810bbd93cc6aae63d95fa",
+      "entry": "8304c3982a1596878330755af7e0ed9c88c29842ed88427cda902fa5bcc57918",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
+      "route": "Direct",
+      "setup_ms": [
+        111.0445,
+        109.117875
+      ],
+      "signature": "290950baa36474dcaf26248cc7e1bcc5e9985f8a98c0cda30b024a9ab979e63430abf8504d7341c13fd3579bdfc5d7462d03cf3b298a8205de132289a1d40820",
+      "signing_ms": [
+        12.644333,
+        12.664750000000002
+      ],
+      "wall_ms": 135.832917,
+      "wire_bytes_including_setup": [
+        252343,
+        252335
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "8acec00c0d35f9189986863e58910553c38f702b314175e30f3c88f867244f69",
+      "entry": "faf6831ac6200d59bdaa421f4768fee7c6d9e2a510ae7aeaae1292fa99df486b",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
+      "route": "Direct",
+      "setup_ms": [
+        107.583458,
+        105.0005
+      ],
+      "signature": "0c309898b9e6149efa020a9661212710155baf384d65f90f31c18b1825cba1bb6e1dfe398af5169f638c29e09ed2a228ab8e1f1b409be9ab44bc56c1f6e82e19",
+      "signing_ms": [
+        12.631375,
+        12.584041
+      ],
+      "wall_ms": 129.517417,
+      "wire_bytes_including_setup": [
+        252257,
+        252350
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "8c292f95936d39ef9933cdd54e186b1611301242126d27045ccab5e5102ff3f4",
+      "entry": "c44ca6855afb7a6615a412599413c4a2fc42a14ef648690983846ee2315c1a49",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
+      "route": "Direct",
+      "setup_ms": [
+        105.12675,
+        108.242959
+      ],
+      "signature": "9539b4ad82280984c248be0c5d285893d897f23908018c80bc123e8844fa1a7541fada134440c25f8ab3fa53560a6f46db2c355d357e7f77e841eab67572b1d1",
+      "signing_ms": [
+        12.692667,
+        12.698542
+      ],
+      "wall_ms": 130.145042,
+      "wire_bytes_including_setup": [
+        252362,
+        252432
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "653745c6b43e9541f9fd7728375e435f7d7011c4a9b9497c5cb4660f9ba428c0",
+      "entry": "2568ada1956e9056635b22548ad8c67cac2a418440d9654dea02ce5e417ab800",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
+      "route": "Direct",
+      "setup_ms": [
+        107.7,
+        106.151209
+      ],
+      "signature": "097f48e2e69d8c65302a6e7c8544ab07dc6b0bb27586448de27e274460c933177cc7f5ff960ef11af97de758cc774deff53c53bb71cac675bc268b6392a89030",
+      "signing_ms": [
+        14.234333,
+        14.22825
+      ],
+      "wall_ms": 137.62175,
+      "wire_bytes_including_setup": [
+        252302,
+        252295
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "4595da043534d630b0ed74f84564fcff90597b7d7807d961fe5c00214dbf9909",
+      "entry": "de87d8921c95a8aba39bccdab200857f9a3b9185b62abb0474d22ea07f09dbab",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
+      "route": "Direct",
+      "setup_ms": [
+        106.241,
+        104.623541
+      ],
+      "signature": "366c6224e5fd149e50ba081666f8965107553f9452ed8a0ec45697d642b58f7e5072fdccf82a3d938035498da5645019758dce8fe0f673236e43467fc2f6ca3a",
+      "signing_ms": [
+        13.876667,
+        13.936709
+      ],
+      "wall_ms": 130.327833,
+      "wire_bytes_including_setup": [
+        252313,
+        252214
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "0f69b278944cc354b23e8b0f1b94fd8c42847f2cb75bf54079fe7efd7a1e9fe1",
+      "entry": "dbed56badfdc30c762d59cd252b3716f0325fcf184afb64cdb441e9e11ebbe83",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
+      "route": "Direct",
+      "setup_ms": [
+        103.641709,
+        105.438917
+      ],
+      "signature": "68e04f605fdbe8f739acb20b8eb0f324c468a472fb05dba45efa6fa906e9ca637c0f7a3700fc07d9dc67b94084e479f0c6f4e07137598f5e0eb2be4db4f08dc3",
+      "signing_ms": [
+        12.696000000000002,
+        12.872083
+      ],
+      "wall_ms": 130.817458,
+      "wire_bytes_including_setup": [
+        252321,
+        252513
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    }
+  ],
+  "concurrent_attempts": [
+    {
+      "attempt": "f09a6214a8cd18de6417473aab38d7ee9b9236343b96fbf150e7b65676474eb3",
+      "entry": "4af641aa589d86b31b699c922a1000deb7125514bb050e2ce42053a74440a2a5",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "route": "Direct",
+      "setup_ms": [
+        144.722708,
+        133.795834
+      ],
+      "signature": "ae51f2d7c3e55bf463b6e23b09e0efe511d2049523ed2ba06a537ce132cd46b93dc758251217f5907ab3d7f426a2867c8893feb7103949efae913b1636f4fad7",
+      "signing_ms": [
+        16.507417,
+        16.38575
+      ],
+      "wall_ms": 191.041708,
+      "wire_bytes_including_setup": [
+        252359,
+        252246
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "5e3eb97ec520bca8ca2e61a9257af50a9fa313881b7ed85d36c994671930bb0d",
+      "entry": "6b05b5c5e1a646f34871469ca942d1fed9f07c21603a97730ace319fc55c27fc",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "route": "Direct",
+      "setup_ms": [
+        145.360959,
+        133.711417
+      ],
+      "signature": "09c42c1dfbe406a5859ad27e1fdb51ecf77e9248fc05e88965b3f2051db3e14163054a4bee5cac78e4d7ad281c9e41f79a7526f3a55e771fe9d026d0b65cef89",
+      "signing_ms": [
+        17.084041000000003,
+        16.411625
+      ],
+      "wall_ms": 181.306375,
+      "wire_bytes_including_setup": [
+        252421,
+        252333
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "70541ae8c9fba7f683217143494d86b0a9ea23a9aa20819d4ed1760d2fc145e9",
+      "entry": "a5de9d456ebfcc807d0e55e9f4e92396c654d3d85f6d64e559b5d4e15f47307a",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "route": "Direct",
+      "setup_ms": [
+        135.966417,
+        144.527959
+      ],
+      "signature": "a6326ae14badf3602064c48edf1dab0dd3c37412c25d3bcb7699d08ef8f72f5a5b6a8bf2ad65ea3a81b9182932f28e9ca9d69a98e1f93b9d730de6557e221b56",
+      "signing_ms": [
+        15.115917,
+        15.640541
+      ],
+      "wall_ms": 186.695417,
+      "wire_bytes_including_setup": [
+        252470,
+        252158
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "d48ed3bde77a4e63b4769ad3ac076731b849292da6fa480b0f48d300e45fe6a7",
+      "entry": "c5b228807c7a32f8e69c565948b5b34bd1cda843dd617c27e748e3591e3722eb",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "route": "Direct",
+      "setup_ms": [
+        133.820875,
+        146.19020899999998
+      ],
+      "signature": "4c8eff9e18d6c8cae00883644c0277f7395a908d9f61fd2d38325a215d8fa74224e8fc64978278d2f6b2ecd08d4288be300215e592455b0e9fe55ec741096f25",
+      "signing_ms": [
+        16.3195,
+        16.309791
+      ],
+      "wall_ms": 191.348875,
+      "wire_bytes_including_setup": [
+        252219,
+        252243
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    }
+  ],
+  "dkls_spikes_executed": true,
+  "limitations": [
+    "custom setup unaudited",
+    "upstream opaque buffers and physical erasure unverified",
+    "public ledger assumes honest filesystem authority",
+    "snapshot cloning not prevented by roots or boot IDs",
+    "no background OT pool or product integration",
+    "upstream resolution of the 2026 analysis remains open; locked Silence parameters unchanged",
+    "release cutoff is local queue handoff; pre-cutoff material cannot be recalled",
+    "cross-process/replica incident publication and handoff are not atomic",
+    "marker persistence is conditional on verified contents and completed syncs, not filename existence",
+    "no power-loss, hostile-host rollback or TEE snapshot test",
+    "pool specification only; no pool implementation"
+  ],
+  "refusals": [
+    {
+      "error": "worker 1: DirectSetup/Context: authenticated setup context mismatch; action=Burn; persisted=false; worker 0: DirectSetup/Context: authenticated setup context mismatch; action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "authenticated setup context mismatch",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Context",
+              "peer": null,
+              "phase": "DirectSetup"
+            }
+          ],
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "authenticated setup context mismatch",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Context",
+              "peer": null,
+              "phase": "DirectSetup"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "unauthenticated-garbage",
+      "quarantine_persisted": false,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": false
+    },
+    {
+      "error": "worker 1: DirectSetup/Context: authenticated setup context mismatch; action=Burn; persisted=false; worker 0: DirectSetup/Context: authenticated setup context mismatch; action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "authenticated setup context mismatch",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Context",
+              "peer": null,
+              "phase": "DirectSetup"
+            }
+          ],
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "authenticated setup context mismatch",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Context",
+              "peer": null,
+              "phase": "DirectSetup"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "wrong-hash",
+      "quarantine_persisted": false,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": false
+    },
+    {
+      "error": "worker 1: DirectSetup/Context: authenticated setup context mismatch; action=Burn; persisted=false; worker 0: DirectSetup/Context: authenticated setup context mismatch; action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "authenticated setup context mismatch",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Context",
+              "peer": null,
+              "phase": "DirectSetup"
+            }
+          ],
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "authenticated setup context mismatch",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Context",
+              "peer": null,
+              "phase": "DirectSetup"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "wrong-chain-code",
+      "quarantine_persisted": false,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": false
+    },
+    {
+      "error": "worker 1: Admission/Local: hello/manifest mismatch; action=Burn; persisted=false; worker 0: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "hello/manifest mismatch",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Local",
+              "peer": null,
+              "phase": "Admission"
+            }
+          ],
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "peer disconnected",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Local",
+              "peer": null,
+              "phase": "Admission"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "wrong-key-id",
+      "quarantine_persisted": false,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": false
+    },
+    {
+      "error": "worker 1: Admission/Local: invalid manifest; action=Burn; persisted=false; worker 0: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "invalid manifest",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Local",
+              "peer": null,
+              "phase": "Admission"
+            }
+          ],
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "peer disconnected",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Local",
+              "peer": null,
+              "phase": "Admission"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "wrong-peer",
+      "quarantine_persisted": false,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": false
+    },
+    {
+      "error": "worker 0: DirectSetup/ProtocolViolation: zero-share commitment mismatch; action=QuarantinePeer; persisted=true; worker 1: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "QuarantinePeer",
+              "detail": "zero-share commitment mismatch",
+              "incident_attempted": true,
+              "incident_persisted": true,
+              "kind": "ProtocolViolation",
+              "peer": [
+                162,
+                219,
+                61,
+                19,
+                253,
+                65,
+                232,
+                41,
+                131,
+                126,
+                100,
+                121,
+                203,
+                88,
+                76,
+                88,
+                253,
+                82,
+                9,
+                71,
+                254,
+                148,
+                77,
+                62,
+                38,
+                149,
+                128,
+                66,
+                117,
+                160,
+                121,
+                235
+              ],
+              "phase": "DirectSetup"
+            }
+          ],
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "peer disconnected",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Local",
+              "peer": null,
+              "phase": "Admission"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "bad-zero-reveal",
+      "quarantine_persisted": true,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": true
+    },
+    {
+      "error": "worker 0: DirectSetup/ProtocolViolation: invalid base OT reply length; action=QuarantinePeer; persisted=true; worker 1: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "QuarantinePeer",
+              "detail": "invalid base OT reply length",
+              "incident_attempted": true,
+              "incident_persisted": true,
+              "kind": "ProtocolViolation",
+              "peer": [
+                240,
+                77,
+                212,
+                105,
+                35,
+                199,
+                75,
+                242,
+                88,
+                114,
+                189,
+                221,
+                76,
+                73,
+                221,
+                14,
+                64,
+                14,
+                171,
+                57,
+                44,
+                253,
+                32,
+                134,
+                71,
+                184,
+                129,
+                87,
+                27,
+                246,
+                84,
+                202
+              ],
+              "phase": "DirectSetup"
+            }
+          ],
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "peer disconnected",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Local",
+              "peer": null,
+              "phase": "Admission"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "truncated-ot",
+      "quarantine_persisted": true,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": true
+    },
+    {
+      "error": "worker 0: DirectSetup/ProtocolViolation: invalid PPRF length; action=QuarantinePeer; persisted=true; worker 1: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "QuarantinePeer",
+              "detail": "invalid PPRF length",
+              "incident_attempted": true,
+              "incident_persisted": true,
+              "kind": "ProtocolViolation",
+              "peer": [
+                110,
+                14,
+                174,
+                148,
+                237,
+                105,
+                216,
+                143,
+                199,
+                171,
+                240,
+                241,
+                133,
+                89,
+                33,
+                180,
+                181,
+                50,
+                69,
+                231,
+                243,
+                25,
+                166,
+                221,
+                87,
+                122,
+                31,
+                135,
+                244,
+                63,
+                241,
+                135
+              ],
+              "phase": "DirectSetup"
+            }
+          ],
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "peer disconnected",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Local",
+              "peer": null,
+              "phase": "Admission"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "truncated-pprf",
+      "quarantine_persisted": true,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": true
+    },
+    {
+      "error": "worker 1: Migration/PeerAbort: Abort protocol by party 0; action=Burn; persisted=false; worker 0: Migration/ProtocolViolation: PPRF error; action=QuarantinePeer; persisted=true",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "Abort protocol by party 0",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "PeerAbort",
+              "peer": null,
+              "phase": "Migration"
+            }
+          ],
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "QuarantinePeer",
+              "detail": "PPRF error",
+              "incident_attempted": true,
+              "incident_persisted": true,
+              "kind": "ProtocolViolation",
+              "peer": [
+                164,
+                121,
+                81,
+                30,
+                118,
+                199,
+                250,
+                16,
+                84,
+                48,
+                38,
+                113,
+                38,
+                77,
+                195,
+                240,
+                233,
+                168,
+                240,
+                198,
+                10,
+                49,
+                121,
+                34,
+                5,
+                242,
+                50,
+                224,
+                128,
+                83,
+                73,
+                221
+              ],
+              "phase": "Migration"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "migration-pprf",
+      "quarantine_persisted": true,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": true
+    },
+    {
+      "error": "worker 0: Migration/ProtocolViolation: PPRF error; abort send failed (original violation preserved); action=QuarantinePeer; persisted=true; worker 1: Migration/Transport: Missing message; abort send failed (original violation preserved); action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            0,
+            {
+              "abort_send_failed": true,
+              "action": "QuarantinePeer",
+              "detail": "PPRF error; abort send failed (original violation preserved)",
+              "incident_attempted": true,
+              "incident_persisted": true,
+              "kind": "ProtocolViolation",
+              "peer": [
+                2,
+                2,
+                151,
+                162,
+                61,
+                226,
+                15,
+                124,
+                105,
+                177,
+                186,
+                149,
+                93,
+                250,
+                52,
+                62,
+                78,
+                73,
+                46,
+                89,
+                127,
+                80,
+                168,
+                90,
+                229,
+                38,
+                60,
+                195,
+                93,
+                94,
+                209,
+                211
+              ],
+              "phase": "Migration"
+            }
+          ],
+          [
+            1,
+            {
+              "abort_send_failed": true,
+              "action": "Burn",
+              "detail": "Missing message; abort send failed (original violation preserved)",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Transport",
+              "peer": null,
+              "phase": "Migration"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "migration-pprf-abort-send",
+      "quarantine_persisted": true,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": true
+    },
+    {
+      "error": "worker 0: DirectSetup/ProtocolViolation: Invalid proof; action=QuarantinePeer; persisted=true; worker 1: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "QuarantinePeer",
+              "detail": "Invalid proof",
+              "incident_attempted": true,
+              "incident_persisted": true,
+              "kind": "ProtocolViolation",
+              "peer": [
+                100,
+                64,
+                255,
+                237,
+                211,
+                69,
+                13,
+                73,
+                13,
+                83,
+                18,
+                98,
+                241,
+                157,
+                42,
+                254,
+                126,
+                28,
+                195,
+                51,
+                196,
+                20,
+                41,
+                121,
+                193,
+                57,
+                81,
+                154,
+                211,
+                31,
+                118,
+                143
+              ],
+              "phase": "DirectSetup"
+            }
+          ],
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "peer disconnected",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "Local",
+              "peer": null,
+              "phase": "Admission"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "bad-ot",
+      "quarantine_persisted": true,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": true
+    },
+    {
+      "error": "worker 0: Signing/ProtocolViolation: Abort the protocol and ban the party 1; action=QuarantinePeer; persisted=true; worker 1: Signing/PeerAbort: Abort protocol by party 0; action=Burn; persisted=false",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "QuarantinePeer",
+              "detail": "Abort the protocol and ban the party 1",
+              "incident_attempted": true,
+              "incident_persisted": true,
+              "kind": "ProtocolViolation",
+              "peer": [
+                227,
+                24,
+                110,
+                92,
+                111,
+                78,
+                117,
+                10,
+                254,
+                82,
+                151,
+                132,
+                244,
+                37,
+                52,
+                150,
+                105,
+                132,
+                19,
+                91,
+                115,
+                42,
+                54,
+                230,
+                225,
+                11,
+                2,
+                233,
+                169,
+                72,
+                4,
+                136
+              ],
+              "phase": "Signing"
+            }
+          ],
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "Burn",
+              "detail": "Abort protocol by party 0",
+              "incident_attempted": false,
+              "incident_persisted": false,
+              "kind": "PeerAbort",
+              "peer": null,
+              "phase": "Signing"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "corrupt-ot",
+      "quarantine_persisted": true,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": true
+    },
+    {
+      "error": "worker 1: Signing/ProtocolViolation: invalid message format; action=QuarantinePeer; persisted=true; worker 0: Signing/ProtocolViolation: invalid message format; action=QuarantinePeer; persisted=true",
+      "failure_details": {
+        "closed": [
+          true,
+          true
+        ],
+        "drain_timed_out": false,
+        "failures": [
+          [
+            1,
+            {
+              "abort_send_failed": false,
+              "action": "QuarantinePeer",
+              "detail": "invalid message format",
+              "incident_attempted": true,
+              "incident_persisted": true,
+              "kind": "ProtocolViolation",
+              "peer": [
+                236,
+                177,
+                166,
+                189,
+                243,
+                89,
+                195,
+                83,
+                210,
+                216,
+                207,
+                212,
+                71,
+                127,
+                123,
+                19,
+                174,
+                49,
+                68,
+                61,
+                24,
+                79,
+                16,
+                36,
+                49,
+                25,
+                34,
+                209,
+                166,
+                130,
+                215,
+                108
+              ],
+              "phase": "Signing"
+            }
+          ],
+          [
+            0,
+            {
+              "abort_send_failed": false,
+              "action": "QuarantinePeer",
+              "detail": "invalid message format",
+              "incident_attempted": true,
+              "incident_persisted": true,
+              "kind": "ProtocolViolation",
+              "peer": [
+                3,
+                195,
+                114,
+                182,
+                141,
+                41,
+                9,
+                232,
+                137,
+                3,
+                203,
+                240,
+                139,
+                217,
+                71,
+                17,
+                96,
+                136,
+                148,
+                185,
+                43,
+                24,
+                103,
+                125,
+                156,
+                169,
+                39,
+                175,
+                139,
+                44,
+                147,
+                147
+              ],
+              "phase": "Signing"
+            }
+          ]
+        ],
+        "pipes": []
+      },
+      "fault": "duplicate-party",
+      "quarantine_persisted": true,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": true
+    },
+    {
+      "error": "injected cancellation after both setup reservations",
+      "failure_details": null,
+      "fault": "cancel-ready",
+      "quarantine_persisted": false,
+      "refused": true,
+      "retry_blocked_across_wallet_and_route": false
+    },
+    {
+      "error": "worker 1: Admission/Local: entry already reserved or ledger unavailable: File exists (os error 17); action=Burn; persisted=false; worker 0: Admission/Local: entry already reserved or ledger unavailable: File exists (os error 17); action=Burn; persisted=false",
+      "fault": "reservation-replay-after-process-restart",
+      "refused": true
+    },
+    {
+      "error": "worker 0: Admission/Local: research quarantine; release fenced; action=Burn; persisted=false; worker 1: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "fault": "durable-quarantine-at-worker-start",
+      "refused": true
+    }
+  ],
+  "samples_per_wallet_path_route": 3,
+  "scope": "local research; mock public ledger; no TEE or production authorization",
+  "source_revision": "af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7",
+  "successful_attempts": 36,
+  "wallets": [
+    {
+      "additive_public": [
+        [
+          3,
+          220,
+          106,
+          168,
+          27,
+          63,
+          218,
+          89,
+          9,
+          13,
+          27,
+          170,
+          118,
+          236,
+          194,
+          150,
+          72,
+          196,
+          81,
+          254,
+          150,
+          33,
+          245,
+          16,
+          211,
+          188,
+          217,
+          197,
+          88,
+          80,
+          169,
+          197,
+          250
+        ],
+        [
+          3,
+          25,
+          142,
+          159,
+          167,
+          154,
+          203,
+          222,
+          12,
+          22,
+          50,
+          83,
+          168,
+          78,
+          154,
+          97,
+          253,
+          199,
+          227,
+          14,
+          50,
+          122,
+          73,
+          210,
+          57,
+          7,
+          4,
+          56,
+          31,
+          221,
+          216,
+          122,
+          65
+        ]
+      ],
+      "chain_code": [
+        86,
+        148,
+        75,
+        189,
+        26,
+        17,
+        116,
+        94,
+        111,
+        203,
+        96,
+        163,
+        208,
+        136,
+        93,
+        222,
+        240,
+        54,
+        77,
+        231,
+        160,
+        232,
+        182,
+        41,
+        1,
+        218,
+        224,
+        79,
+        139,
+        1,
+        189,
+        107
+      ],
+      "identities": [
+        [
+          233,
+          173,
+          46,
+          126,
+          37,
+          50,
+          13,
+          57,
+          129,
+          188,
+          227,
+          236,
+          221,
+          178,
+          142,
+          141,
+          182,
+          109,
+          139,
+          21,
+          59,
+          163,
+          178,
+          153,
+          93,
+          215,
+          202,
+          220,
+          61,
+          19,
+          51,
+          237
+        ],
+        [
+          129,
+          206,
+          239,
+          122,
+          241,
+          142,
+          76,
+          115,
+          252,
+          14,
+          95,
+          11,
+          117,
+          158,
+          10,
+          120,
+          37,
+          138,
+          45,
+          89,
+          246,
+          127,
+          49,
+          230,
+          50,
+          197,
+          172,
+          77,
+          214,
+          253,
+          182,
+          145
+        ]
+      ],
+      "key_id": [
+        24,
+        9,
+        27,
+        223,
+        208,
+        129,
+        136,
+        2,
+        8,
+        50,
+        129,
+        154,
+        251,
+        4,
+        230,
+        81,
+        98,
+        82,
+        134,
+        121,
+        157,
+        24,
+        90,
+        62,
+        224,
+        215,
+        178,
+        7,
+        142,
+        102,
+        157,
+        235
+      ],
+      "public_key": [
+        2,
+        152,
+        147,
+        190,
+        160,
+        209,
+        217,
+        121,
+        218,
+        129,
+        174,
+        128,
+        75,
+        12,
+        114,
+        42,
+        78,
+        224,
+        16,
+        109,
+        175,
+        248,
+        23,
+        206,
+        2,
+        255,
+        238,
+        241,
+        204,
+        213,
+        81,
+        252,
+        130
+      ],
+      "version": 1
+    },
+    {
+      "additive_public": [
+        [
+          3,
+          218,
+          12,
+          124,
+          22,
+          138,
+          121,
+          157,
+          49,
+          175,
+          83,
+          73,
+          36,
+          172,
+          247,
+          124,
+          90,
+          55,
+          156,
+          29,
+          253,
+          39,
+          238,
+          153,
+          207,
+          75,
+          159,
+          69,
+          0,
+          36,
+          109,
+          170,
+          206
+        ],
+        [
+          3,
+          94,
+          24,
+          2,
+          246,
+          14,
+          58,
+          202,
+          53,
+          92,
+          70,
+          76,
+          41,
+          95,
+          197,
+          28,
+          58,
+          202,
+          4,
+          82,
+          47,
+          221,
+          4,
+          185,
+          215,
+          247,
+          179,
+          137,
+          195,
+          63,
+          227,
+          70,
+          122
+        ]
+      ],
+      "chain_code": [
+        240,
+        92,
+        251,
+        245,
+        202,
+        86,
+        196,
+        135,
+        55,
+        141,
+        101,
+        126,
+        158,
+        249,
+        99,
+        176,
+        183,
+        198,
+        206,
+        178,
+        180,
+        251,
+        250,
+        204,
+        75,
+        4,
+        220,
+        191,
+        244,
+        168,
+        53,
+        33
+      ],
+      "identities": [
+        [
+          233,
+          173,
+          46,
+          126,
+          37,
+          50,
+          13,
+          57,
+          129,
+          188,
+          227,
+          236,
+          221,
+          178,
+          142,
+          141,
+          182,
+          109,
+          139,
+          21,
+          59,
+          163,
+          178,
+          153,
+          93,
+          215,
+          202,
+          220,
+          61,
+          19,
+          51,
+          237
+        ],
+        [
+          129,
+          206,
+          239,
+          122,
+          241,
+          142,
+          76,
+          115,
+          252,
+          14,
+          95,
+          11,
+          117,
+          158,
+          10,
+          120,
+          37,
+          138,
+          45,
+          89,
+          246,
+          127,
+          49,
+          230,
+          50,
+          197,
+          172,
+          77,
+          214,
+          253,
+          182,
+          145
+        ]
+      ],
+      "key_id": [
+        24,
+        76,
+        242,
+        191,
+        175,
+        14,
+        135,
+        41,
+        205,
+        143,
+        116,
+        33,
+        154,
+        53,
+        59,
+        202,
+        138,
+        202,
+        61,
+        4,
+        50,
+        190,
+        216,
+        184,
+        231,
+        134,
+        123,
+        21,
+        62,
+        200,
+        81,
+        150
+      ],
+      "public_key": [
+        2,
+        208,
+        144,
+        230,
+        86,
+        191,
+        213,
+        201,
+        64,
+        149,
+        165,
+        204,
+        195,
+        1,
+        218,
+        255,
+        237,
+        91,
+        237,
+        235,
+        41,
+        215,
+        133,
+        227,
+        156,
+        104,
+        28,
+        187,
+        143,
+        232,
+        18,
+        61,
+        174
+      ],
+      "version": 1
+    },
+    {
+      "additive_public": [
+        [
+          2,
+          62,
+          183,
+          202,
+          115,
+          255,
+          154,
+          137,
+          39,
+          210,
+          62,
+          60,
+          36,
+          151,
+          132,
+          129,
+          235,
+          109,
+          158,
+          247,
+          219,
+          77,
+          79,
+          244,
+          10,
+          192,
+          44,
+          187,
+          11,
+          159,
+          238,
+          189,
+          217
+        ],
+        [
+          2,
+          83,
+          28,
+          101,
+          87,
+          140,
+          251,
+          121,
+          253,
+          152,
+          116,
+          56,
+          11,
+          25,
+          168,
+          124,
+          149,
+          188,
+          16,
+          191,
+          233,
+          21,
+          151,
+          243,
+          93,
+          161,
+          22,
+          193,
+          81,
+          181,
+          202,
+          92,
+          239
+        ]
+      ],
+      "chain_code": [
+        4,
+        23,
+        138,
+        17,
+        63,
+        128,
+        204,
+        142,
+        171,
+        100,
+        76,
+        207,
+        121,
+        67,
+        18,
+        138,
+        160,
+        41,
+        55,
+        36,
+        196,
+        181,
+        64,
+        210,
+        233,
+        208,
+        153,
+        226,
+        107,
+        64,
+        232,
+        249
+      ],
+      "identities": [
+        [
+          233,
+          173,
+          46,
+          126,
+          37,
+          50,
+          13,
+          57,
+          129,
+          188,
+          227,
+          236,
+          221,
+          178,
+          142,
+          141,
+          182,
+          109,
+          139,
+          21,
+          59,
+          163,
+          178,
+          153,
+          93,
+          215,
+          202,
+          220,
+          61,
+          19,
+          51,
+          237
+        ],
+        [
+          129,
+          206,
+          239,
+          122,
+          241,
+          142,
+          76,
+          115,
+          252,
+          14,
+          95,
+          11,
+          117,
+          158,
+          10,
+          120,
+          37,
+          138,
+          45,
+          89,
+          246,
+          127,
+          49,
+          230,
+          50,
+          197,
+          172,
+          77,
+          214,
+          253,
+          182,
+          145
+        ]
+      ],
+      "key_id": [
+        150,
+        110,
+        213,
+        97,
+        118,
+        118,
+        81,
+        200,
+        149,
+        154,
+        35,
+        138,
+        238,
+        242,
+        9,
+        235,
+        209,
+        73,
+        166,
+        225,
+        210,
+        166,
+        227,
+        56,
+        23,
+        188,
+        189,
+        146,
+        241,
+        136,
+        11,
+        120
+      ],
+      "public_key": [
+        3,
+        154,
+        23,
+        114,
+        149,
+        248,
+        215,
+        106,
+        216,
+        158,
+        12,
+        3,
+        162,
+        68,
+        89,
+        180,
+        45,
+        50,
+        189,
+        235,
+        29,
+        106,
+        177,
+        211,
+        105,
+        244,
+        215,
+        168,
+        217,
+        243,
+        55,
+        38,
+        73
+      ],
+      "version": 1
+    }
+  ],
+  "revision_label": "Astra follow-up: migration error preservation, truthful incident durability, actual R4 queue observation",
+  "validation": {
+    "research_feature_tests": 22,
+    "default_feature_tests": 20,
+    "distinct_tests": 23,
+    "clippy_both_feature_configurations": true,
+    "formatting": true,
+    "production_files_unchanged": true,
+    "signature_attempts_baseline": 36,
+    "signature_attempts_concurrent": 4,
+    "refusals": 16
+  },
+  "source_hashes": {
+    "Cargo.toml": "a5ac10227d532338b33b35240245663f814679edb181d2e1fc5361031e5acbbe",
+    "Cargo.lock": "af74c2276f5dc3a05ac5cd7b49e2cf6ec8fbb164e0ccf0f8a41aa473765c2f31",
+    "patch-source.py": "6e393567a3e06551a20df319f0bcecc30aae5971692a0760878d838ff41d5172",
+    "patches/research-keyshare.rs": "b632d9443b96709b8cdc6dec0cf8eb821f0d9966c5ac619cfe0a276a218a563a",
+    "src/lib.rs": "9a651bb415aaf2032dbe386c957e3225dc4bb074be951864a98890fd55e43735",
+    "src/lifecycle.rs": "54ca3d2a1cfc90d7f6654853db47faaf202c9307ee0e82f338e22085210ba363",
+    "src/main.rs": "12403c3a78b83e89340176682dfc24b02d508e93bf814a688cce2c2b46568365",
+    "src/wire.rs": "099ef84299bc305a2a615662e7ed88aa97f4bb945959e8c0af7ff190f8c5730a",
+    "src/worker.rs": "52200c94eb8f69ad30a6fb7362b2fc8bfdac2a603234e02425dd1e8d95de7985",
+    "tests/invariants.rs": "2ab67d8a6d05964793c83c12795480585363dd20dc889d12021380000bd4ab57"
+  },
+  "measured_statistics": {
+    "Migration": {
+      "samples": 18,
+      "median_setup_ms": 109.976563,
+      "median_signing_ms": 13.388771,
+      "median_wall_ms": 140.284896
+    },
+    "Direct": {
+      "samples": 18,
+      "median_setup_ms": 111.3824165,
+      "median_signing_ms": 13.3054165,
+      "median_wall_ms": 140.065417
+    }
+  },
+  "lifecycle_regressions": {
+    "migration_violation_plus_abort_send_failure": "original ProtocolViolation, QuarantinePeer, incident_attempted=true, incident_persisted=true, abort_send_failed=true; replacement retries blocked",
+    "incident_publication": "six creation/write/sync checkpoints; same failure never republished; incomplete markers never confirmed; complete existing markers require repeat file/directory sync",
+    "r4_queue_oracle": {
+      "native_executions_reached_r4_per_case": 2,
+      "protected_post_cutoff_handoffs": 0,
+      "positive_control_handoffs": 2,
+      "deliberate_gate_bypass_post_cutoff_handoffs": 2,
+      "observer": "actual output-queue receiver drained through EOF independently of cancellation and Wire::send"
+    }
+  },
+  "parameter_decision": {
+    "locked_silence_parameters_unchanged": true,
+    "upstream_analysis_resolution": "open; neither concrete attack nor security certification inferred from the paper alone",
+    "paper_sha256": "48922c9af9dc759716207d01492967d3b826f6c52f7913839ad3b07a0e11b784"
+  },
+  "historical_revision": "c33a1e1"
+}

@@ -132,11 +132,14 @@ impl Failure {
 /// Same ordered stable peer identities and approved protocol configuration across
 /// wallets/paths/boots. A production authority must approve configuration changes.
 pub fn scope(manifest: &Manifest) -> [u8; 32] {
+    pair_scope(manifest.identities, manifest.version)
+}
+pub fn pair_scope(identities: [[u8; 32]; 2], version: u16) -> [u8; 32] {
     digest(
         b"pairkey/dkls-research/incident-scope/v1",
         &(
-            manifest.identities,
-            manifest.version,
+            identities,
+            version,
             crate::REVISION,
             "sl-oblivious/1.0.0-beta",
             2u8,
@@ -145,7 +148,10 @@ pub fn scope(manifest: &Manifest) -> [u8; 32] {
     )
 }
 pub fn scope_dir(controls: &Path, manifest: &Manifest) -> PathBuf {
-    let name = scope(manifest)
+    pair_scope_dir(controls, manifest.identities, manifest.version)
+}
+pub fn pair_scope_dir(controls: &Path, identities: [[u8; 32]; 2], version: u16) -> PathBuf {
+    let name = pair_scope(identities, version)
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect::<String>();

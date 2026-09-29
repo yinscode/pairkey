@@ -1,26 +1,35 @@
 {
   "attempts": [
     {
-      "attempt": "81ba2878eed573f0a7eea5679bfb9e2518707941b6cbe00b270c74d5157604c1",
-      "entry": "b6a818d83195cd26ebb7bb3f5eeade438559d211de1fc682399a5f31957f36ec",
+      "attempt": "9ab4316611b23b1f84c46f3018b4a9e42dfcdc34c5cc312a29af1ce9340ee3a0",
+      "entry": "bc8ef5f045a2a934d3fd86bdf3277ee68d268ba6e37a6429507296e25a8cd14a",
       "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 65968,
       "path": "m",
-      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "public_key": "03713fe284a3ebc0c534166d1196d91b7eca4b32109dcda549e08af962ffe5a52c",
       "route": "Migration",
+      "setup_active_poll_ms": [
+        98.933998,
+        101.729373
+      ],
       "setup_ms": [
-        106.735958,
-        106.77925
+        110.387583,
+        108.632334
       ],
-      "signature": "7cd6ad1f77e5b26a61b2d3293e6ec43a461fe0be735b891d172b6ccbdf484f855bc1561dae987427ae9b8c7adf86f02ffa16fd8ff8f1b95c15035b68aedffc79",
+      "signature": "2f05636ad6df53d78d044cfaeb55204d6e0f5eef97ec859ffdf9144a1fa191f84b19513da406fd749898ea7a8675fcc7d221a0a7de84e146f71f2af5a4926ba4",
+      "signing_active_poll_ms": [
+        9.324665,
+        9.011541
+      ],
       "signing_ms": [
-        16.470709,
-        16.27175
+        20.142041,
+        18.157916
       ],
-      "wall_ms": 155.400083,
+      "wall_ms": 144.698208,
       "wire_bytes_including_setup": [
-        115388,
-        115388
+        115396,
+        115396
       ],
       "wire_messages_including_subscriptions": [
         22,
@@ -28,779 +37,32 @@
       ]
     },
     {
-      "attempt": "70c5346d76a18a6e0252f96e286cda24fefc636b42a90559ff9a16bdbd1426fe",
-      "entry": "928e8e617edb20f3e72795a5e29ec1748b288273ab30bb78d0e5218cf703638e",
+      "attempt": "9f97fca11c9ee93905e9eee670969f415942baa0fac505bf62fe65ad2f1dbe67",
+      "entry": "0a7b988481b67aef040700c5f3ff5c99cef24878d264bf1977a4103869701445",
       "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 65968,
       "path": "m",
-      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "public_key": "03713fe284a3ebc0c534166d1196d91b7eca4b32109dcda549e08af962ffe5a52c",
       "route": "Migration",
+      "setup_active_poll_ms": [
+        97.143542,
+        96.494958
+      ],
       "setup_ms": [
-        113.184542,
-        113.137708
+        105.181625,
+        104.645291
       ],
-      "signature": "7bed98adae7bb30a68842822c9623a60b830eec905ba2d1c11be128944b2cebc484643105a4159a129b1c0ba6b57595347fe0dfbfe39200ee9e28c15a36dbbcb",
+      "signature": "59176d9e6c9fe61c2bc1038da15c5af02e23dee3004b08e6ddb0dd3d8aee132604fe01e86a21318043ae3e2748c8e5562301c112cfd63772dd0d64ff7cd10640",
+      "signing_active_poll_ms": [
+        10.561834,
+        9.986292
+      ],
       "signing_ms": [
-        12.860958,
-        12.931583
+        20.472625,
+        20.464583
       ],
-      "wall_ms": 141.762208,
-      "wire_bytes_including_setup": [
-        115384,
-        115384
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "898aad0dd6c1c87b4c40b1008bdf8b386e9c1b9c3cf70a01cc4a8f1f3ac8b9be",
-      "entry": "c8631be7a1944bb4c731ef1be7377618f9b1abcdf699d9be29ed36cd30b3d490",
-      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
-      "package_bytes": 65968,
-      "path": "m",
-      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
-      "route": "Migration",
-      "setup_ms": [
-        228.485,
-        229.037
-      ],
-      "signature": "9ca75727276afb8b40de4303252c9b9d91885a23a6d80db017e36e8cea5f852e0c1e603a8d41764afbcb92626529e5e42d1e79a384100da2ae2138efc5398c96",
-      "signing_ms": [
-        14.778042,
-        15.231459
-      ],
-      "wall_ms": 257.73600000000005,
-      "wire_bytes_including_setup": [
-        115394,
-        115394
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "0800163c8644647826fd2b1e9731cd44816c8be038499f7bbbffef9c9212650c",
-      "entry": "eddc826be4c9b461ebf4b12714a80389d4f14d3eb3cce4694ce42a1e0f22fa48",
-      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
-      "package_bytes": 65968,
-      "path": "m/7/3",
-      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
-      "route": "Migration",
-      "setup_ms": [
-        115.284042,
-        116.433791
-      ],
-      "signature": "48182dea45ba454f3a040da7182cec7a9fdbf2a307b2b0c6ccc620c4fb1644031b86fefb0b15acb4d962af63d402767aeaba962e301bf3435d10076ee0f7ba3b",
-      "signing_ms": [
-        13.15475,
-        13.271292
-      ],
-      "wall_ms": 146.38662499999998,
-      "wire_bytes_including_setup": [
-        115382,
-        115382
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "a77ebf74fbcd3b72b72bb99464e82415dbe56996c4738daa452989bd2bb47d41",
-      "entry": "ef1c423433db31003afa097afb0a047422c2874ed0f934e3b41a0f5b6fff1485",
-      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
-      "package_bytes": 65968,
-      "path": "m/7/3",
-      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
-      "route": "Migration",
-      "setup_ms": [
-        103.524667,
-        103.550042
-      ],
-      "signature": "3abdd8b78372cf812734c9cd68a0f65b2c5a8711d902e90ec4895bcea500cc545a8679007b6cf150364baaa8092bc575d146e764497e19cf3455f7920c8df5ca",
-      "signing_ms": [
-        13.572833,
-        13.729625
-      ],
-      "wall_ms": 132.928792,
-      "wire_bytes_including_setup": [
-        115382,
-        115382
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "84f6cd7bd56e6b2567f90202d52046ee1e7c363524c06ac72ed2ddd504777ff0",
-      "entry": "bf242dc81944a6b05c5f8bc7fe7e5e91a7d86ce5fd0d27872f2d4a5338cfe611",
-      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
-      "package_bytes": 65968,
-      "path": "m/7/3",
-      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
-      "route": "Migration",
-      "setup_ms": [
-        117.01375,
-        117.026916
-      ],
-      "signature": "584cf079a7d9c838a6adc233b97d89b87bada3a9748a6f515377d9cfd78867d2348c06c72adae85113e99593228f06ec506790ede6caba4318f2e90990dcb3ec",
-      "signing_ms": [
-        14.439875,
-        14.276042
-      ],
-      "wall_ms": 147.394291,
-      "wire_bytes_including_setup": [
-        115384,
-        115384
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "ea1f4c8b6f3bee729706e8da1563f7468f3132c1a92f62dfea70f662a87a4280",
-      "entry": "b4565260a05c507bdacad7230977844f37093aea81e62447f22a4766ba86d9a8",
-      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
-      "package_bytes": 66000,
-      "path": "m",
-      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
-      "route": "Direct",
-      "setup_ms": [
-        109.770625,
-        111.720333
-      ],
-      "signature": "302c0e00a5b1222e04c663d39bea5af238ec854fc2c73b9c5f4df1b2b119cba72082b7b66c3e6003f9a2ef0f6528b14b559c756d3b677ea4cacd39419f63ab78",
-      "signing_ms": [
-        12.677875,
-        12.658167
-      ],
-      "wall_ms": 142.509084,
-      "wire_bytes_including_setup": [
-        252017,
-        252416
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "3352fe1a112908dbb67396381f19e42232ac2bedb6da5b5237b05a3f5bbce4ae",
-      "entry": "a69543a49eb9ca9fce3b07f07f4b4fd2fd085f3e49079f2553cd5744f9819b35",
-      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
-      "package_bytes": 66000,
-      "path": "m",
-      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
-      "route": "Direct",
-      "setup_ms": [
-        111.994375,
-        114.048041
-      ],
-      "signature": "04e828c819ec0f43ebdfdb499fe77af7dafd0de885dc17b7e6f2c13ebb7cb73f036b53cb7ddd650ad9f7df5ace395fbb24897cffd946665ada000fc9817ca301",
-      "signing_ms": [
-        12.698042,
-        12.713708
-      ],
-      "wall_ms": 143.998417,
-      "wire_bytes_including_setup": [
-        252278,
-        252203
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "add453e94f60bf1c26393d228fd4babd9bfb822d51ac40aa11494871d418a391",
-      "entry": "3a2b432b6b2faff6bbc3b0ab2eb0b7bc01b9cc40bfa6c327a5a54a6ddfee6c56",
-      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
-      "package_bytes": 66000,
-      "path": "m",
-      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
-      "route": "Direct",
-      "setup_ms": [
-        114.038625,
-        115.973708
-      ],
-      "signature": "e526695132f629edb3d451cecae0ab5e8c48c9e01f000adf8e039913f958bae77b846718b04c8912a00e318ba807f7932ebb96b4c2eda89a6e0b85777d7d79fb",
-      "signing_ms": [
-        15.974042,
-        15.405833
-      ],
-      "wall_ms": 146.921417,
-      "wire_bytes_including_setup": [
-        252280,
-        252264
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "aed6e277015a0e83d7733f180f2c4377a9cf6c618382e77427fcafab7ca4282d",
-      "entry": "4d6866a8cbd105f4e2cb03aeca9cfd53494c267743a77f4527ce20a1cc696665",
-      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
-      "package_bytes": 66000,
-      "path": "m/7/3",
-      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
-      "route": "Direct",
-      "setup_ms": [
-        124.347584,
-        126.97129099999998
-      ],
-      "signature": "fc3ab90ac9c43c9cee18a9dad05d6560e8895abcd9e68625cb485d52d46e3bfb7a1064b6cfafeab26522e7f861562f31dcd90f3da50b49bc6b028c82e22c152c",
-      "signing_ms": [
-        22.204916,
-        22.379875
-      ],
-      "wall_ms": 168.40025,
-      "wire_bytes_including_setup": [
-        252347,
-        252446
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "81c9dd1b33ca6bddb229f9b7eff5c1e96ecec81e30844583645a5a27b08a021e",
-      "entry": "dc4a55a1bbd2921151cc1100a3dea651e0bcc5f11d455fc42e1714dd68544b6c",
-      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
-      "package_bytes": 66000,
-      "path": "m/7/3",
-      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
-      "route": "Direct",
-      "setup_ms": [
-        139.306667,
-        140.994334
-      ],
-      "signature": "5871bdcaa215616eb4238a20b496f34eea508217b5871f38e97dfde468e00a1342cf379b049ab6a61ad26112dbbe3119ca6239419b3630026f3639e8c42b9326",
-      "signing_ms": [
-        13.311584,
-        13.360957999999998
-      ],
-      "wall_ms": 168.8495,
-      "wire_bytes_including_setup": [
-        252231,
-        252197
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "28a3ddc8eafc40b899a980e02baef274f5cbd37d117cec3331b1295e27abc064",
-      "entry": "bd3c5862f204819592fa757de2d5d7e0c26557c816fadcf9401a56ed7aa3d25a",
-      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
-      "package_bytes": 66000,
-      "path": "m/7/3",
-      "public_key": "03524fd25ba9af2077948a997ab728d92dcfc4ebeebfd17bd5548c342af1c95c1a",
-      "route": "Direct",
-      "setup_ms": [
-        118.363958,
-        122.691084
-      ],
-      "signature": "455238aafaa22de5bf793171e348ea02806e3063638985f2ec711bb4908b56de0134925cbe1a26b03c67b252be1004f7f11753d098a9d59eaab7dd376a2a7a8e",
-      "signing_ms": [
-        14.379375,
-        14.40375
-      ],
-      "wall_ms": 154.50704100000002,
-      "wire_bytes_including_setup": [
-        252147,
-        252474
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "2278a4e778b7c05147462fae78cebf12b2dd6a5afefabe888d87e49a2ca5aed7",
-      "entry": "343556cff55cae2a94d94c5c249bdd836475bcbe41418bb1c0f0910b5ecc86ad",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 65968,
-      "path": "m",
-      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
-      "route": "Migration",
-      "setup_ms": [
-        123.895291,
-        123.335958
-      ],
-      "signature": "86986519ff4aba00c07b69afe934ff39be39a723d9a684d5ebb4a78630d0652407b553074ba69a19ed36824d35b4c5918b00b01494cffdc6ff0ba933033436e3",
-      "signing_ms": [
-        14.367333,
-        14.214375
-      ],
-      "wall_ms": 160.693916,
-      "wire_bytes_including_setup": [
-        115390,
-        115390
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "3e7ba55d2826e271d4694c146133a6d5e726f1cf119f282fe2c718254571c627",
-      "entry": "13552eeed99140e26e11c0bdfd526ae50c87bf556bfa8f7aaad4344680ae0176",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 65968,
-      "path": "m",
-      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
-      "route": "Migration",
-      "setup_ms": [
-        140.459167,
-        140.548375
-      ],
-      "signature": "5ec29da6ea768b7ff64e3848f74948fb95c50032ff94e109dfcfec2dfa3ed3a9697a023e9179bef1ea1ccfb5848474d00a85716b6f51a0432c8e1922085618fc",
-      "signing_ms": [
-        17.490667000000002,
-        18.068375
-      ],
-      "wall_ms": 170.23874999999998,
-      "wire_bytes_including_setup": [
-        115388,
-        115388
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "e37d953a5d9b40b4471b70ad760fa53ada31e83c42df6aef396b8e074fb08582",
-      "entry": "84f28a92f5d843d700a662713f175f73e639af7e48852c4d6f3937d20c420f04",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 65968,
-      "path": "m",
-      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
-      "route": "Migration",
-      "setup_ms": [
-        109.458208,
-        109.500542
-      ],
-      "signature": "1ed3f20cddb28c7606cfe68e425d2c5b088c2d410aca5ba5727dddb15703ab7a73b7a1c6c58c749d24c5e69c6f44c1a37ca79b90740b1d08750550be4305e4db",
-      "signing_ms": [
-        12.830083,
-        12.76975
-      ],
-      "wall_ms": 139.430917,
-      "wire_bytes_including_setup": [
-        115382,
-        115382
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "24bcebc466c179eef7cfe1ab44482d7f930bd70161cd8b32359892c197d96334",
-      "entry": "785dcfac90af92e5c5684c9bdcc8efb6b63fef80434f389086e2da6644455edb",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 65968,
-      "path": "m/7/3",
-      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
-      "route": "Migration",
-      "setup_ms": [
-        111.114458,
-        110.821583
-      ],
-      "signature": "bed75358eb650c3f873b94f361b4f7fb11ff70bef83fd9cb386f5647cd896f912a5f56c8b358a05ac1346a2e878e5c18ec69039a43d34d6682fdf569860d6f89",
-      "signing_ms": [
-        13.485333,
-        13.3835
-      ],
-      "wall_ms": 141.13887499999998,
-      "wire_bytes_including_setup": [
-        115378,
-        115378
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "7c227dcc199ee9f08154d017ff7a188a0559df3176d4bbb6340652a5312e2a49",
-      "entry": "94481b8d123c600f11f61eb9d953733a14f451a1f238ddbd4d3efa1f0afe4dda",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 65968,
-      "path": "m/7/3",
-      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
-      "route": "Migration",
-      "setup_ms": [
-        107.377375,
-        107.542667
-      ],
-      "signature": "7fd5fd87943b994268916c469e3726bac2e28cea4dbab569d39f1d878404014e7f4a4b95336400b769cfa18e7eb67f3488231ba767948461e58f618cde8487f2",
-      "signing_ms": [
-        13.845584,
-        13.744333
-      ],
-      "wall_ms": 135.063292,
-      "wire_bytes_including_setup": [
-        115392,
-        115392
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "f1012512b9b52a3080f3afdd33c333f637281fb9802b85b125acf57e8e2ee968",
-      "entry": "fb87eb5b5d7724aada6129debef56e8fc82ea15f9582e9962a0339eaa9aca37c",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 65968,
-      "path": "m/7/3",
-      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
-      "route": "Migration",
-      "setup_ms": [
-        121.4585,
-        121.180958
-      ],
-      "signature": "db165617fc1b1e286ff91c7ac0319fba1689cf05232f4f7aaffa87169fe972cb6f8a98b65bddbca0073fc546cf31f4cb8984edad919cd10c1210bd2b2ff7f994",
-      "signing_ms": [
-        18.258875,
-        18.179583
-      ],
-      "wall_ms": 156.914791,
-      "wire_bytes_including_setup": [
-        115380,
-        115380
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "2658bc666057398cb451b51166801f4f1b35b183f2a582311eb795901b1264d3",
-      "entry": "74d5d0235c27c31400935b179364d71400313e0310c323bf6a090fcbcd03b189",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 66000,
-      "path": "m",
-      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
-      "route": "Direct",
-      "setup_ms": [
-        178.237042,
-        182.870542
-      ],
-      "signature": "6127289aef0dde2fc6caae557241284f47ee2035a2ed8f3bea6063ab6780feda4fda452b905d3701acc3bbb2833713e599dd8b229a33c703ece83a02feae957a",
-      "signing_ms": [
-        17.333084,
-        16.818915999999998
-      ],
-      "wall_ms": 221.790459,
-      "wire_bytes_including_setup": [
-        252228,
-        252272
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "f422ef83b552ded8985f58372726acd3c280092e35291b527de666e6f6a265ed",
-      "entry": "0e1df7dd44e4d85e858aa918215b45701c2d7f04e0d4766163eb90a3dc438307",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 66000,
-      "path": "m",
-      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
-      "route": "Direct",
-      "setup_ms": [
-        126.724084,
-        124.1805
-      ],
-      "signature": "1bc14fcd406c6148e92f69d7c17a1fde293f98760fdc666a307ad4e2eeaeab766ef0133c371ea744224b51636e28d201a61029784bda5cbb50f266d788ba74a3",
-      "signing_ms": [
-        14.036666,
-        13.96875
-      ],
-      "wall_ms": 157.77712499999998,
-      "wire_bytes_including_setup": [
-        252298,
-        252292
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "e5d52bac5d91d562124132dc982d88953bb5c49f16d1fca2064462225edf5a2a",
-      "entry": "00dd1ba06ce5e35472196ffeac5cc9c439f9a5c2879aaf359e9c9a89d852acb2",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 66000,
-      "path": "m",
-      "public_key": "02d090e656bfd5c94095a5ccc301daffed5bedeb29d785e39c681cbb8fe8123dae",
-      "route": "Direct",
-      "setup_ms": [
-        111.752791,
-        115.427792
-      ],
-      "signature": "26239f2cf7ca1ad1eb54db4090b248d990414d4b8ec32d19e638ad327b23934c1833f05572a3b23b79ac4da9775bd654b99e91b94632f9739de2b8e4dad45655",
-      "signing_ms": [
-        13.452917,
-        13.891334
-      ],
-      "wall_ms": 148.603708,
-      "wire_bytes_including_setup": [
-        252392,
-        252478
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "7bfd1c5268081b288ffa84575e51c770b96cb936660d5e689154299f0d4ba779",
-      "entry": "d54968e6d844ec3c90d85e8d2072153c7d216a447668e2c16357b6c43cf2fa0d",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 66000,
-      "path": "m/7/3",
-      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
-      "route": "Direct",
-      "setup_ms": [
-        109.176625,
-        107.369542
-      ],
-      "signature": "2d8766646439f360707e075124cd00627ea1fb117e6a37bde665534ebedc8ba539d62674ec8dca7fc54a72b794bdfb0cb28f59fd4e618d97ab80262a329c4928",
-      "signing_ms": [
-        13.249875,
-        12.97725
-      ],
-      "wall_ms": 134.296542,
-      "wire_bytes_including_setup": [
-        252291,
-        252499
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "d3edf246da47978227ef840c967e2dc34a4cc64e054d707c506eab06bd424c45",
-      "entry": "f45fab11db27bf260178435a0dcc3da3079e9c3c062162d6a1578ba2a9b85a2a",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 66000,
-      "path": "m/7/3",
-      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
-      "route": "Direct",
-      "setup_ms": [
-        107.49075,
-        105.677667
-      ],
-      "signature": "3888d91d76598e9cc6230e425bbc732c0e7e09d78b1d0eaa587e6eaf59e8afad73a5022a763f70a64a711b0baa463e4a65a850ef523de85b7d70ff879d8407b4",
-      "signing_ms": [
-        12.520791,
-        12.534042
-      ],
-      "wall_ms": 131.807958,
-      "wire_bytes_including_setup": [
-        252285,
-        252406
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "680e7b21d9ae851d54206c0f118e27b6665c247456cf015f408879d5522a8ba0",
-      "entry": "0d8aa2f5e76859ab4702652562b1812397f0ff8425b5082e16858fbb96019463",
-      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
-      "package_bytes": 66000,
-      "path": "m/7/3",
-      "public_key": "02fef2373366d59240a63e0f8ebf08063780baf33513fd5ba2a6775c860eac06f9",
-      "route": "Direct",
-      "setup_ms": [
-        106.291083,
-        104.394709
-      ],
-      "signature": "4ce34c405b73602497a2478586db35705f3c1bcea9c0d7ad93e1ae2504f248ca2d821bc3c05d4eec2367b7729b6be6783b120a74d2cea205c6bcb5523a0daf2c",
-      "signing_ms": [
-        12.534916,
-        12.527584
-      ],
-      "wall_ms": 127.702375,
-      "wire_bytes_including_setup": [
-        252448,
-        252414
-      ],
-      "wire_messages_including_subscriptions": [
-        15,
-        15
-      ]
-    },
-    {
-      "attempt": "da58c29f8be93da4cb62046b5de444d3df83042b24ea3f053f38d94f46509c12",
-      "entry": "0289da47a5e1b0d72d137201bf251b5de2fcab83cd9f16d096182897ac912464",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
-      "package_bytes": 65968,
-      "path": "m",
-      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
-      "route": "Migration",
-      "setup_ms": [
-        98.47775,
-        98.328541
-      ],
-      "signature": "5ed2c94a1652ba23548746462e0a0e8f115b03a36e79e4b14e67e84534b54632086ea494a12d3bdb1f507ba31691cdf5b5b9eb2069e330f8ed3feb81da471ca7",
-      "signing_ms": [
-        12.534708,
-        12.48575
-      ],
-      "wall_ms": 126.00029200000002,
-      "wire_bytes_including_setup": [
-        115382,
-        115382
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "3d62e664e63c1a0c59a8e0360c2787f19ee6b64ce5c7c96dfe4f455f3e1d56ba",
-      "entry": "79ca19313a5a8a6a73c2f9b40768d44c9875d92200cbb990ee18dc83fd3c99c3",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
-      "package_bytes": 65968,
-      "path": "m",
-      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
-      "route": "Migration",
-      "setup_ms": [
-        101.6425,
-        101.752208
-      ],
-      "signature": "1108153d18e9fb90d6ac1a5b77c946c76c929d5d07a974ad80dbcc2fe3d3fecd11c7ea0a9e664df27151c12d62a8629b6e99affbfdcc637c60569ef526a16f59",
-      "signing_ms": [
-        12.839583,
-        13.053875
-      ],
-      "wall_ms": 125.09358300000001,
-      "wire_bytes_including_setup": [
-        115376,
-        115376
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "21be24e71a5c02d0b9e8aefce98e45e3eb82fe2392050f9000388b6c2a1eefb5",
-      "entry": "4f59a13026621599c47533d85b5ec8f826fa45cd69fbe2af578995043e6e933d",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
-      "package_bytes": 65968,
-      "path": "m",
-      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
-      "route": "Migration",
-      "setup_ms": [
-        104.12425,
-        104.20275
-      ],
-      "signature": "4e12dc17342430e30f6a7c17c5da21e0ae63b57fb79984062f3a6eabcd315bb20974a8224e1580f84ecda4056c2a6add273fabeac1d356013358162312a1a56a",
-      "signing_ms": [
-        12.866209,
-        12.789625
-      ],
-      "wall_ms": 129.534666,
-      "wire_bytes_including_setup": [
-        115398,
-        115398
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "fe04ab29b2b00907b54d068903adfc6bfa723bae34391b17e10c04c097a2205c",
-      "entry": "9240e2816a6eac764bd90498998a384a67780128713ca95c45c8951b70b7a7e4",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
-      "package_bytes": 65968,
-      "path": "m/7/3",
-      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
-      "route": "Migration",
-      "setup_ms": [
-        102.91325,
-        103.024833
-      ],
-      "signature": "fb64855ca55ff01ecbb70cbff46357f92f302d568c98f6d842aec45ea248d7145267c5f9322985a8cf7612bca7ebcc981b4354104d124ec3d712c6ef19b7dfdd",
-      "signing_ms": [
-        12.532208,
-        12.709458
-      ],
-      "wall_ms": 128.126834,
-      "wire_bytes_including_setup": [
-        115394,
-        115394
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "ba925c3b36f03724e7d4e21848c73953c370604e666a4d493111608b9c1d4ac3",
-      "entry": "8fcd648509bb60d504dca1c0294c9a445290dc875665690daa2725ff6dce5901",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
-      "package_bytes": 65968,
-      "path": "m/7/3",
-      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
-      "route": "Migration",
-      "setup_ms": [
-        101.997041,
-        101.897666
-      ],
-      "signature": "3c6e68403d45a35848aed204449cc7696b0ca94bb7c212ba6357b850a0f2c8937b7879944775db5760f41535e734a7975f5565dc38c1c3306662cde0b6691caa",
-      "signing_ms": [
-        12.855542,
-        12.647958
-      ],
-      "wall_ms": 126.90608300000001,
-      "wire_bytes_including_setup": [
-        115388,
-        115388
-      ],
-      "wire_messages_including_subscriptions": [
-        22,
-        22
-      ]
-    },
-    {
-      "attempt": "1f9f68d12b29e470d3416e1426d6b65402447f2badb941a92df8f8c8fa64564a",
-      "entry": "a4c31da03dad2e9c9b89db71c03401d8e584ad2ee6debd855bbe2f48235100df",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
-      "package_bytes": 65968,
-      "path": "m/7/3",
-      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
-      "route": "Migration",
-      "setup_ms": [
-        110.348416,
-        110.452584
-      ],
-      "signature": "efa6dc3f457d83cbb9cda0daa3ba48b9671b07673ab7604715bfe1b90ccf7c8e71713fa59d19f794896b3dafa10faaf80669fd27dacc6a26685c8759efc16379",
-      "signing_ms": [
-        13.125666,
-        13.292209
-      ],
-      "wall_ms": 135.781958,
+      "wall_ms": 140.976,
       "wire_bytes_including_setup": [
         115386,
         115386
@@ -811,26 +73,179 @@
       ]
     },
     {
-      "attempt": "18753bdb5ca7f7332baa27fd8e785bc7dc988eef4e2810bbd93cc6aae63d95fa",
-      "entry": "8304c3982a1596878330755af7e0ed9c88c29842ed88427cda902fa5bcc57918",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "attempt": "b5344e6f02c24e85547af3f4e51ac6bed18a4b60453f1112acdca4b9d4b016c6",
+      "entry": "b30b9ec6529576c7c309d994e3f5aa396cefcb39ae3c3b8d19e9dd0a20add368",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "03713fe284a3ebc0c534166d1196d91b7eca4b32109dcda549e08af962ffe5a52c",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        93.550751,
+        93.465709
+      ],
+      "setup_ms": [
+        101.937375,
+        101.948833
+      ],
+      "signature": "8ee3c1793a294e3bfa4f3421e15409db338cffcca50c3b333e816c3fa6dcaf892f326342e19dfee42fb9ec1e6d8878a002853d4d2faa6083a82d552b8502060a",
+      "signing_active_poll_ms": [
+        8.544459,
+        8.759124
+      ],
+      "signing_ms": [
+        18.297082999999997,
+        16.826209000000002
+      ],
+      "wall_ms": 134.66133399999998,
+      "wire_bytes_including_setup": [
+        115382,
+        115382
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "726a16713208d8bedf57d3e0b4a28c08171ae72206809a8aac89c444cac142be",
+      "entry": "7cfc956ea26691a7606499e52b8afa1883494124af339295faacafc1e6a4b866",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "0200f570d43b21736e3540f343ce74217ea00773a6093093c7b311d5881c94a720",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        93.218749,
+        93.549332
+      ],
+      "setup_ms": [
+        101.149333,
+        101.855625
+      ],
+      "signature": "7e38438a059cf32c1c012e414dc7b07c9ecb301ecb60d0aefab372e8850bb25f052ece5fbedd29aea1cef855f163da633b3332feab52f183f3173749ef725ac9",
+      "signing_active_poll_ms": [
+        9.06525,
+        9.053124
+      ],
+      "signing_ms": [
+        18.105375,
+        16.58975
+      ],
+      "wall_ms": 132.107292,
+      "wire_bytes_including_setup": [
+        115392,
+        115392
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "36b8c187d5411837012f937fc2dec205b8dcaaf1c9b4853fe07e64b6583137e1",
+      "entry": "e169fea692bda2a490c39d886515299e6a1ea847e92feb7ec54f0e3da0f68d6e",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "0200f570d43b21736e3540f343ce74217ea00773a6093093c7b311d5881c94a720",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        93.171541,
+        92.628251
+      ],
+      "setup_ms": [
+        100.58575,
+        102.365542
+      ],
+      "signature": "3bef04a33e88f3e87625be3455665f2dda15fe95c6b1bc505c9e7a4ab213a1cd23c91a88b44be11ff6d64858e9affe169c13318aaf0fb174a67d76efdaf49396",
+      "signing_active_poll_ms": [
+        8.932375,
+        8.876126
+      ],
+      "signing_ms": [
+        16.295875000000002,
+        18.152709
+      ],
+      "wall_ms": 133.66225,
+      "wire_bytes_including_setup": [
+        115394,
+        115394
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "8ea8a199dd1d0f9c8ee5f07c1435b70b39dca6583a62198d222e4cad0c457569",
+      "entry": "c864248c1c2f131883802897930142a186d81bf11361dc72dd998fd8f44eeec0",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "0200f570d43b21736e3540f343ce74217ea00773a6093093c7b311d5881c94a720",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        92.050166,
+        92.808709
+      ],
+      "setup_ms": [
+        100.528917,
+        99.939625
+      ],
+      "signature": "d5af1978cbd662c7b900a8c8c747b99d4ea066ae5d51eddf0f9b5f6d8179a21e1764d736d111844691df85c6af89272247b7ccca3eac8ffb4fcb2d9b4a9f9776",
+      "signing_active_poll_ms": [
+        8.939874,
+        8.851
+      ],
+      "signing_ms": [
+        16.408458,
+        17.917917
+      ],
+      "wall_ms": 131.88683400000002,
+      "wire_bytes_including_setup": [
+        115394,
+        115394
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "8753e341511ea35dca4b6a4993aff91e62017c76c6b2934924cd3c3493fa1c87",
+      "entry": "e692b24743e4f25927f4362512a717b314e996bc6fc52efbd3148ffd4a1a185b",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 66000,
       "path": "m",
-      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
+      "public_key": "03713fe284a3ebc0c534166d1196d91b7eca4b32109dcda549e08af962ffe5a52c",
       "route": "Direct",
+      "setup_active_poll_ms": [
+        94.448583,
+        94.420708
+      ],
       "setup_ms": [
-        111.0445,
-        109.117875
+        109.591792,
+        112.9285
       ],
-      "signature": "290950baa36474dcaf26248cc7e1bcc5e9985f8a98c0cda30b024a9ab979e63430abf8504d7341c13fd3579bdfc5d7462d03cf3b298a8205de132289a1d40820",
+      "signature": "cf7e5bc2a095414cb57b6b7c6083316c292411df4d06ae057351f25ed1cd4a9e706fef9b3f7674d2a1a7067090297a195336ae0f2f710af4b1e54a2a9f585672",
+      "signing_active_poll_ms": [
+        8.7,
+        8.906209
+      ],
       "signing_ms": [
-        12.644333,
-        12.664750000000002
+        16.319958,
+        18.068042
       ],
-      "wall_ms": 135.832917,
+      "wall_ms": 141.21487499999998,
       "wire_bytes_including_setup": [
-        252343,
-        252335
+        252376,
+        252276
       ],
       "wire_messages_including_subscriptions": [
         15,
@@ -838,26 +253,35 @@
       ]
     },
     {
-      "attempt": "8acec00c0d35f9189986863e58910553c38f702b314175e30f3c88f867244f69",
-      "entry": "faf6831ac6200d59bdaa421f4768fee7c6d9e2a510ae7aeaae1292fa99df486b",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "attempt": "eb590d3a5211b57be5f1ebce9b2aa8cda59e92b1e8187dde7fc79f9e5bc2a176",
+      "entry": "0de7aa2fa7177fd228b56ff94223bcc1f7a5599e4ec889d09d94863f93d7135e",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 66000,
       "path": "m",
-      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
+      "public_key": "03713fe284a3ebc0c534166d1196d91b7eca4b32109dcda549e08af962ffe5a52c",
       "route": "Direct",
+      "setup_active_poll_ms": [
+        96.104709,
+        96.120209
+      ],
       "setup_ms": [
-        107.583458,
-        105.0005
+        113.098958,
+        111.045958
       ],
-      "signature": "0c309898b9e6149efa020a9661212710155baf384d65f90f31c18b1825cba1bb6e1dfe398af5169f638c29e09ed2a228ab8e1f1b409be9ab44bc56c1f6e82e19",
+      "signature": "e67941fe3154c8adae25c7e6240c05637abdc2c9bcbb8132d9e91a062d4d116858ebfea2f6a366baad5d2e8fe34d00cfdd7ad6c251c18b98d34813556d4a9e84",
+      "signing_active_poll_ms": [
+        9.041375,
+        9.076999
+      ],
       "signing_ms": [
-        12.631375,
-        12.584041
+        17.749458,
+        16.627959
       ],
-      "wall_ms": 129.517417,
+      "wall_ms": 142.136583,
       "wire_bytes_including_setup": [
-        252257,
-        252350
+        252082,
+        252152
       ],
       "wire_messages_including_subscriptions": [
         15,
@@ -865,26 +289,35 @@
       ]
     },
     {
-      "attempt": "8c292f95936d39ef9933cdd54e186b1611301242126d27045ccab5e5102ff3f4",
-      "entry": "c44ca6855afb7a6615a412599413c4a2fc42a14ef648690983846ee2315c1a49",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "attempt": "eadb7c5e7a7ce85e095dc7711eb27d3533f85cfb0640f3b5cf4cc90bdc29f9fa",
+      "entry": "ffa97057f6d60826d8b888a1318387538cb129444c6f20c3cec24c970a54ed50",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 66000,
       "path": "m",
-      "public_key": "039a177295f8d76ad89e0c03a24459b42d32bdeb1d6ab1d369f4d7a8d9f3372649",
+      "public_key": "03713fe284a3ebc0c534166d1196d91b7eca4b32109dcda549e08af962ffe5a52c",
       "route": "Direct",
+      "setup_active_poll_ms": [
+        101.228959,
+        102.920624
+      ],
       "setup_ms": [
-        105.12675,
-        108.242959
+        121.920708,
+        118.162458
       ],
-      "signature": "9539b4ad82280984c248be0c5d285893d897f23908018c80bc123e8844fa1a7541fada134440c25f8ab3fa53560a6f46db2c355d357e7f77e841eab67572b1d1",
+      "signature": "ecc2fc851bf3e1f87de968f61c8f98c796f9e0eb414632824e5686909b77c37d5ec09667cea1abe73955019f416826623eee5d45b1d6170abff01ed2e09db465",
+      "signing_active_poll_ms": [
+        8.871458,
+        9.030542
+      ],
       "signing_ms": [
-        12.692667,
-        12.698542
+        20.806458,
+        17.776875
       ],
-      "wall_ms": 130.145042,
+      "wall_ms": 153.645792,
       "wire_bytes_including_setup": [
-        252362,
-        252432
+        252442,
+        252225
       ],
       "wire_messages_including_subscriptions": [
         15,
@@ -892,26 +325,35 @@
       ]
     },
     {
-      "attempt": "653745c6b43e9541f9fd7728375e435f7d7011c4a9b9497c5cb4660f9ba428c0",
-      "entry": "2568ada1956e9056635b22548ad8c67cac2a418440d9654dea02ce5e417ab800",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "attempt": "cb1804fc87e52544f652a017ba582dfb8d3ae8967952a9b052f6395c92950875",
+      "entry": "013234d97fbfade70a6b93ad2176f423db1b5e4dd38a1fe3a5e0a8ceda33f79c",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 66000,
       "path": "m/7/3",
-      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
+      "public_key": "0200f570d43b21736e3540f343ce74217ea00773a6093093c7b311d5881c94a720",
       "route": "Direct",
+      "setup_active_poll_ms": [
+        95.521542,
+        95.40529
+      ],
       "setup_ms": [
-        107.7,
-        106.151209
+        109.229083,
+        112.38475
       ],
-      "signature": "097f48e2e69d8c65302a6e7c8544ab07dc6b0bb27586448de27e274460c933177cc7f5ff960ef11af97de758cc774deff53c53bb71cac675bc268b6392a89030",
+      "signature": "10841e5dcf0f571b9f4bed578a661fe8e6f1cffc2c4352807a1a0b9c42e147524e6113614a8aaeda87c1dcd05579e35232f983ee8b36fed184e7c48ae6a7b8c8",
+      "signing_active_poll_ms": [
+        8.862542,
+        8.861124
+      ],
       "signing_ms": [
-        14.234333,
-        14.22825
+        17.43075,
+        18.921375
       ],
-      "wall_ms": 137.62175,
+      "wall_ms": 141.306209,
       "wire_bytes_including_setup": [
-        252302,
-        252295
+        252267,
+        252228
       ],
       "wire_messages_including_subscriptions": [
         15,
@@ -919,26 +361,35 @@
       ]
     },
     {
-      "attempt": "4595da043534d630b0ed74f84564fcff90597b7d7807d961fe5c00214dbf9909",
-      "entry": "de87d8921c95a8aba39bccdab200857f9a3b9185b62abb0474d22ea07f09dbab",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "attempt": "91e6f58027318cc6d2f8d4370ec09495a6f19f6540baa220d3576a9347ed0f39",
+      "entry": "74540e993f6fe05e6aae6d4aaa993f8789a12654eb9854d3471bc38ef9f64314",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 66000,
       "path": "m/7/3",
-      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
+      "public_key": "0200f570d43b21736e3540f343ce74217ea00773a6093093c7b311d5881c94a720",
       "route": "Direct",
+      "setup_active_poll_ms": [
+        95.167043,
+        95.214457
+      ],
       "setup_ms": [
-        106.241,
-        104.623541
+        111.235375,
+        109.643292
       ],
-      "signature": "366c6224e5fd149e50ba081666f8965107553f9452ed8a0ec45697d642b58f7e5072fdccf82a3d938035498da5645019758dce8fe0f673236e43467fc2f6ca3a",
+      "signature": "57913883112ef1ee916838036dec623fd85764f16b180485a2b909f708aa25f00b7104e5d5994b490bcce65ebff1e8328877340e89d33e4b63355f51ca24baab",
+      "signing_active_poll_ms": [
+        8.83096,
+        8.825499
+      ],
       "signing_ms": [
-        13.876667,
-        13.936709
+        19.846084,
+        16.87525
       ],
-      "wall_ms": 130.327833,
+      "wall_ms": 144.299,
       "wire_bytes_including_setup": [
-        252313,
-        252214
+        252248,
+        252439
       ],
       "wire_messages_including_subscriptions": [
         15,
@@ -946,26 +397,899 @@
       ]
     },
     {
-      "attempt": "0f69b278944cc354b23e8b0f1b94fd8c42847f2cb75bf54079fe7efd7a1e9fe1",
-      "entry": "dbed56badfdc30c762d59cd252b3716f0325fcf184afb64cdb441e9e11ebbe83",
-      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "attempt": "ad538f02a6577fdfde7c5cc1d95c733fa3738457a42503484e57b32eede57cea",
+      "entry": "100480e4590774ccb442d7ae49570236f18f66b84e0c3bab64f11e1ca3f1f452",
+      "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 66000,
       "path": "m/7/3",
-      "public_key": "021d834a1b1e9fb48c484765ba693a1d7e17422365e387ffae6f8b9ce2cfa40427",
+      "public_key": "0200f570d43b21736e3540f343ce74217ea00773a6093093c7b311d5881c94a720",
       "route": "Direct",
+      "setup_active_poll_ms": [
+        100.026292,
+        99.744625
+      ],
       "setup_ms": [
-        103.641709,
-        105.438917
+        116.465042,
+        114.198959
       ],
-      "signature": "68e04f605fdbe8f739acb20b8eb0f324c468a472fb05dba45efa6fa906e9ca637c0f7a3700fc07d9dc67b94084e479f0c6f4e07137598f5e0eb2be4db4f08dc3",
+      "signature": "b9c453e1af65433e9d8defdb257a32dfca7adc872c01f87f8f1b2735e343f689205a793d109aa710808ad6b0a176e17dd33a816521395ed7c1bce1216d3857aa",
+      "signing_active_poll_ms": [
+        8.854917,
+        8.715542
+      ],
       "signing_ms": [
-        12.696000000000002,
-        12.872083
+        18.177542000000003,
+        16.752792
       ],
-      "wall_ms": 130.817458,
+      "wall_ms": 144.861083,
       "wire_bytes_including_setup": [
-        252321,
-        252513
+        252185,
+        252245
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "543616818a66924ca49ce9ff1524a350a096b7e53d0a00471e5828a98dffd46a",
+      "entry": "47381c1ae747e1cf189d51b8af3f32bf7a36619ed46e9272c7fd6c87ffe80ecb",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "038416ada2feb2cb594e7034595fae2c6f502321a4bf4084636a1ca469c1c4bcfa",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        93.411583,
+        93.123292
+      ],
+      "setup_ms": [
+        101.867125,
+        101.796583
+      ],
+      "signature": "373d8db8ce8afad4265de24a8f7faa93dbcb23c3376052910e2879641aa2339b205d2fe19106b4ddde517dec3c4923d0edb66f9dd18c217f757514bd463a0768",
+      "signing_active_poll_ms": [
+        8.857166,
+        8.708832
+      ],
+      "signing_ms": [
+        19.236916,
+        16.19375
+      ],
+      "wall_ms": 132.324458,
+      "wire_bytes_including_setup": [
+        115386,
+        115386
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "e5646e66e3af383f2bc088ce5fa933605b95178e9e28d9ecd03e57cb5832dddf",
+      "entry": "617806cb15e175d321f08e9cb0490f9213b84ae9b0ca7ebd13a70fd80989bf1e",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "038416ada2feb2cb594e7034595fae2c6f502321a4bf4084636a1ca469c1c4bcfa",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        92.706666,
+        92.928916
+      ],
+      "setup_ms": [
+        102.445208,
+        100.762167
+      ],
+      "signature": "229052f9487e6ee80eecf34c43ff0e555941b5664b852040073d3cd9583b90832ebcf395f748d3027c58473f983be6111bc3e76c45b8f8bfbb5780c8074a22cc",
+      "signing_active_poll_ms": [
+        8.640542,
+        8.672876
+      ],
+      "signing_ms": [
+        18.234959,
+        16.307834
+      ],
+      "wall_ms": 133.84337499999998,
+      "wire_bytes_including_setup": [
+        115388,
+        115388
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "4c4d6705ad81097fef2f8608f205f18df9f222d174f002540724a21c5decb79f",
+      "entry": "3bcfef5f11f875a89b5adbfee9960692e6072d82fdd3faab79dc841e8c138518",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "038416ada2feb2cb594e7034595fae2c6f502321a4bf4084636a1ca469c1c4bcfa",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        92.525084,
+        92.865042
+      ],
+      "setup_ms": [
+        101.925333,
+        100.264334
+      ],
+      "signature": "0e086accac57271431fe4236120dc7ce6d1bda99d857e61ef5989b6e824b0e3d2c6611c67466e91e088cb08a24fbcc1a1c94753fd1ad6b97cb7ea77a4c2542f7",
+      "signing_active_poll_ms": [
+        8.646919,
+        8.842042
+      ],
+      "signing_ms": [
+        17.037958,
+        17.112667000000002
+      ],
+      "wall_ms": 131.204583,
+      "wire_bytes_including_setup": [
+        115366,
+        115366
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "f54b457216d1e376687879fbf0ac20ec51a86dc4144fa3d5d9484581ad1adb5d",
+      "entry": "203a5af561855140322abe400fd8c18a2ba624eead617e3a487cfc4f058c5461",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "0271248fc655725969392a1bbdf433adf5f2107fb81c05730914eaeb884369da4c",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        93.934583,
+        93.423834
+      ],
+      "setup_ms": [
+        101.470584,
+        102.09225
+      ],
+      "signature": "9c9dfd4220e2832789601deebe1f631702b0f9916db7c42e1b5d1d4dc18326de200dca4f885f4ca80454fb054d0e0040c46df35a8501fc9f8699b12f698fc9c6",
+      "signing_active_poll_ms": [
+        9.174876,
+        9.089749
+      ],
+      "signing_ms": [
+        16.864250000000002,
+        17.249875000000003
+      ],
+      "wall_ms": 131.47441700000002,
+      "wire_bytes_including_setup": [
+        115390,
+        115390
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "b3e961f8fe0822f988b263f1bc1cbe9e4d78926ea717dc9f6fdd70bd4045084e",
+      "entry": "936d3930988e4168360c28772f902658d3d8dfdb1dd1be0928f1663fd78e1ac2",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "0271248fc655725969392a1bbdf433adf5f2107fb81c05730914eaeb884369da4c",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        94.690041,
+        95.522251
+      ],
+      "setup_ms": [
+        104.250708,
+        102.492166
+      ],
+      "signature": "e3b360ae31494bd8464c50de6086a783d62c94b820106ceb51d6e996278cc83112ddecc03819fe7a13af29d38cb7f5445288127bd9bde4cbb49aca00914f3310",
+      "signing_active_poll_ms": [
+        8.886583,
+        8.861292
+      ],
+      "signing_ms": [
+        18.823083,
+        17.310542
+      ],
+      "wall_ms": 135.743875,
+      "wire_bytes_including_setup": [
+        115380,
+        115380
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "b4ab12928e75e04551a035474347fd77e88345a5aa5179b04a931d6d0a503a8a",
+      "entry": "96ce68fa9f1d49d9e59400595e0395751e23bd27f83f1a6c9554c7b5ed564afd",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "0271248fc655725969392a1bbdf433adf5f2107fb81c05730914eaeb884369da4c",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        93.739876,
+        93.912084
+      ],
+      "setup_ms": [
+        101.910792,
+        101.216708
+      ],
+      "signature": "24a7efd7bde08a1784a805a4cba0f447edd2a9955efe9b5dd7c3a360a4b1c65b7dd8c98030366ee99edba5319c6e3ac69d29cc34c71e3ac11990c2edb691901a",
+      "signing_active_poll_ms": [
+        8.795375,
+        8.94325
+      ],
+      "signing_ms": [
+        17.347792000000002,
+        17.36925
+      ],
+      "wall_ms": 134.309334,
+      "wire_bytes_including_setup": [
+        115392,
+        115392
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "8bbc71009bf437cd1cac65c93023d6df5db06d41acadf4df13ab8eaa9b199245",
+      "entry": "03a2fb2df8cca2872e19a5bdf524f721e2c06593f718992df2d36b9e3f4826ad",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "038416ada2feb2cb594e7034595fae2c6f502321a4bf4084636a1ca469c1c4bcfa",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        95.365416,
+        95.507084
+      ],
+      "setup_ms": [
+        108.936791,
+        112.295417
+      ],
+      "signature": "1cd3e64954bbc409445b527a6ac5167684e0ed55bcfc6cca3db5d6e313b738d80a3a9774cfb696b4e7ef91495f5a2163d9ddbddc7d4f775e9f13610748674025",
+      "signing_active_poll_ms": [
+        8.677082,
+        8.805042
+      ],
+      "signing_ms": [
+        17.756791,
+        16.472375
+      ],
+      "wall_ms": 143.47145799999998,
+      "wire_bytes_including_setup": [
+        252237,
+        252396
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "d3b5b08c9ea5b63b8fa3c286b85d01eb6a84e50c08ee5a933aa47ce26cf7d015",
+      "entry": "7a3ecac97d01de1e3513cf3959769350d16b131bf8c4a83e20513c676c7fad55",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "038416ada2feb2cb594e7034595fae2c6f502321a4bf4084636a1ca469c1c4bcfa",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        94.946793,
+        94.8635
+      ],
+      "setup_ms": [
+        108.907083,
+        111.926875
+      ],
+      "signature": "7d5bb1fe3c681bd61658a6885f52c083f6dfeeef439b2da2e353f00485a30061349e2472391d4718be479859637c320baba549d9f0997a1069d45dd11f62a042",
+      "signing_active_poll_ms": [
+        8.877249,
+        8.777084
+      ],
+      "signing_ms": [
+        17.253541000000002,
+        17.567459
+      ],
+      "wall_ms": 143.500708,
+      "wire_bytes_including_setup": [
+        252263,
+        252218
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "b32c8f6cacf4c9ca88885007d1dd52bcb7a6c97646f83f09f16a8029641a6f67",
+      "entry": "ebcf5752d21e4a64bc6f4d11dcbb5f0430636330f028cb31b4a8fc3efe923057",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "038416ada2feb2cb594e7034595fae2c6f502321a4bf4084636a1ca469c1c4bcfa",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        94.978833,
+        95.145708
+      ],
+      "setup_ms": [
+        108.065334,
+        110.17375
+      ],
+      "signature": "f497d836d16e081a59cb3fb2fbd7ccbce7b2da2f92a322e5cbf0392d4cebb96c684e572d9794880c6f9dc40fa9bf26c0ef22b6bf866f07196725b44309698866",
+      "signing_active_poll_ms": [
+        8.66879,
+        8.709832
+      ],
+      "signing_ms": [
+        18.181292000000003,
+        16.913042
+      ],
+      "wall_ms": 137.794,
+      "wire_bytes_including_setup": [
+        252174,
+        252250
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "92aadb4ac93516a2af0a40169c75e06af7b6aad4f42d3a9f1e9ea8d17b8e739b",
+      "entry": "bb2c3b502fc0d272a64dcdc30ab8b3d462d94564d6536a2d247c1ad2397a77c5",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "0271248fc655725969392a1bbdf433adf5f2107fb81c05730914eaeb884369da4c",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        95.371208,
+        95.313292
+      ],
+      "setup_ms": [
+        112.283625,
+        109.306125
+      ],
+      "signature": "e2172f5034d79d45dc59a7bfd74a948e2b578e8fa3b62812dfe8009c09388cad64a95db88385160b90a5eeb4eb5bfe047fbb7472c76eda7746b86cf29a8284a6",
+      "signing_active_poll_ms": [
+        8.768208,
+        8.732625
+      ],
+      "signing_ms": [
+        19.212292,
+        16.316042
+      ],
+      "wall_ms": 144.835917,
+      "wire_bytes_including_setup": [
+        252345,
+        252443
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "ed988d50fef964b581629ad503f2ea020d0d65f3261452ec5d23aa1272e6d5c7",
+      "entry": "1c7f0126dfb537d4aaa08300aac7dacacac5a7047179b0957a4b96a1f2af2416",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "0271248fc655725969392a1bbdf433adf5f2107fb81c05730914eaeb884369da4c",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        95.493459,
+        95.426208
+      ],
+      "setup_ms": [
+        111.143125,
+        112.92475
+      ],
+      "signature": "841b9b54d15c60c9974e237d49696101b120f769e83e9ab9d7a2f55674b4c31b5147fba32d55edd2d0a5706ec83683bf5284c5013f2aef82486db6400fd4998b",
+      "signing_active_poll_ms": [
+        8.812626,
+        9.023708
+      ],
+      "signing_ms": [
+        16.376459,
+        19.29775
+      ],
+      "wall_ms": 145.93962499999998,
+      "wire_bytes_including_setup": [
+        252363,
+        252491
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "89dbf5aee1dec0a1d8fbce51db90a7eb07c7afe554c9430b10e6b182caf069d2",
+      "entry": "3b015b4231d3c57f5c5e4c994f57140e958bdcc4f9c637e0614d691def1e8542",
+      "key_id": "184cf2bfaf0e8729cd8f74219a353bca8aca3d0432bed8b8e7867b153ec85196",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "0271248fc655725969392a1bbdf433adf5f2107fb81c05730914eaeb884369da4c",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        97.297625,
+        97.392918
+      ],
+      "setup_ms": [
+        112.702708,
+        114.2605
+      ],
+      "signature": "bca6e5cb5a6578e75fc10de45b223b36b5054ac2d0d411394c891fc4581baa4c4ae248e3a6d8a0248644288ee4491fbff20d098270beaf73ab34fecb1e8622aa",
+      "signing_active_poll_ms": [
+        9.057333,
+        8.849834
+      ],
+      "signing_ms": [
+        17.270292,
+        17.128542
+      ],
+      "wall_ms": 146.188708,
+      "wire_bytes_including_setup": [
+        252187,
+        251964
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "3f99428c8b6c78c37ca42ce148d0d13857654d224b9c95d6da221eda0097e65c",
+      "entry": "e9fe1b6910f68fefea5c8d2f17df3f71c70016a0f41e474a701c6ef314ef3d40",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "0357403015e61227278f492bea55e00a2986907070ca8a1737a339f0e847b351a1",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        100.808792,
+        104.236417
+      ],
+      "setup_ms": [
+        112.707542,
+        113.224
+      ],
+      "signature": "1275135a82347926990867aae16954662a8cba60533121935761b2c481efe4d4025f59196b0875fb9dd788c3ab567ff3f6226085cbee2bb7b1c106dac2df70e1",
+      "signing_active_poll_ms": [
+        8.797917,
+        8.804252
+      ],
+      "signing_ms": [
+        16.335834000000002,
+        17.838
+      ],
+      "wall_ms": 143.711833,
+      "wire_bytes_including_setup": [
+        115392,
+        115392
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "cd071d749e2ba35c57307086c09c208dfa275631f8afff81abce4cce35e85bf3",
+      "entry": "fbe591edbdf0af797849f5574856d233e8982ef85f4b0d8c91def1d7991e0a1b",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "0357403015e61227278f492bea55e00a2986907070ca8a1737a339f0e847b351a1",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        93.490626,
+        94.181333
+      ],
+      "setup_ms": [
+        101.178834,
+        100.630375
+      ],
+      "signature": "4f1bf4166d5c345682bbaa778d532d2176d852bdab1cf0290061c6022ca3a7437fb280be83be17b835d908668f4e1300f47c24b1ffb7e41000f8f5b5d55cb37c",
+      "signing_active_poll_ms": [
+        8.686042,
+        8.92225
+      ],
+      "signing_ms": [
+        17.32975,
+        17.323791
+      ],
+      "wall_ms": 131.15275000000003,
+      "wire_bytes_including_setup": [
+        115384,
+        115384
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "e6a29966b75c8597946c586b312e7ec016bc8b25c9e997fb18093efd5997c376",
+      "entry": "54f9548b07735a23d733117eaa8d51f145bcf342c464b9269e9a17ebc589174e",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m",
+      "public_key": "0357403015e61227278f492bea55e00a2986907070ca8a1737a339f0e847b351a1",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        94.240084,
+        93.635043
+      ],
+      "setup_ms": [
+        102.04975,
+        102.065667
+      ],
+      "signature": "850f0a75f640a8aec569b407877b12faa9482ad6c52aef303dc8d09525cbaf79386fb66461c6621e30a5b26e3a77569e633c4836d3e52c0b17d54c07dd2002ec",
+      "signing_active_poll_ms": [
+        8.88725,
+        8.743584
+      ],
+      "signing_ms": [
+        16.546667,
+        18.041417
+      ],
+      "wall_ms": 134.539916,
+      "wire_bytes_including_setup": [
+        115380,
+        115380
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "107cfb2acac7aa6af86d8379b87f4b21838ffb1a72cb1c7a751cbeb87708c664",
+      "entry": "9f4417b4730c6a650711cf4d30dbaf18c8a681144c4e4e8a3fa0900a69f3b6c9",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "0228d97a0a8dca5ec9db8def4a63a8b17773dd9485642860d11a63c25f6507b0f8",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        95.378749,
+        95.704417
+      ],
+      "setup_ms": [
+        104.49225,
+        102.760083
+      ],
+      "signature": "570de90cfdc05a2f1e5821faa0706f3c9072ecc94755895344b59da8f60dadef54b808eefc7be18724c4081efd3cf7774a645db59ecf0b3506897b7198285b7c",
+      "signing_active_poll_ms": [
+        8.971833,
+        8.984459
+      ],
+      "signing_ms": [
+        18.81225,
+        17.319125
+      ],
+      "wall_ms": 133.413084,
+      "wire_bytes_including_setup": [
+        115392,
+        115392
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "aa9f7b21c045ecf5ccafc49a90aa334bc2af2eb08b6a8618483b2500fb7814b0",
+      "entry": "41cbc149d4396b91f0ac29160635f1bde1a76868a6ed28543d74a3e104eca834",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "0228d97a0a8dca5ec9db8def4a63a8b17773dd9485642860d11a63c25f6507b0f8",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        93.346707,
+        93.590083
+      ],
+      "setup_ms": [
+        102.123625,
+        102.131459
+      ],
+      "signature": "82df36e4c76384b9d084854ad5a9951a0e40ab1c41a989da4b3036baa93500f378eca1b8fadc19236009cf121ad84345eaaa372abdc97c30fe5b42bdc21c5614",
+      "signing_active_poll_ms": [
+        9.413541,
+        9.374043
+      ],
+      "signing_ms": [
+        16.744625,
+        18.235625
+      ],
+      "wall_ms": 135.66916600000002,
+      "wire_bytes_including_setup": [
+        115380,
+        115380
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "6dcf0d45e591ad8c45f2ed9b85e75c2018b15e0b3e63acc412160dea3eebed32",
+      "entry": "3e5cbba63a7ecb6e5974ea41cf9631b4aa61748e1f2823c52616daf9803293cf",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 65968,
+      "path": "m/7/3",
+      "public_key": "0228d97a0a8dca5ec9db8def4a63a8b17773dd9485642860d11a63c25f6507b0f8",
+      "route": "Migration",
+      "setup_active_poll_ms": [
+        98.450999,
+        97.799332
+      ],
+      "setup_ms": [
+        105.314625,
+        107.132791
+      ],
+      "signature": "4d3a0014ce8d5a97339e820f1dd0a9f3cae2285e79ba9ed6813a4d73e65e878d0b22a075cc16ab952c9632e36cc3a4fe0f3fa6bc648cb99d7a3ea82e5adbb449",
+      "signing_active_poll_ms": [
+        9.080751,
+        8.92775
+      ],
+      "signing_ms": [
+        17.086375,
+        18.662083
+      ],
+      "wall_ms": 135.093042,
+      "wire_bytes_including_setup": [
+        115382,
+        115382
+      ],
+      "wire_messages_including_subscriptions": [
+        22,
+        22
+      ]
+    },
+    {
+      "attempt": "15309f8913f2c0507a798babea0ee275db265d60e718d9fcc43229d351ef80a5",
+      "entry": "92afeffb76b64febb010a46c47853df519e48488681a355969778d528b5b7bef",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "0357403015e61227278f492bea55e00a2986907070ca8a1737a339f0e847b351a1",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        97.057251,
+        97.034042
+      ],
+      "setup_ms": [
+        112.075459,
+        113.397667
+      ],
+      "signature": "988613b710f725a092386b982dc1e17c7d28e4ec0343a8a3415f0e9c5dde304f6a7608a103cd6939adabe5ae8aac6b242c639dcb19ac84327613400f4915c489",
+      "signing_active_poll_ms": [
+        8.844792,
+        8.772084
+      ],
+      "signing_ms": [
+        17.831417,
+        16.538458
+      ],
+      "wall_ms": 143.793208,
+      "wire_bytes_including_setup": [
+        252319,
+        252293
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "6dd1d71c884ba70620751e7b4a63267d73b4ec1a6530c4a40f2f1f7d5cd75547",
+      "entry": "b4f113d1f9796b490fe6fb7500ff04c9211886561f451162dca452a76f8dfaaf",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "0357403015e61227278f492bea55e00a2986907070ca8a1737a339f0e847b351a1",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        98.721626,
+        98.788084
+      ],
+      "setup_ms": [
+        114.846167,
+        119.119792
+      ],
+      "signature": "0a20fed7dcc9e0b862a420949a66c495d32dfbcc7ed4032ed5824ea6f928586b256ca9b7d83fe85eb2c5c932da535f41537cf1ea9f01338113b34a5906bf95a4",
+      "signing_active_poll_ms": [
+        8.839458,
+        8.731875
+      ],
+      "signing_ms": [
+        17.868875,
+        17.9205
+      ],
+      "wall_ms": 149.000041,
+      "wire_bytes_including_setup": [
+        252169,
+        252501
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "3f4839d0c7b82056e166d2d2c285a4179c705fcb60f325e3bc4e8af414451031",
+      "entry": "545d964d5fedbcb7618540a8ca7154ea635634aa9843e787388332d6fb42158c",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m",
+      "public_key": "0357403015e61227278f492bea55e00a2986907070ca8a1737a339f0e847b351a1",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        95.413042,
+        94.921792
+      ],
+      "setup_ms": [
+        108.697917,
+        110.36525
+      ],
+      "signature": "12d728b2cfe6606381711de3eeae053a3279c93a76eefa62e594b4d82c563e061fdb36f8061c3924f089e641e76a8d84df75e025a7cfe834f43e20b276a2848e",
+      "signing_active_poll_ms": [
+        8.949208,
+        8.797627
+      ],
+      "signing_ms": [
+        16.222625,
+        19.203792
+      ],
+      "wall_ms": 143.771458,
+      "wire_bytes_including_setup": [
+        252286,
+        252303
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "dc9bedfac3fb558a3586bbb6bacc9aaccd554ebffcef5f8f5327e38c674ed8d0",
+      "entry": "2868da24eb1b307a86ce2b193fe8f89b4f69192378697f108a61255b36e1b7c1",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "0228d97a0a8dca5ec9db8def4a63a8b17773dd9485642860d11a63c25f6507b0f8",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        96.534708,
+        96.102458
+      ],
+      "setup_ms": [
+        112.277875,
+        110.572084
+      ],
+      "signature": "beb1f67430789787f726f62a4b3b30a05f158889d33e7b9e9469f36667a41849753b9af63f50343d1007d14a64fe6b661b2671620df41c07bb98ea3476131b2f",
+      "signing_active_poll_ms": [
+        9.032459,
+        9.02775
+      ],
+      "signing_ms": [
+        19.853417,
+        16.891166
+      ],
+      "wall_ms": 143.429208,
+      "wire_bytes_including_setup": [
+        252324,
+        252216
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "47717a834b4292878698fceef30f69409751022d5d893d0a520fb6645b1744ab",
+      "entry": "2260a702c983c5f05627b26de0fb812c54f23a5e726128bf018e4214ad63a4cd",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "0228d97a0a8dca5ec9db8def4a63a8b17773dd9485642860d11a63c25f6507b0f8",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        96.651084,
+        95.839248
+      ],
+      "setup_ms": [
+        112.104875,
+        110.405417
+      ],
+      "signature": "4a7dde17bd43e907e03b6d8dc1776a90a00a1e2febf6f299c6992cd4807864ed73318eb6020a4fa4efadc83b6ed4f9660eb52047694669031339614ec4c6d0fb",
+      "signing_active_poll_ms": [
+        9.014333,
+        9.089916
+      ],
+      "signing_ms": [
+        17.590125,
+        17.188083
+      ],
+      "wall_ms": 143.591334,
+      "wire_bytes_including_setup": [
+        252320,
+        252344
+      ],
+      "wire_messages_including_subscriptions": [
+        15,
+        15
+      ]
+    },
+    {
+      "attempt": "9b32239cd8fc98b300f4418c9a7ae77cdb9c237e541e30f45bdc4d721ffc684a",
+      "entry": "ca856ce5532488e7434fd150046f9647646f72ef0c4cb114bd78a594ef6bee7e",
+      "key_id": "966ed561767651c8959a238aeef209ebd149a6e1d2a6e33817bcbd92f1880b78",
+      "one_way_delay_ms": 0,
+      "package_bytes": 66000,
+      "path": "m/7/3",
+      "public_key": "0228d97a0a8dca5ec9db8def4a63a8b17773dd9485642860d11a63c25f6507b0f8",
+      "route": "Direct",
+      "setup_active_poll_ms": [
+        112.214708,
+        113.622458
+      ],
+      "setup_ms": [
+        132.332208,
+        130.89166699999998
+      ],
+      "signature": "0d62cd3045ea71d1f5da1f827e21781b850acbd271639fd2ef1770ce412b5d074fba02ce5dfe68690d8519ce93097416908db4c0bf054516940526fd7db584e7",
+      "signing_active_poll_ms": [
+        8.963917,
+        9.129374
+      ],
+      "signing_ms": [
+        18.6225,
+        17.220458
+      ],
+      "wall_ms": 162.60575,
+      "wire_bytes_including_setup": [
+        252409,
+        252271
       ],
       "wire_messages_including_subscriptions": [
         15,
@@ -975,26 +1299,35 @@
   ],
   "concurrent_attempts": [
     {
-      "attempt": "f09a6214a8cd18de6417473aab38d7ee9b9236343b96fbf150e7b65676474eb3",
-      "entry": "4af641aa589d86b31b699c922a1000deb7125514bb050e2ce42053a74440a2a5",
+      "attempt": "2b8dd7e55a7de1bcf7990f5207dec5345993b722ecbe155df94e1616db1b148f",
+      "entry": "ee62241b79cafe5ce12394180a05560111238d96fb2606e0341766623350aa53",
       "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 66000,
       "path": "m",
-      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "public_key": "03713fe284a3ebc0c534166d1196d91b7eca4b32109dcda549e08af962ffe5a52c",
       "route": "Direct",
+      "setup_active_poll_ms": [
+        111.582125,
+        130.260416
+      ],
       "setup_ms": [
-        144.722708,
-        133.795834
+        150.97650000000002,
+        146.804125
       ],
-      "signature": "ae51f2d7c3e55bf463b6e23b09e0efe511d2049523ed2ba06a537ce132cd46b93dc758251217f5907ab3d7f426a2867c8893feb7103949efae913b1636f4fad7",
+      "signature": "35fbdac658d48af96b1826836d568f53eae76e46a14886b2438c18de75b3124c16229f0a9cac4356e6b5ce1112344169c2b407fb637641214da76ea37813ee42",
+      "signing_active_poll_ms": [
+        9.167123,
+        8.659292
+      ],
       "signing_ms": [
-        16.507417,
-        16.38575
+        21.052291,
+        19.659083000000003
       ],
-      "wall_ms": 191.041708,
+      "wall_ms": 199.882458,
       "wire_bytes_including_setup": [
-        252359,
-        252246
+        252214,
+        252085
       ],
       "wire_messages_including_subscriptions": [
         15,
@@ -1002,26 +1335,35 @@
       ]
     },
     {
-      "attempt": "5e3eb97ec520bca8ca2e61a9257af50a9fa313881b7ed85d36c994671930bb0d",
-      "entry": "6b05b5c5e1a646f34871469ca942d1fed9f07c21603a97730ace319fc55c27fc",
+      "attempt": "574a7b73a0324b99347563125b245504f222f9ba24f26eac5b7046cca1269d50",
+      "entry": "64b93dafefe1b16ce7ad8137c30c514f49fa218f6ad356daf5d7c804f8cc6217",
       "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 66000,
       "path": "m",
-      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "public_key": "03713fe284a3ebc0c534166d1196d91b7eca4b32109dcda549e08af962ffe5a52c",
       "route": "Direct",
+      "setup_active_poll_ms": [
+        120.561168,
+        118.266583
+      ],
       "setup_ms": [
-        145.360959,
-        133.711417
+        156.500542,
+        144.503833
       ],
-      "signature": "09c42c1dfbe406a5859ad27e1fdb51ecf77e9248fc05e88965b3f2051db3e14163054a4bee5cac78e4d7ad281c9e41f79a7526f3a55e771fe9d026d0b65cef89",
+      "signature": "733e174ba962ab8834d13a46440d41ceb3255618d9ac04927b312e92d276c9eb1ea3e5969ca5a937c71c6fd2c5f1ba9c7eb6231a6c2dcb0565ca5e4e7ca00585",
+      "signing_active_poll_ms": [
+        8.917709,
+        8.723959
+      ],
       "signing_ms": [
-        17.084041000000003,
-        16.411625
+        21.542292,
+        20.303625
       ],
-      "wall_ms": 181.306375,
+      "wall_ms": 196.42825,
       "wire_bytes_including_setup": [
-        252421,
-        252333
+        252292,
+        252375
       ],
       "wire_messages_including_subscriptions": [
         15,
@@ -1029,26 +1371,35 @@
       ]
     },
     {
-      "attempt": "70541ae8c9fba7f683217143494d86b0a9ea23a9aa20819d4ed1760d2fc145e9",
-      "entry": "a5de9d456ebfcc807d0e55e9f4e92396c654d3d85f6d64e559b5d4e15f47307a",
+      "attempt": "ec28b472ce0d5f83aa37599b23b9d0044ba80ae689ef767efbfc1cf196e99dc1",
+      "entry": "7d85a1cb7d3909613fd2b362048966e0c8bf13a6e0808aaabe569095528a2ba2",
       "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 66000,
       "path": "m",
-      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "public_key": "03713fe284a3ebc0c534166d1196d91b7eca4b32109dcda549e08af962ffe5a52c",
       "route": "Direct",
+      "setup_active_poll_ms": [
+        125.411541,
+        118.674708
+      ],
       "setup_ms": [
-        135.966417,
-        144.527959
+        143.835458,
+        154.035541
       ],
-      "signature": "a6326ae14badf3602064c48edf1dab0dd3c37412c25d3bcb7699d08ef8f72f5a5b6a8bf2ad65ea3a81b9182932f28e9ca9d69a98e1f93b9d730de6557e221b56",
+      "signature": "108efa956ce5b99039314addb6423a0b7ebc20b8d91a8c5a4a8a548deb67883d435b8d3c261c7dc8103c0327203c62624b73ffd6c00bcdb6c04dff317a35ba6f",
+      "signing_active_poll_ms": [
+        8.814,
+        9.355251
+      ],
       "signing_ms": [
-        15.115917,
-        15.640541
+        21.317583000000003,
+        21.536334
       ],
-      "wall_ms": 186.695417,
+      "wall_ms": 200.439667,
       "wire_bytes_including_setup": [
-        252470,
-        252158
+        252713,
+        252391
       ],
       "wire_messages_including_subscriptions": [
         15,
@@ -1056,26 +1407,35 @@
       ]
     },
     {
-      "attempt": "d48ed3bde77a4e63b4769ad3ac076731b849292da6fa480b0f48d300e45fe6a7",
-      "entry": "c5b228807c7a32f8e69c565948b5b34bd1cda843dd617c27e748e3591e3722eb",
+      "attempt": "d37a0ff827dee9de246a4c447dc4f640b19eff97db42eafbddc0e44c0ba812a5",
+      "entry": "ee2f40d4efa9b899f7a37865d2d125bff8681e3bd0e7a2bae7b2bc539673f905",
       "key_id": "18091bdfd08188020832819afb04e651625286799d185a3ee0d7b2078e669deb",
+      "one_way_delay_ms": 0,
       "package_bytes": 66000,
       "path": "m",
-      "public_key": "029893bea0d1d979da81ae804b0c722a4ee0106daff817ce02ffeef1ccd551fc82",
+      "public_key": "03713fe284a3ebc0c534166d1196d91b7eca4b32109dcda549e08af962ffe5a52c",
       "route": "Direct",
+      "setup_active_poll_ms": [
+        126.372832,
+        119.733875
+      ],
       "setup_ms": [
-        133.820875,
-        146.19020899999998
+        149.31725,
+        150.399125
       ],
-      "signature": "4c8eff9e18d6c8cae00883644c0277f7395a908d9f61fd2d38325a215d8fa74224e8fc64978278d2f6b2ecd08d4288be300215e592455b0e9fe55ec741096f25",
+      "signature": "bf06e2754eb612fbc949d065a873a0dda770c21ebd021a65e3cce2ea56462579637f3f9199e38df5f7600a59e79fe59329e5d641b90328f167db9992e9b8a859",
+      "signing_active_poll_ms": [
+        8.737916,
+        8.737041
+      ],
       "signing_ms": [
-        16.3195,
-        16.309791
+        18.245375000000003,
+        18.262792
       ],
-      "wall_ms": 191.348875,
+      "wall_ms": 196.256958,
       "wire_bytes_including_setup": [
-        252219,
-        252243
+        252428,
+        252366
       ],
       "wire_messages_including_subscriptions": [
         15,
@@ -1085,17 +1445,12 @@
   ],
   "dkls_spikes_executed": true,
   "limitations": [
+    "VOLE 2026 parameter analysis unresolved",
     "custom setup unaudited",
     "upstream opaque buffers and physical erasure unverified",
     "public ledger assumes honest filesystem authority",
     "snapshot cloning not prevented by roots or boot IDs",
-    "no background OT pool or product integration",
-    "upstream resolution of the 2026 analysis remains open; locked Silence parameters unchanged",
-    "release cutoff is local queue handoff; pre-cutoff material cannot be recalled",
-    "cross-process/replica incident publication and handoff are not atomic",
-    "marker persistence is conditional on verified contents and completed syncs, not filename existence",
-    "no power-loss, hostile-host rollback or TEE snapshot test",
-    "pool specification only; no pool implementation"
+    "no background OT pool or product integration"
   ],
   "refusals": [
     {
@@ -1142,7 +1497,7 @@
       "retry_blocked_across_wallet_and_route": false
     },
     {
-      "error": "worker 1: DirectSetup/Context: authenticated setup context mismatch; action=Burn; persisted=false; worker 0: DirectSetup/Context: authenticated setup context mismatch; action=Burn; persisted=false",
+      "error": "worker 0: DirectSetup/Context: authenticated setup context mismatch; action=Burn; persisted=false; worker 1: DirectSetup/Context: authenticated setup context mismatch; action=Burn; persisted=false",
       "failure_details": {
         "closed": [
           true,
@@ -1151,7 +1506,7 @@
         "drain_timed_out": false,
         "failures": [
           [
-            1,
+            0,
             {
               "abort_send_failed": false,
               "action": "Burn",
@@ -1164,7 +1519,7 @@
             }
           ],
           [
-            0,
+            1,
             {
               "abort_send_failed": false,
               "action": "Burn",
@@ -1228,7 +1583,7 @@
       "retry_blocked_across_wallet_and_route": false
     },
     {
-      "error": "worker 1: Admission/Local: hello/manifest mismatch; action=Burn; persisted=false; worker 0: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "error": "worker 1: Admission/Local: hello/manifest mismatch; action=Burn; persisted=false; worker 0: Transport/Transport: peer disconnected; action=Burn; persisted=false",
       "failure_details": {
         "closed": [
           true,
@@ -1257,9 +1612,9 @@
               "detail": "peer disconnected",
               "incident_attempted": false,
               "incident_persisted": false,
-              "kind": "Local",
+              "kind": "Transport",
               "peer": null,
-              "phase": "Admission"
+              "phase": "Transport"
             }
           ]
         ],
@@ -1271,7 +1626,7 @@
       "retry_blocked_across_wallet_and_route": false
     },
     {
-      "error": "worker 1: Admission/Local: invalid manifest; action=Burn; persisted=false; worker 0: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "error": "worker 1: Admission/Local: invalid manifest; action=Burn; persisted=false; worker 0: Transport/Transport: peer disconnected; action=Burn; persisted=false",
       "failure_details": {
         "closed": [
           true,
@@ -1300,9 +1655,9 @@
               "detail": "peer disconnected",
               "incident_attempted": false,
               "incident_persisted": false,
-              "kind": "Local",
+              "kind": "Transport",
               "peer": null,
-              "phase": "Admission"
+              "phase": "Transport"
             }
           ]
         ],
@@ -1314,7 +1669,7 @@
       "retry_blocked_across_wallet_and_route": false
     },
     {
-      "error": "worker 0: DirectSetup/ProtocolViolation: zero-share commitment mismatch; action=QuarantinePeer; persisted=true; worker 1: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "error": "worker 0: DirectSetup/ProtocolViolation: zero-share commitment mismatch; action=QuarantinePeer; persisted=true; worker 1: Transport/Transport: peer disconnected; action=Burn; persisted=false",
       "failure_details": {
         "closed": [
           true,
@@ -1332,38 +1687,38 @@
               "incident_persisted": true,
               "kind": "ProtocolViolation",
               "peer": [
-                162,
-                219,
-                61,
-                19,
-                253,
-                65,
-                232,
-                41,
                 131,
-                126,
-                100,
-                121,
-                203,
-                88,
-                76,
-                88,
-                253,
-                82,
-                9,
-                71,
-                254,
-                148,
-                77,
-                62,
-                38,
-                149,
-                128,
-                66,
-                117,
-                160,
-                121,
-                235
+                69,
+                50,
+                210,
+                155,
+                54,
+                241,
+                4,
+                200,
+                163,
+                14,
+                255,
+                129,
+                153,
+                189,
+                227,
+                110,
+                207,
+                151,
+                193,
+                244,
+                201,
+                19,
+                102,
+                85,
+                199,
+                246,
+                108,
+                85,
+                240,
+                94,
+                80
               ],
               "phase": "DirectSetup"
             }
@@ -1376,9 +1731,9 @@
               "detail": "peer disconnected",
               "incident_attempted": false,
               "incident_persisted": false,
-              "kind": "Local",
+              "kind": "Transport",
               "peer": null,
-              "phase": "Admission"
+              "phase": "Transport"
             }
           ]
         ],
@@ -1390,7 +1745,7 @@
       "retry_blocked_across_wallet_and_route": true
     },
     {
-      "error": "worker 0: DirectSetup/ProtocolViolation: invalid base OT reply length; action=QuarantinePeer; persisted=true; worker 1: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "error": "worker 0: DirectSetup/ProtocolViolation: invalid base OT reply length; action=QuarantinePeer; persisted=true; worker 1: Transport/Transport: peer disconnected; action=Burn; persisted=false",
       "failure_details": {
         "closed": [
           true,
@@ -1408,38 +1763,38 @@
               "incident_persisted": true,
               "kind": "ProtocolViolation",
               "peer": [
-                240,
-                77,
-                212,
-                105,
-                35,
+                30,
+                252,
+                252,
+                72,
+                133,
+                1,
+                209,
+                33,
+                104,
+                7,
+                144,
+                138,
                 199,
+                70,
+                158,
+                25,
+                177,
+                145,
+                130,
+                194,
+                255,
+                251,
+                250,
+                16,
+                158,
+                17,
+                193,
                 75,
-                242,
-                88,
-                114,
-                189,
-                221,
-                76,
-                73,
-                221,
-                14,
-                64,
-                14,
-                171,
-                57,
-                44,
-                253,
-                32,
-                134,
-                71,
-                184,
-                129,
-                87,
-                27,
-                246,
-                84,
-                202
+                168,
+                30,
+                167,
+                29
               ],
               "phase": "DirectSetup"
             }
@@ -1452,9 +1807,9 @@
               "detail": "peer disconnected",
               "incident_attempted": false,
               "incident_persisted": false,
-              "kind": "Local",
+              "kind": "Transport",
               "peer": null,
-              "phase": "Admission"
+              "phase": "Transport"
             }
           ]
         ],
@@ -1466,7 +1821,7 @@
       "retry_blocked_across_wallet_and_route": true
     },
     {
-      "error": "worker 0: DirectSetup/ProtocolViolation: invalid PPRF length; action=QuarantinePeer; persisted=true; worker 1: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "error": "worker 0: DirectSetup/ProtocolViolation: invalid PPRF length; action=QuarantinePeer; persisted=true; worker 1: Transport/Transport: peer disconnected; action=Burn; persisted=false",
       "failure_details": {
         "closed": [
           true,
@@ -1484,38 +1839,38 @@
               "incident_persisted": true,
               "kind": "ProtocolViolation",
               "peer": [
-                110,
-                14,
-                174,
-                148,
-                237,
-                105,
-                216,
-                143,
-                199,
-                171,
-                240,
-                241,
-                133,
-                89,
-                33,
-                180,
-                181,
-                50,
-                69,
+                196,
                 231,
-                243,
+                7,
+                58,
                 25,
-                166,
+                233,
+                208,
+                190,
+                142,
+                119,
+                174,
+                91,
+                79,
                 221,
-                87,
-                122,
-                31,
-                135,
-                244,
-                63,
-                241,
-                135
+                60,
+                144,
+                248,
+                110,
+                128,
+                1,
+                171,
+                72,
+                243,
+                119,
+                84,
+                195,
+                194,
+                233,
+                99,
+                178,
+                54,
+                235
               ],
               "phase": "DirectSetup"
             }
@@ -1528,9 +1883,9 @@
               "detail": "peer disconnected",
               "incident_attempted": false,
               "incident_persisted": false,
-              "kind": "Local",
+              "kind": "Transport",
               "peer": null,
-              "phase": "Admission"
+              "phase": "Transport"
             }
           ]
         ],
@@ -1573,38 +1928,38 @@
               "incident_persisted": true,
               "kind": "ProtocolViolation",
               "peer": [
-                164,
-                121,
+                205,
+                247,
+                42,
+                227,
+                71,
+                114,
+                129,
+                241,
+                240,
+                214,
+                9,
+                13,
+                38,
+                129,
+                146,
+                69,
                 81,
-                30,
-                118,
-                199,
-                250,
-                16,
-                84,
-                48,
-                38,
-                113,
-                38,
-                77,
+                26,
+                248,
+                239,
+                62,
+                55,
+                122,
+                135,
+                170,
                 195,
-                240,
-                233,
-                168,
-                240,
-                198,
-                10,
-                49,
-                121,
-                34,
-                5,
-                242,
-                50,
-                224,
-                128,
-                83,
-                73,
-                221
+                89,
+                56,
+                59,
+                216,
+                60,
+                225
               ],
               "phase": "Migration"
             }
@@ -1636,38 +1991,38 @@
               "incident_persisted": true,
               "kind": "ProtocolViolation",
               "peer": [
-                2,
-                2,
-                151,
-                162,
-                61,
-                226,
-                15,
-                124,
-                105,
-                177,
-                186,
-                149,
-                93,
-                250,
-                52,
-                62,
-                78,
+                214,
+                233,
+                202,
+                84,
+                141,
+                31,
+                30,
+                104,
+                133,
+                175,
                 73,
-                46,
-                89,
-                127,
-                80,
+                129,
+                228,
+                201,
+                115,
+                29,
+                25,
+                196,
+                192,
+                172,
                 168,
-                90,
-                229,
-                38,
-                60,
-                195,
-                93,
-                94,
-                209,
-                211
+                186,
+                130,
+                148,
+                3,
+                96,
+                119,
+                175,
+                196,
+                237,
+                59,
+                41
               ],
               "phase": "Migration"
             }
@@ -1694,7 +2049,7 @@
       "retry_blocked_across_wallet_and_route": true
     },
     {
-      "error": "worker 0: DirectSetup/ProtocolViolation: Invalid proof; action=QuarantinePeer; persisted=true; worker 1: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "error": "worker 0: DirectSetup/ProtocolViolation: Invalid proof; action=QuarantinePeer; persisted=true; worker 1: Transport/Transport: peer disconnected; action=Burn; persisted=false",
       "failure_details": {
         "closed": [
           true,
@@ -1712,38 +2067,38 @@
               "incident_persisted": true,
               "kind": "ProtocolViolation",
               "peer": [
-                100,
-                64,
-                255,
-                237,
-                211,
-                69,
-                13,
-                73,
-                13,
-                83,
-                18,
-                98,
-                241,
-                157,
-                42,
-                254,
-                126,
-                28,
-                195,
-                51,
-                196,
-                20,
-                41,
-                121,
-                193,
-                57,
-                81,
-                154,
-                211,
-                31,
+                215,
+                205,
+                144,
+                53,
+                123,
+                238,
+                232,
+                198,
+                152,
+                85,
+                101,
+                6,
+                107,
+                175,
+                2,
+                62,
+                183,
+                147,
+                49,
+                234,
+                8,
+                213,
+                25,
+                149,
+                87,
+                29,
                 118,
-                143
+                214,
+                152,
+                34,
+                181,
+                119
               ],
               "phase": "DirectSetup"
             }
@@ -1756,9 +2111,9 @@
               "detail": "peer disconnected",
               "incident_attempted": false,
               "incident_persisted": false,
-              "kind": "Local",
+              "kind": "Transport",
               "peer": null,
-              "phase": "Admission"
+              "phase": "Transport"
             }
           ]
         ],
@@ -1788,38 +2143,38 @@
               "incident_persisted": true,
               "kind": "ProtocolViolation",
               "peer": [
-                227,
-                24,
-                110,
-                92,
-                111,
-                78,
-                117,
-                10,
-                254,
-                82,
-                151,
-                132,
-                244,
-                37,
-                52,
+                102,
+                141,
+                186,
+                97,
                 150,
-                105,
-                132,
-                19,
-                91,
-                115,
-                42,
-                54,
-                230,
-                225,
-                11,
-                2,
-                233,
-                169,
-                72,
-                4,
-                136
+                143,
+                206,
+                167,
+                22,
+                8,
+                9,
+                170,
+                89,
+                220,
+                171,
+                53,
+                94,
+                3,
+                87,
+                232,
+                150,
+                43,
+                25,
+                219,
+                90,
+                94,
+                161,
+                235,
+                215,
+                210,
+                190,
+                107
               ],
               "phase": "Signing"
             }
@@ -1864,38 +2219,38 @@
               "incident_persisted": true,
               "kind": "ProtocolViolation",
               "peer": [
-                236,
-                177,
-                166,
-                189,
-                243,
-                89,
-                195,
-                83,
-                210,
-                216,
-                207,
-                212,
+                228,
+                140,
+                42,
+                22,
+                78,
+                11,
+                252,
+                112,
+                17,
+                23,
+                165,
+                246,
+                70,
                 71,
-                127,
-                123,
-                19,
-                174,
-                49,
-                68,
-                61,
-                24,
-                79,
-                16,
-                36,
-                49,
-                25,
-                34,
-                209,
-                166,
-                130,
-                215,
-                108
+                26,
+                93,
+                22,
+                181,
+                195,
+                203,
+                23,
+                255,
+                195,
+                116,
+                248,
+                249,
+                18,
+                93,
+                102,
+                87,
+                62,
+                234
               ],
               "phase": "Signing"
             }
@@ -1910,38 +2265,38 @@
               "incident_persisted": true,
               "kind": "ProtocolViolation",
               "peer": [
-                3,
-                195,
-                114,
-                182,
-                141,
-                41,
-                9,
-                232,
-                137,
-                3,
-                203,
+                160,
+                107,
+                75,
+                158,
+                167,
+                94,
+                201,
+                119,
                 240,
-                139,
-                217,
-                71,
-                17,
+                223,
+                60,
+                65,
+                143,
+                206,
+                16,
+                225,
+                16,
                 96,
-                136,
-                148,
-                185,
-                43,
-                24,
-                103,
-                125,
-                156,
-                169,
-                39,
-                175,
-                139,
-                44,
-                147,
-                147
+                132,
+                93,
+                198,
+                202,
+                242,
+                78,
+                121,
+                73,
+                15,
+                79,
+                21,
+                63,
+                163,
+                123
               ],
               "phase": "Signing"
             }
@@ -1963,12 +2318,12 @@
       "retry_blocked_across_wallet_and_route": false
     },
     {
-      "error": "worker 1: Admission/Local: entry already reserved or ledger unavailable: File exists (os error 17); action=Burn; persisted=false; worker 0: Admission/Local: entry already reserved or ledger unavailable: File exists (os error 17); action=Burn; persisted=false",
+      "error": "worker 0: Admission/Local: entry already reserved or ledger unavailable: File exists (os error 17); action=Burn; persisted=false; worker 1: Admission/Local: entry already reserved or ledger unavailable: File exists (os error 17); action=Burn; persisted=false",
       "fault": "reservation-replay-after-process-restart",
       "refused": true
     },
     {
-      "error": "worker 0: Admission/Local: research quarantine; release fenced; action=Burn; persisted=false; worker 1: Admission/Local: peer disconnected; action=Burn; persisted=false",
+      "error": "worker 0: Admission/Local: research quarantine; release fenced; action=Burn; persisted=false; worker 1: Transport/Transport: peer disconnected; action=Burn; persisted=false",
       "fault": "durable-quarantine-at-worker-start",
       "refused": true
     }
@@ -1981,178 +2336,178 @@
     {
       "additive_public": [
         [
-          3,
+          2,
+          57,
+          87,
+          246,
+          4,
+          187,
+          8,
+          242,
+          58,
+          28,
+          161,
+          130,
           220,
-          106,
-          168,
-          27,
-          63,
-          218,
-          89,
-          9,
-          13,
-          27,
-          170,
-          118,
-          236,
-          194,
-          150,
-          72,
-          196,
-          81,
-          254,
-          150,
-          33,
-          245,
-          16,
-          211,
-          188,
-          217,
-          197,
+          126,
           88,
-          80,
-          169,
-          197,
-          250
+          10,
+          152,
+          15,
+          174,
+          237,
+          193,
+          194,
+          7,
+          122,
+          16,
+          242,
+          244,
+          57,
+          137,
+          1,
+          254,
+          9,
+          113
         ],
         [
-          3,
-          25,
-          142,
-          159,
-          167,
-          154,
-          203,
-          222,
-          12,
-          22,
-          50,
-          83,
-          168,
-          78,
-          154,
-          97,
-          253,
-          199,
-          227,
-          14,
-          50,
-          122,
+          2,
+          228,
+          186,
+          238,
+          250,
+          225,
+          157,
+          41,
+          74,
+          67,
+          52,
+          160,
+          63,
           73,
-          210,
-          57,
+          230,
           7,
-          4,
-          56,
-          31,
-          221,
-          216,
-          122,
-          65
+          39,
+          208,
+          182,
+          249,
+          196,
+          211,
+          101,
+          147,
+          192,
+          195,
+          168,
+          228,
+          200,
+          64,
+          52,
+          34,
+          81
         ]
       ],
       "chain_code": [
-        86,
-        148,
-        75,
-        189,
-        26,
-        17,
-        116,
-        94,
-        111,
-        203,
-        96,
-        163,
-        208,
-        136,
-        93,
-        222,
         240,
-        54,
-        77,
-        231,
-        160,
-        232,
-        182,
-        41,
-        1,
-        218,
-        224,
-        79,
-        139,
-        1,
-        189,
-        107
+        34,
+        120,
+        246,
+        163,
+        251,
+        61,
+        240,
+        51,
+        85,
+        170,
+        207,
+        40,
+        109,
+        6,
+        104,
+        221,
+        216,
+        214,
+        124,
+        25,
+        183,
+        250,
+        192,
+        133,
+        74,
+        169,
+        129,
+        162,
+        171,
+        8,
+        131
       ],
       "identities": [
         [
-          233,
-          173,
-          46,
-          126,
-          37,
-          50,
-          13,
-          57,
-          129,
-          188,
-          227,
+          73,
+          244,
+          186,
+          247,
+          104,
+          190,
+          32,
+          31,
+          160,
+          254,
+          26,
+          169,
           236,
-          221,
-          178,
+          232,
+          194,
+          65,
+          172,
+          184,
+          64,
+          209,
+          199,
+          235,
           142,
-          141,
-          182,
+          210,
           109,
-          139,
-          21,
-          59,
-          163,
-          178,
-          153,
-          93,
-          215,
-          202,
-          220,
-          61,
-          19,
-          51,
-          237
+          4,
+          6,
+          26,
+          237,
+          71,
+          225,
+          148
         ],
         [
-          129,
-          206,
-          239,
-          122,
-          241,
-          142,
-          76,
-          115,
-          252,
-          14,
-          95,
-          11,
-          117,
-          158,
-          10,
-          120,
-          37,
-          138,
-          45,
-          89,
-          246,
-          127,
-          49,
-          230,
+          106,
+          28,
+          8,
+          1,
+          73,
+          179,
+          223,
+          187,
+          183,
+          231,
+          34,
+          44,
+          219,
+          13,
+          219,
+          65,
           50,
-          197,
-          172,
-          77,
-          214,
-          253,
-          182,
-          145
+          176,
+          37,
+          111,
+          67,
+          108,
+          63,
+          113,
+          199,
+          184,
+          148,
+          62,
+          50,
+          70,
+          57,
+          23
         ]
       ],
       "key_id": [
@@ -2190,217 +2545,217 @@
         235
       ],
       "public_key": [
-        2,
-        152,
-        147,
-        190,
-        160,
-        209,
-        217,
-        121,
-        218,
-        129,
-        174,
-        128,
-        75,
-        12,
-        114,
-        42,
-        78,
-        224,
-        16,
+        3,
+        113,
+        63,
+        226,
+        132,
+        163,
+        235,
+        192,
+        197,
+        52,
+        22,
         109,
-        175,
-        248,
-        23,
-        206,
-        2,
+        17,
+        150,
+        217,
+        27,
+        126,
+        202,
+        75,
+        50,
+        16,
+        157,
+        205,
+        165,
+        73,
+        224,
+        138,
+        249,
+        98,
         255,
-        238,
-        241,
-        204,
-        213,
-        81,
-        252,
-        130
+        229,
+        165,
+        44
       ],
       "version": 1
     },
     {
       "additive_public": [
         [
-          3,
-          218,
-          12,
-          124,
-          22,
-          138,
-          121,
-          157,
-          49,
-          175,
-          83,
+          2,
+          144,
+          212,
+          252,
+          126,
+          27,
           73,
-          36,
-          172,
-          247,
-          124,
-          90,
-          55,
-          156,
-          29,
+          4,
           253,
-          39,
-          238,
-          153,
-          207,
-          75,
-          159,
-          69,
-          0,
-          36,
-          109,
-          170,
-          206
+          154,
+          40,
+          219,
+          155,
+          94,
+          202,
+          38,
+          70,
+          22,
+          1,
+          210,
+          96,
+          101,
+          97,
+          18,
+          22,
+          84,
+          188,
+          16,
+          138,
+          125,
+          181,
+          211,
+          171
         ],
         [
-          3,
-          94,
-          24,
           2,
-          246,
-          14,
-          58,
-          202,
-          53,
-          92,
-          70,
-          76,
-          41,
-          95,
-          197,
-          28,
-          58,
-          202,
-          4,
-          82,
-          47,
-          221,
-          4,
-          185,
-          215,
-          247,
-          179,
-          137,
-          195,
-          63,
+          71,
+          142,
+          167,
+          23,
+          29,
+          147,
           227,
+          227,
+          101,
+          58,
+          57,
+          207,
+          87,
+          69,
+          118,
+          12,
+          234,
+          28,
           70,
-          122
+          5,
+          16,
+          244,
+          231,
+          67,
+          57,
+          168,
+          246,
+          153,
+          74,
+          16,
+          181,
+          22
         ]
       ],
       "chain_code": [
-        240,
-        92,
-        251,
-        245,
-        202,
-        86,
-        196,
-        135,
-        55,
-        141,
-        101,
-        126,
-        158,
-        249,
-        99,
-        176,
-        183,
-        198,
-        206,
-        178,
-        180,
-        251,
-        250,
-        204,
-        75,
-        4,
-        220,
-        191,
         244,
-        168,
+        0,
+        174,
+        190,
+        16,
+        121,
+        65,
+        140,
+        203,
+        20,
+        132,
+        94,
+        232,
+        251,
+        184,
+        38,
+        69,
+        48,
+        75,
+        42,
+        245,
         53,
-        33
+        192,
+        65,
+        59,
+        151,
+        143,
+        76,
+        242,
+        253,
+        191,
+        108
       ],
       "identities": [
         [
-          233,
-          173,
-          46,
-          126,
-          37,
-          50,
-          13,
-          57,
-          129,
-          188,
-          227,
+          73,
+          244,
+          186,
+          247,
+          104,
+          190,
+          32,
+          31,
+          160,
+          254,
+          26,
+          169,
           236,
-          221,
-          178,
+          232,
+          194,
+          65,
+          172,
+          184,
+          64,
+          209,
+          199,
+          235,
           142,
-          141,
-          182,
+          210,
           109,
-          139,
-          21,
-          59,
-          163,
-          178,
-          153,
-          93,
-          215,
-          202,
-          220,
-          61,
-          19,
-          51,
-          237
+          4,
+          6,
+          26,
+          237,
+          71,
+          225,
+          148
         ],
         [
-          129,
-          206,
-          239,
-          122,
-          241,
-          142,
-          76,
-          115,
-          252,
-          14,
-          95,
-          11,
-          117,
-          158,
-          10,
-          120,
-          37,
-          138,
-          45,
-          89,
-          246,
-          127,
-          49,
-          230,
+          106,
+          28,
+          8,
+          1,
+          73,
+          179,
+          223,
+          187,
+          183,
+          231,
+          34,
+          44,
+          219,
+          13,
+          219,
+          65,
           50,
-          197,
-          172,
-          77,
-          214,
-          253,
-          182,
-          145
+          176,
+          37,
+          111,
+          67,
+          108,
+          63,
+          113,
+          199,
+          184,
+          148,
+          62,
+          50,
+          70,
+          57,
+          23
         ]
       ],
       "key_id": [
@@ -2438,217 +2793,217 @@
         150
       ],
       "public_key": [
-        2,
-        208,
-        144,
-        230,
-        86,
+        3,
+        132,
+        22,
+        173,
+        162,
+        254,
+        178,
+        203,
+        89,
+        78,
+        112,
+        52,
+        89,
+        95,
+        174,
+        44,
+        111,
+        80,
+        35,
+        33,
+        164,
         191,
-        213,
-        201,
         64,
-        149,
-        165,
-        204,
-        195,
-        1,
-        218,
-        255,
-        237,
-        91,
-        237,
-        235,
-        41,
-        215,
-        133,
-        227,
-        156,
-        104,
+        132,
+        99,
+        106,
         28,
-        187,
-        143,
-        232,
-        18,
-        61,
-        174
+        164,
+        105,
+        193,
+        196,
+        188,
+        250
       ],
       "version": 1
     },
     {
       "additive_public": [
         [
-          2,
-          62,
-          183,
-          202,
-          115,
-          255,
-          154,
-          137,
-          39,
-          210,
-          62,
-          60,
-          36,
-          151,
-          132,
-          129,
+          3,
+          110,
+          246,
+          155,
+          161,
           235,
-          109,
-          158,
-          247,
-          219,
-          77,
-          79,
+          193,
+          180,
+          204,
+          78,
+          31,
+          248,
+          200,
           244,
-          10,
-          192,
-          44,
-          187,
+          223,
+          236,
+          249,
           11,
-          159,
-          238,
-          189,
-          217
+          197,
+          18,
+          118,
+          15,
+          182,
+          2,
+          185,
+          109,
+          13,
+          23,
+          196,
+          90,
+          156,
+          42,
+          236
         ],
         [
           2,
+          138,
+          137,
+          41,
+          123,
           83,
-          28,
-          101,
-          87,
-          140,
-          251,
-          121,
-          253,
-          152,
-          116,
-          56,
-          11,
-          25,
-          168,
-          124,
-          149,
-          188,
-          16,
+          109,
+          60,
+          199,
+          194,
+          48,
+          226,
+          20,
+          109,
+          170,
+          222,
+          84,
+          18,
+          194,
+          255,
+          103,
+          27,
           191,
-          233,
-          21,
-          151,
-          243,
-          93,
-          161,
-          22,
-          193,
-          81,
-          181,
-          202,
-          92,
-          239
+          73,
+          44,
+          166,
+          215,
+          27,
+          64,
+          58,
+          223,
+          153,
+          179
         ]
       ],
       "chain_code": [
-        4,
-        23,
-        138,
-        17,
-        63,
-        128,
-        204,
-        142,
-        171,
-        100,
-        76,
-        207,
-        121,
-        67,
-        18,
-        138,
-        160,
-        41,
-        55,
-        36,
-        196,
-        181,
-        64,
-        210,
-        233,
-        208,
-        153,
-        226,
+        43,
+        133,
+        199,
+        185,
+        231,
+        212,
+        139,
+        29,
+        217,
+        166,
+        225,
+        48,
+        203,
         107,
-        64,
-        232,
-        249
+        28,
+        236,
+        34,
+        36,
+        177,
+        81,
+        189,
+        41,
+        66,
+        114,
+        2,
+        7,
+        150,
+        62,
+        109,
+        154,
+        146,
+        214
       ],
       "identities": [
         [
-          233,
-          173,
-          46,
-          126,
-          37,
-          50,
-          13,
-          57,
-          129,
-          188,
-          227,
+          73,
+          244,
+          186,
+          247,
+          104,
+          190,
+          32,
+          31,
+          160,
+          254,
+          26,
+          169,
           236,
-          221,
-          178,
+          232,
+          194,
+          65,
+          172,
+          184,
+          64,
+          209,
+          199,
+          235,
           142,
-          141,
-          182,
+          210,
           109,
-          139,
-          21,
-          59,
-          163,
-          178,
-          153,
-          93,
-          215,
-          202,
-          220,
-          61,
-          19,
-          51,
-          237
+          4,
+          6,
+          26,
+          237,
+          71,
+          225,
+          148
         ],
         [
-          129,
-          206,
-          239,
-          122,
-          241,
-          142,
-          76,
-          115,
-          252,
-          14,
-          95,
-          11,
-          117,
-          158,
-          10,
-          120,
-          37,
-          138,
-          45,
-          89,
-          246,
-          127,
-          49,
-          230,
+          106,
+          28,
+          8,
+          1,
+          73,
+          179,
+          223,
+          187,
+          183,
+          231,
+          34,
+          44,
+          219,
+          13,
+          219,
+          65,
           50,
-          197,
-          172,
-          77,
-          214,
-          253,
-          182,
-          145
+          176,
+          37,
+          111,
+          67,
+          108,
+          63,
+          113,
+          199,
+          184,
+          148,
+          62,
+          50,
+          70,
+          57,
+          23
         ]
       ],
       "key_id": [
@@ -2687,78 +3042,92 @@
       ],
       "public_key": [
         3,
-        154,
+        87,
+        64,
+        48,
+        21,
+        230,
+        18,
+        39,
+        39,
+        143,
+        73,
+        43,
+        234,
+        85,
+        224,
+        10,
+        41,
+        134,
+        144,
+        112,
+        112,
+        202,
+        138,
         23,
-        114,
-        149,
-        248,
-        215,
-        106,
-        216,
-        158,
-        12,
-        3,
-        162,
-        68,
-        89,
-        180,
-        45,
-        50,
-        189,
-        235,
-        29,
-        106,
-        177,
-        211,
-        105,
-        244,
-        215,
-        168,
-        217,
-        243,
         55,
-        38,
-        73
+        163,
+        57,
+        240,
+        232,
+        71,
+        179,
+        81,
+        161
       ],
       "version": 1
     }
   ],
-  "revision_label": "Astra follow-up: migration error preservation, truthful incident durability, actual R4 queue observation",
-  "validation": {
-    "research_feature_tests": 22,
-    "default_feature_tests": 20,
-    "distinct_tests": 23,
-    "clippy_both_feature_configurations": true,
-    "formatting": true,
-    "production_files_unchanged": true,
-    "signature_attempts_baseline": 36,
-    "signature_attempts_concurrent": 4,
-    "refusals": 16
-  },
+  "git_base": "c33a1e1",
+  "branch": "silence-dkls23",
+  "working_tree_implementation": true,
   "source_hashes": {
     "Cargo.toml": "a5ac10227d532338b33b35240245663f814679edb181d2e1fc5361031e5acbbe",
     "Cargo.lock": "af74c2276f5dc3a05ac5cd7b49e2cf6ec8fbb164e0ccf0f8a41aa473765c2f31",
+    "bootstrap.sh": "0001cb7375efedda7d38c1de32fa1a824e7a75ced267bf3c56af206512af5505",
     "patch-source.py": "6e393567a3e06551a20df319f0bcecc30aae5971692a0760878d838ff41d5172",
     "patches/research-keyshare.rs": "b632d9443b96709b8cdc6dec0cf8eb821f0d9966c5ac619cfe0a276a218a563a",
-    "src/lib.rs": "9a651bb415aaf2032dbe386c957e3225dc4bb074be951864a98890fd55e43735",
-    "src/lifecycle.rs": "54ca3d2a1cfc90d7f6654853db47faaf202c9307ee0e82f338e22085210ba363",
-    "src/main.rs": "12403c3a78b83e89340176682dfc24b02d508e93bf814a688cce2c2b46568365",
-    "src/wire.rs": "099ef84299bc305a2a615662e7ed88aa97f4bb945959e8c0af7ff190f8c5730a",
-    "src/worker.rs": "52200c94eb8f69ad30a6fb7362b2fc8bfdac2a603234e02425dd1e8d95de7985",
+    "src/lib.rs": "26e9db6ead89b22ddbb602e8e44ca4875b8aed52720c290254cbc52188f5f20f",
+    "src/lifecycle.rs": "2eb19f46a9785de8ca3e66e72fb7aa47a717d5de804382135d96c2cdc33b1c87",
+    "src/main.rs": "8315ccf1b210d98ac008daefefd7d9083c3fda49f2ceae40c73b84c303d87eb3",
+    "src/measure.rs": "6e6f64fc9516ccbf2531ec4083c6b3ce34fb5d30dc990323df5a74206431290c",
+    "src/pool.rs": "27a907f607cc73f1e60711cdb653fa74f2ca447c4d8e19856ad9a19a30e6ad1d",
+    "src/pool_driver.rs": "411e3c4ca852a761ceeeead1a93976f61f2c3234876161ba8b419508b29a9a0c",
+    "src/pool_tests.rs": "d4f6ed091961ed516f8d5e402267d96fc4989173e044e6fa53883009b191bd44",
+    "src/pool_worker.rs": "49b21eb27f0e0c0928b59786086e8e57853e9217c25e3093c2beb36956fd1517",
+    "src/wire.rs": "639907bfc1cecc79ffcc82cb6f9a5886cf45e36cedaa1df3c5ed40f3f01b1e1b",
+    "src/worker.rs": "b7d14b9ba58823537781e3944e6c0de0633be51b40e65edc2d7e3acbda7cd935",
     "tests/invariants.rs": "2ab67d8a6d05964793c83c12795480585363dd20dc889d12021380000bd4ab57"
   },
+  "validation": {
+    "runtime_tests_research_faults": 33,
+    "runtime_tests_default": 31,
+    "distinct_runtime_tests_union": 34,
+    "compile_fail_tests": 2,
+    "clippy_both_configurations": "passed",
+    "formatting": "passed",
+    "release_build": "passed",
+    "native_patches_and_dependency_lock": "unchanged",
+    "production_files": "unchanged"
+  },
+  "parameter_decision": {
+    "locked_silence_parameters_unchanged": true,
+    "upstream_analysis_resolution": "open; neither concrete attack nor security certification inferred from the paper alone",
+    "paper_sha256": "48922c9af9dc759716207d01492967d3b826f6c52f7913839ad3b07a0e11b784"
+  },
+  "run_directory": ".local/silence-dkls23/run-12",
   "measured_statistics": {
     "Migration": {
       "samples": 18,
-      "median_setup_ms": 109.976563,
-      "median_signing_ms": 13.388771,
-      "median_wall_ms": 140.284896
+      "median_setup_ms": 102.1118545,
+      "median_signing_ms": 18.193834000000003,
+      "median_wall_ms": 134.07635449999998
     },
     "Direct": {
       "samples": 18,
-      "median_setup_ms": 111.3824165,
-      "median_signing_ms": 13.3054165,
-      "median_wall_ms": 140.065417
+      "median_setup_ms": 112.65475,
+      "median_signing_ms": 18.179417,
+      "median_wall_ms": 143.782333
     }
   },
   "lifecycle_regressions": {
@@ -2771,10 +3140,5 @@
       "deliberate_gate_bypass_post_cutoff_handoffs": 2,
       "observer": "actual output-queue receiver drained through EOF independently of cancellation and Wire::send"
     }
-  },
-  "parameter_decision": {
-    "locked_silence_parameters_unchanged": true,
-    "upstream_analysis_resolution": "open; neither concrete attack nor security certification inferred from the paper alone",
-    "paper_sha256": "48922c9af9dc759716207d01492967d3b826f6c52f7913839ad3b07a0e11b784"
   }
 }

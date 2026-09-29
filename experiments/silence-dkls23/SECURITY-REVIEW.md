@@ -86,4 +86,29 @@ hardware entropy, authoritative cross-replica incident/reservation controls,
 rollback/snapshot protection, licensing for the intended application, exact
 2026 OT/VOLE mapping and independent cryptographic review open. Local root-file
 reconstruction demonstrates operator restart; it does not demonstrate user
-recovery. Architecture v0.4 remains the reference; neither spike is adopted.
+recovery. Architecture v0.4 remains the reference; none of the spikes is adopted.
+
+## Spike C extension
+
+The RAM pool adds explicit clearing ownership for sender/receiver OT seeds and
+the shared zero seed. Canonical encoding buffers and transcript records (which
+include revealed coins) use `Zeroizing<Vec<u8>>`; reply buffers and POD message
+owners also clear on drop. Upstream EndemicOT outputs, decoded stack copies,
+native API copies, hash/cipher internals, allocator/compiler copies and transport
+queues retain the limitations above. Linear Rust types do not prevent malicious
+new code from exporting a native package or snapshotting memory.
+
+Canonical consumption binds package `extra_data`, native InstanceId and package
+final SID; native dsg.rs folds the latter into its final SID and directional MtA
+SIDs. This traces identifier propagation, not a proof of the actual challenge/
+Fiat-Shamir transcript construction or of key-independent single-use composition.
+Both root/child keys and 2-party signing remain functional with fresh pooled
+material, but independent review is still required. No native OT/VOLE parameter,
+algorithm, migration patch, constructor patch or dependency lock changed.
+
+Pool failures clear the generation; public setup and consumption tombstones
+assume an honest filesystem. A/B/C share the conservative existing incident
+scope. Only same-process gate locking is atomic with queue handoff. A/B native
+R4 queue controls continue to test that shared primitive; C does not implement
+concurrent native attempts or cross-process fencing. Real attestation, durable
+authority, snapshot resistance and production policy enforcement remain open.

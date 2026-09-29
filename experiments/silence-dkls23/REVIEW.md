@@ -1,8 +1,74 @@
-# DKLS23 lifecycle revision — October 10, 2026
+# DKLS23 research review — lifecycle closure and Spike C
 
-Keep DKLS23 experimental. Spike A (native migration on every attempt) and Spike B
-(deterministic shares with fresh OT/PPRF) remain comparison baselines. No pooling
-or production integration was added; architecture v0.4 is unchanged.
+Keep DKLS23 experimental. A/B remain baselines; Spike C now uses a small RAM
+preprocessing pool in long-lived local workers. Production dependencies and
+architecture v0.4 are unchanged. The custom composition has not been adopted.
+
+## Tasks 2–5: implemented research scope
+
+2. Canonical setup-input, completed-transcript and consumption contexts, with
+   arrival-independent hashing, fixed directional roles, binding substitution
+   checks and non-Clone seed ownership.
+3. Two-slot RAM pool, signed boot enrollment, fresh idle EndemicOT/PPRF and
+   zero-coin exchange, authenticated completion/consumption agreement,
+   deterministic shares, fresh combined native signing and independent verification.
+4. Ownership races, concurrent refill/reservation cutoff, capacity/expiry,
+   cancellation, incidents, timeout/disconnect, replay and worker replacement.
+   The process pool suite has 18 verified signatures and 18 refusal scenarios;
+   A/B reruns retain 40 baseline signatures and 16 refusal scenarios.
+5. A/B/C comparison across three wallets and two paths, three repetitions each,
+   with 0/10/50 ms of simulated one-way peer delay: 162 verified signatures,
+   matching public pins across all routes. Active-poll timing, separate idle
+   setup computation/refill, parent serialization and 100 real pipe round trips
+   expose where local overhead and suspended waits occur.
+
+Validation: 33 runtime tests plus two compile-fail tests with `research-faults`;
+31 runtime tests plus the same two compile-fail tests without it. The union is
+34 distinct runtime tests plus two compile-fail tests. Clippy in both modes,
+formatting, release build, bootstrap syntax and production isolation are checked.
+
+Current evidence: `results.json` (A/B), `results-pool.json` (C), and
+`results-comparison.json` (benchmark). The c33a1e1 evidence is preserved in
+`results-lifecycle.json`; original run-03 measurements remain in
+`results-baseline.json`. Every current artifact records source hashes and the
+locked parameter decision. Run directories, root fixtures, native sources and
+build products stay ignored.
+
+### Boundaries for the next review
+
+C uses canonical **binary hash inputs**; its authenticated transport remains
+JSON-over-AEAD/stdio. Exact validated native bodies enter the completed digest;
+completion ACKs are outside that digest. Consumption propagates through native
+InstanceId, package extra and package final SID into the native signing/MtA
+identifiers. This source trace is not cryptographic/upstream sign-off on the
+internal challenge transcripts or on wallet-independent single-use composition.
+
+The pool owns real native seeds. Reservations remove ownership before validation
+and durably retire IDs; setup IDs are burned before exchange. Exceptions/timeouts
+clear the generation, EOF drains both workers, and replacement retries either use
+fresh setup or remain blocked by quarantine. Incident failures retain the existing
+once-only publication and local release cutoff rules. No pool/package/seed export
+or split presigning operation exists in the worker protocol.
+
+Each worker serializes commands; idle refill is scheduled by the trusted driver.
+There is no overlapping native signing/refill or transport multiplexing. Thread
+races test the shared pool/gate authority, and the earlier actual-native R4 queue
+controls still test that gate. They do not establish cross-process release
+atomicity. The supervisor's authority, wallet pins and policy receipts are mock
+trusted fixtures, not the production Solana/auth service.
+
+Same-process fencing, fsync tombstones and Rust ownership cannot prevent hostile
+filesystem rollback or cloned/snapshotted process memory. Native copy-valued seeds
+and package byte APIs also require careful restriction in any future production
+adapter. Memory erasure, real attestation/provisioning, durable replica authority,
+recovery, application licensing and cryptographic/upstream sign-off remain open.
+Silence OT/VOLE parameters, patches and dependency lock are unchanged.
+
+## Lifecycle closure at c33a1e1 (historical evidence)
+
+Astra independently closed the three focused lifecycle findings at c33a1e1,
+reporting 23 distinct tests, 40 baseline signatures and 16 refusal scenarios.
+The following counts and measurements describe that earlier revision.
 
 ## Demonstrated behavior
 
@@ -27,7 +93,7 @@ or production integration was added; architecture v0.4 is unchanged.
 - Clippy with warnings denied passes in both feature configurations; formatting,
   optimized build, bootstrap syntax and unchanged production files are checked.
 
-Current public evidence: `results.json` from run-09. Original run-03 measurements
+Historical public evidence: `results-lifecycle.json` from run-09. Original run-03 measurements
 remain in `results-baseline.json`. Downloaded sources, root fixtures, tombstones
 and build products remain ignored. No secret package/OT/zero seed is persisted.
 
@@ -96,7 +162,7 @@ local synchronization test, not a cryptographic proof or network snapshot test.
 Across processes, each handoff checks its scoped filesystem marker, but marker
 checking and output handoff are not atomic with remote publication. Cross-process
 and cross-replica authority, hostile-host rollback and snapshot protection remain
-production blockers. No long-lived worker or pool was adopted.
+production blockers. That revision had no long-lived worker/pool; Spike C adds them only as a research harness.
 
 ## Supervisor and fault fixtures
 
@@ -137,7 +203,7 @@ flight, TEE or cross-region measurements; no latency target is promised.
 and consumption. It specifies canonical stage/directional ordering, zero-coin
 binding and completed-digest acknowledgment. Later OT-extension transcript binding
 remains a separate requirement. Retirement and ownership are irreversible. Its tested metadata
-scaffold carries no seeds and is not an implemented pool. `extra` and
+scaffold at that revision carried no seeds. Spike C now has separate seed-owning pool types. `extra` and
 `final_session_id` bind data; they do not make reuse impossible. Commit/reveal
 remains until required seed properties and malicious-party behavior are reviewed.
 Root-based entropy hedging is not implemented and would not prevent snapshots.
@@ -151,3 +217,34 @@ nor certifies it. Security strength is not inferred from parameter names.
 Custom composition security, memory erasure, recovery, real attestation,
 authoritative cross-replica controls, rollback protection, application licensing
 and independent cryptographic review remain unproven or unfinished gates.
+
+## Current A/B/C measurements (local research)
+
+18 samples per route/delay (three wallets × two paths × three attempts), with
+162 verified signatures total. A/B wall includes process launch/registration;
+C online wall excludes its separately reported startup and wallet registration.
+Each idle refill prepares one matched entry for the two workers.
+
+| Injected one-way peer delay | A wall median | B wall median | C online median | C idle refill median |
+|---:|---:|---:|---:|---:|
+| 0 ms | 147.0 ms | 190.2 ms | 25.4 ms | 118.8 ms |
+| 10 ms | 239.4 ms | 249.6 ms | 79.0 ms | 171.9 ms |
+| 50 ms | 653.1 ms | 659.9 ms | 281.7 ms | 375.9 ms |
+
+At zero injected delay, C's active native signing polls take a median 8.7 ms
+on the slower worker; setup compute segments take 91.6 ms. Parent refill
+serialization takes 2.62 ms. The separate 100-sample two-worker pipe/control
+round-trip median is 0.112 ms (parent serialization 0.0010 ms).
+
+Pooling moves setup off the online path; it does not remove the approximately
+119 ms refill cost or create sustained throughput from the online number. Idle setup alone
+is roughly 8.4 matched entries/second in this serialized harness; signing, wallet registration
+and refill share worker time. These medians are one local run, affected by host
+load/preemption and timer/framing overhead; no confidence interval, network-flight
+count, fixed CPU performance or production latency target is claimed.
+
+An initial disconnect assertion expected one diagnostic string. EOF can instead
+arrive during native signing and produce typed `MissingMessage`. The final fixture
+accepts typed transport/Burn refusal, requires both retirement markers and complete
+drain, and confirms a fresh replacement retry. It never treats a parent timeout as
+successful fault handling.

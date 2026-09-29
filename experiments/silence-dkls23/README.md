@@ -3,7 +3,7 @@
 Isolated workspace on branch `silence-dkls23`. This directory is not a member of
 the PairKey production workspace. FROST, the parent Cargo.lock, Solana programs
 and architecture v0.4 are unchanged. These are local research experiments;
-neither route is adopted as the production ECDSA backend.
+none of these routes is adopted as the production ECDSA backend.
 
 ## Reproduce
 
@@ -14,6 +14,8 @@ bash experiments/silence-dkls23/bootstrap.sh build --release --features research
 bash experiments/silence-dkls23/bootstrap.sh test --features research-faults --locked --offline
 bash experiments/silence-dkls23/bootstrap.sh clippy --all-targets --features research-faults --locked --offline -- -D warnings
 target/silence-dkls23/release/dkls-spike demo .local/silence-dkls23/my-run 3
+target/silence-dkls23/release/dkls-spike pool-demo .local/silence-dkls23/my-pool-run 3
+target/silence-dkls23/release/dkls-spike compare .local/silence-dkls23/my-comparison 3
 ```
 
 Bootstrap downloads a checksummed source archive at revision
@@ -82,9 +84,35 @@ implement a wallet-independent background pool. The extra coin exchange,
 reservation and readiness messages are included in total latency. The pool's
 key-independent composition and failure security remain questions for review.
 
+## Spike C: deterministic shares with idle preprocessing
+
+Two long-lived workers authenticate signed boot identities and ephemeral DH
+keys. Each two-slot pool entry runs fresh native EndemicOT/PPRF and zero-coin
+commit/reveal before any wallet or message is selected. Canonical setup inputs,
+ordered validated transcript and authenticated completion ACKs bind provenance.
+The later consumption context binds that provenance to the wallet public pin,
+path, exact prehash, mock policy receipt/version and fresh attempt ID.
+
+Reservation removes seeds from availability and fsyncs an irreversible public
+tombstone. Authenticated peer agreement precedes reconstruction of deterministic
+shares and one transient native package. Consumption enters the native signing
+InstanceId, package `extra_data`, and package final SID, which the native library
+folds into its signing/MtA SIDs. A fresh private signing seed is generated only
+then; the worker calls full `sign::run` and independently verifies its output.
+The pool contains no ECDSA nonce or presignature. Native parameters and signing
+math are unchanged.
+
+Idle refill is scheduled automatically by the trusted driver, separately from
+the measured online interval. Each worker serializes commands; there is no
+concurrent sign/refill wire multiplexing. A full or empty pool refuses; expiry,
+substitution, cancellation, timeout, disconnect or other failure burns affected
+ownership and discards the generation. Incidents also fence available/reserved
+entries and remain effective across complete worker replacement. See `POOLING.md`
+for the exact encoding, native SID mapping and remaining security questions.
+
 ## Process and lifecycle boundaries
 
-Each operation creates two distinct worker processes; each reads only its own
+In A/B each operation creates two distinct worker processes; in C a pair serves multiple wallets/paths; each reads only its own
 root file. The parent coordinates public registration and relays signed native
 MPC messages and encrypted custom setup messages. The parent is a trusted local
 test driver, not a production authorization service. Roots are provisioned by
@@ -121,11 +149,11 @@ both late handoffs, even when cancellation returns an error. Unused future owner
 The cutoff is transport-queue handoff under the shared gate's lock. Material
 queued before publication is already considered released and may arrive later;
 it cannot be recalled. Gates acquired for the same authority path and signer role share one lock in a
-process; integration must use that shared authority consistently. This harness still creates one attempt per worker
-process; the concurrent in-process test uses the shared primitive directly.
+process; integration must use that shared authority consistently. The A/B harness creates one attempt per worker
+process; C uses long-lived sequential workers; the concurrent in-process test uses the shared primitive directly.
 Across processes, each handoff checks its scoped durable marker, but this is
 **not** an atomic cross-process or cross-replica release boundary. Production
-must supply that authority and cancellation integration before pooling.
+must supply that authority and cancellation integration before pool adoption.
 
 The parent handles stdout termination and closed pipes separately from worker
 failures. It preserves structured terminal diagnostics through either abort
@@ -167,7 +195,12 @@ include library subscription messages and custom setup frames; they are not a
 claim about network flights or RTTs. JSON framing adds overhead. This is not a
 Phala/Oyster, cross-region, production authorization or throughput benchmark.
 
-See `results.json` for the current run, `results-baseline.json` for original measurements, `REVIEW.md` for the failure-policy table, `POOLING.md` for the proposed context/ownership design, and `SECURITY-REVIEW.md` for the exact source inventory and open gates.
+See `results.json` for current A/B evidence, `results-pool.json` and
+`results-comparison.json` for Spike C and benchmarks, `results-lifecycle.json` for
+the independently reviewed c33a1e1 lifecycle run, and `results-baseline.json` for
+the original measurements. `REVIEW.md` documents results/failure policy;
+`POOLING.md` documents the implemented research context/ownership design;
+`SECURITY-REVIEW.md` retains the source inventory and open gates.
 
 ## Open gates
 
