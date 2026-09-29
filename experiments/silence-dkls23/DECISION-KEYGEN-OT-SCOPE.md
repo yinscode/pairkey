@@ -156,3 +156,90 @@ numbers.
 
 Acceptance of this record means items 1, 4 and 5 of section 7 start immediately, and item 2 is decided
 before any further Spike C engineering.
+
+## 11. Comparison with rounds, deviations and audit scope
+
+Added 2026-10-11 after the question "DKG with derived shares, persist only non-secret information, OT
+on every signature". Two readings of that idea lead to different places:
+- If "DKG" means Silence's DKG, the honest share `s_i = p_A(x_i) + p_B(x_i)` contains the peer's random
+  polynomial and cannot be recomputed from the root plus public data; the peer's contribution arrives
+  encrypted and is itself secret. Section 5 rules out re-seeding the DKG from the root. So with the
+  native DKG the choices are persisting the share encrypted (O-A, O-B) or re-running the refresh core
+  per attempt (O-C).
+- If "derived shares" means `a/2` and `−b`, everything secret is already root-derivable, the only
+  non-secret state is the wallet record, and the native DKG is not involved. That is Spike B (option
+  O-E below). The conversion equals each party using the degree-1 polynomial that vanishes at the other
+  party's coordinate, which is why no share material is exchanged and why native DKG cannot produce it.
+
+A round is one message flight; both directions sent together count once. Native DKG and refresh take
+4 flights (R1; R2 with OT1; R3; R4). Native signing takes 4 flights (R1; R2; R3; R4). PairKey's
+reservation, readiness, coin and base-OT exchanges are one flight each as implemented in `worker.rs`
+and `pool_worker.rs`. Registration is driver-mediated and listed separately: today 3 steps (describe,
+register, commit); with commit-before-reveal 4.
+
+| Option | Per-wallet ceremony | First signature after boot | Later signatures | Deviations from Silence's flow | Executed inside audited protocols | Custom or unaudited pieces | Persistence |
+|---|---|---|---|---|---|---|---|
+| O-A v0.4: native DKG once, encrypted package, native signing | DKG 4 flights (random key) | 1 agreement + 4 signing | same | None cryptographic; package encryption, storage, activation are new | DKG, DSG, OT (README: audited) | Package envelope; pin gap (O6) | Encrypted package |
+| O-B Spike A per wallet, package persisted | Registration 4 steps + refresh 4 flights | 1 agreement + 4 signing | same | Root-derived contributions (B1 fixed by commit-before-reveal); migration wrapper; deterministic chain code | Refresh core, DSG, OT | Migration wrapper (~40 lines, README: not audited); registration ceremony; pin gap | Encrypted package |
+| O-C' Spike A per attempt with a warm native keyshare kept in RAM (new, see §12) | Registration 4 steps | 1 reservation + 4 refresh + 1 ready + 4 signing = 10 | 1 agreement + 4 signing = 5 | As O-B, plus RAM cache lifetime policy; OT seeds reused within the cache lifetime exactly as in Silence's flow | Refresh core, DSG, OT | As O-B | Roots only |
+| O-C Spike A per attempt, nothing cached | Registration 4 steps | 10 | 10 | As O-B; OT material single-use by construction | Refresh core, DSG, OT | As O-B | Roots only |
+| O-E Spike B per attempt (Direct route) | Registration 4 steps | 1 reservation + 2 coin + 2 base OT + 1 ready + 4 signing = 10 | 10 | Contributions; coin flip; base OT and PPRF through exported functions with PairKey sids over PairKey's channel; patched constructor | DSG; OT primitives individually | Constructor; exported OT composition; coin flip; registration; pin gap | Roots only |
+| O-D Spike C with commit-before-reveal | Registration 4 steps | Offline 5 flights per entry (2 coin, 2 base OT, 1 ack); online 1 reservation + 4 signing = 5 | 5 online | As O-E plus wallet-independent preprocessing, consumption binding, RAM ownership | DSG; OT primitives individually | As O-E plus pool and offline binding (O4) | Roots only |
+
+Possible flight reductions, not implemented: the reservation and readiness exchanges in O-C, O-C' and
+O-E can be folded into the native instance id and the signing R1, since a disagreeing peer already fails
+authentication; O-E's coin commit can ride with the reservation. That brings O-C' later signatures to
+4 flights, the same as Silence's flow, and O-E to about 7.
+
+Measured medians at 0 ms injected delay (REVIEW.md): A wall 147 ms (setup 110, signing 13); B wall
+190 ms (setup 111); C online 25 ms with 119 ms idle refill. O-C' later signatures should track C's
+online figure minus the pool overhead, since they run only the native signing flights; this has not
+been measured.
+
+Reading of the table: O-E has no latency or round advantage over O-C and moves the OT setup and
+keyshare construction out of audited code; it is only preferable if Silence will bless the exported OT
+API and an import constructor but not the migration wrapper. O-C' keeps everything O-C keeps and
+removes the per-signature refresh cost after the first signature per boot, at the price of adopting
+Silence's own OT-seed reuse model, which the quarantine logic already handles.
+
+## 12. Additional suggestions
+
+1. **Warm native keyshare in RAM (O-C').** Run the per-wallet refresh on first use after boot, keep the
+   resulting native `Keyshare` in memory for a bounded lifetime or until any incident, and sign with it
+   repeatedly. Nothing secret is persisted, no custom OT composition exists, and signatures after the
+   first cost only the native flights. Reuse of OT seeds across signatures is Silence's audited model;
+   an abort discards the cached keyshare and quarantines the pair, which is what Protocol 3.6 step 8 and
+   TOB-SILA-12 require. The cache needs a lifetime policy and must be dropped on restart, epoch change
+   or incident; it adds the random share and OT seeds to what lives in RAM beside the root.
+2. **Overlap setup with authorization.** For O-C, start the refresh as soon as a request is being
+   authorized, since it depends only on the wallet, and run `sign::run` once the prehash is fixed. This
+   is ordinary setup-before-message, not presigning: no nonce exists before the message is known, so
+   the GS22 caveat in DKLs23 section 3.3 does not apply. Do not use the library's `pre_signature` and
+   `finish` split; that is presigning and the architecture already excludes it.
+3. **Ask Silence for a supported additive-share import.** The migration entry point already does this
+   over the audited refresh core; a documented contract and audit extension for it would make O-B, O-C
+   and O-C' fully supported paths. The existing `key_import` module is not usable here because it
+   imports a complete singleton key, which no party holds.
+4. **Registration commitment design.** Use the same folklore commitment the native code uses, a hash
+   of a domain label, the ceremony id, the ordered identities, the role, the `Hello` bytes and a salt of
+   at least 2λc bits, journaled with create-new and fsync before release, with both commitments
+   acknowledged before either reveal. Reuse the existing `Prepared` journal and endorsement flow so the
+   change stays inside `registration.rs` and the driver.
+5. **Malicious-peer test harness.** `sl-mpc-mate` ships `coord::adversary` with message dropping and
+   injection, used by the native DKG tests. Build PairKey's negative tests on it and add a deviating
+   peer that runs a modified `run_inner`: wrong polynomial degree, inconsistent `pk_i`, inconsistent
+   RVOLE rows, replayed R1 session ids across attempts. Assert quarantine scope and that no honest
+   randomness repeats across attempts.
+6. **Differential tests against native DKG.** Generate a key with native DKG, sign natively, then run
+   the same inputs through the chosen PairKey path and compare partial values where the API allows and
+   signatures where it does not. This pins the registration and conversion to native semantics.
+7. **Reduce native patches to one.** Upstream the duplicate party-id fix and the migration abort
+   preservation as a pull request; keep the fault hook test-only; remove the constructor patch
+   entirely under O-A, O-B, O-C or O-C'.
+8. **Pin and release hygiene.** Ask Silence for a tagged release or coverage statement covering the
+   post-audit refactors, pin to it, and record the mapping in SECURITY-REVIEW.md. Track the 2026/976
+   question separately as upstream reference.
+9. **Write the short composition note for the chosen option.** For O-C or O-C' it is three
+   statements: registration with commit-before-reveal realizes Functionality 3.2 under the PRF
+   assumption on the roots; the refresh core and signing are Silence's audited protocols; Theorem 4.1
+   then applies per wallet, with the shared Functionality 5.1 question listed as the open assumption.
