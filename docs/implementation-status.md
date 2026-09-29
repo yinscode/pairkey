@@ -2,7 +2,7 @@
 
 The local software track is implemented and validated. The original Phase 0 hardware exit is **not passed**: Task 5 still requires real Phala and Oyster access. The user has no accounts yet and requested continuing without them. No provider account, paid resource, public deployment, or real-asset wallet has been created.
 
-Architecture v0.4 and the earlier Hyperliquid MVP are unchanged. The platform plan controls sequencing; [ADR 001](adr-001-local-frost-construction.md) authorizes the experimental KDF/FROST construction only for controlled local tests. Independent cryptographic review remains mandatory before real assets.
+Architecture v0.4 remains the proposal and the earlier Hyperliquid MVP remains historical context. The platform plan controls sequencing; [ADR 001](adr-001-local-frost-construction.md) authorizes the experimental KDF/FROST construction only for controlled local tests. The October 10 Astra source review and remediation below do not replace independent specialist cryptographic review before real assets.
 
 ## Requirement audit
 
@@ -17,7 +17,7 @@ Architecture v0.4 and the earlier Hyperliquid MVP are unchanged. The platform pl
 | 7 | Separate types, authorization core, FROST backend, channel adapter, worker, relay, SDK and two programs. Core receives public observations/time/trust inputs; FROST receives roots and RNG; backend setup type permits optional future encrypted material. |
 | 8 | Both workers validate role-bound proofs, their own reconstructed share and the same registration. Enrolled identity signatures bind the controller and public registration; on-chain controller authority is required. |
 | 9 | Offline public derivation; immutable namespace/public-key/domain/path encoding; fixed public vectors and distinct namespace/path/domain checks. Native transactions confirm SDK/worker/on-chain derivation agreement. |
-| 10 | Only own shares are reconstructed; ephemeral key packages and nonce state are erased on drop/eviction; workers never serialize secret packages or write mutable secret state. Development provisioning/trust seeds remain external private files. |
+| 10 | Only own shares are reconstructed. Audit remediation adds scope-bound clearing for explicit key/share/nonce owners and checks admission before reconstruction. This is not proof of clearing dependency internals, compiler copies or snapshots. Workers never serialize secret packages or write mutable secret state; development provisioning/trust seeds remain external private files. |
 | 11 | Fresh two-round FROST signing; encrypted context/role/boot-bound peer messages; atomic nonce consumption before finish validation; concurrency, replay and tampering checks pass. No signing template can switch the approved bytes. |
 | 12 | Canonical enclave-set, namespace, request and response PDAs; scheme/version/public metadata, controller, identity keys, governor and bounded records. Host and SBF runtime validation pass. |
 | 13 | Real account signer required; immutable append-only exact-message request; no consumption or cancellation promise. Wrong authority is rejected. |
@@ -34,7 +34,7 @@ Architecture v0.4 and the earlier Hyperliquid MVP are unchanged. The platform pl
 
 ## Validation
 
-All these commands passed on the final implementation:
+The pre-audit local implementation was validated with these commands. Current remediation evidence is recorded separately below:
 
 ```sh
 cargo test --workspace --features pairkey-worker/dev-simulation --locked --offline
@@ -104,3 +104,43 @@ Executable verification accepts the legacy immutable loader formats and loader-v
 Final validation passed: the locked/offline workspace test suite (25 substantive cases), five explicit SBF integration tests, workspace clippy with warnings denied, formatting, JavaScript module syntax, and the complete local validator/process demo. The focused policy-only demo also passed. The reference architecture and earlier MVP hashes remain unchanged. SBF dependency compilation still emits upstream unused NAF-table stack diagnostics; those symbols are absent from all three final linked programs, and tested runtime paths pass. This is not production deployment evidence.
 
 The validator harness writes explicit canonical loader-v3 program/program-data genesis accounts with `upgrade_authority_address=None`. It does not infer immutability from CLI sentinel-authority behavior. Actual ProgramData authority and executable bytes are checked through finalized RPC observations in the worker. Passkey end-to-end tests use a software authenticator; browser helper syntax was checked, but a physical/browser ceremony remains unvalidated.
+
+## FROST audit remediation October 10 2026
+
+Astra reviewed clean commit `286c5ddcaf77711f48aca62046c7145b7a400d7f` and the separate DKLS23 proposal. No direct key-extraction attack against the current unsnapshotted FROST protocol was established; this is not a security proof or production approval. These changes address confirmed local implementation findings.
+
+| Finding at the reviewed commit | Remediation and regression evidence |
+|---|---|
+| Duplicate/capacity rejection dropped reconstructed key packages without clearing. | Check admission before reconstruction and use clearing owners for explicit secret scalars, signing shares, key packages and nonces. The admission regression fills all 64 slots, verifies refusals precede reconstruction and checks reuse of released capacity. |
+| Reusing an external attempt ID let a relay splice authenticated shares from one commitment generation into another and falsely trigger global incident refusal. | A required round-two digest binds the attempt and ordered commitments. Reject mismatches before share verification as attempt errors. Wrapper and worker regressions reproduce the splice, verify continued valid signing and confirm genuinely invalid authenticated shares still set refusal. Missing old-format fields fail decoding. |
+| Finish removed expiry metadata before an authorization await, leaving cancellation and expiry cleanup gaps. | Move the sole nonce owner into a finish guard while cancellable metadata stays registered. Drop clears the owner and removes only its own generation. The deadline covers RPC waits, and capacity stays reserved until the last owner drops. Tests exercise cancellation, abort, reaping and timeout during a mock-RPC wait, plus cleanup after replacement of a generation. |
+| Control/policy/incident updates could race between authorization and contribution release. | One local mutex orders updates with final authorization, freshness/session checks, signing and sealing; aggregation/receipt issuance use it too. Regressions reject prepared views after negative controls, policy changes, incidents and elapsed freshness, and verify a concurrent negative update cannot interleave with issuance. |
+
+The cutoff is local issuance, not socket delivery or destination execution. If a negative update acquires the issuance lock first, subsequent issuance refuses. An operation that acquires it and passes checks first may issue its contribution, and its ciphertext may arrive after a later update. Unobserved finalized chain changes remain subject to the configured freshness bound. Released shares and signatures cannot be recalled.
+
+The commitment transcript identifies a generation. Concurrent duplicate IDs remain refused; consumed external IDs may be retried with new random commitments. There is no unbounded lifetime tombstone map. Old shares with their matching old commitments can still produce the already authorized result after current authorization is checked, consistent with repeatable COMMIT semantics. This changes the worker RoundTwo wire format: abort pending attempts and update both workers together. Account derivation and addresses do not change.
+
+Nine new regressions cover these paths: two in `pairkey-frost/tests/protocol.rs` and seven in `pairkey-worker/src/development/tests.rs`. Worker tests use loopback RPC servers and require `dev-simulation`. The locked/offline workspace suite passes 37 tests, with five SBF tests deliberately excluded; the separate five-test registry invocation passes against existing, unchanged SBF artifacts. Clippy with warnings denied, formatting and the workspace build pass. These regressions establish behavior and scope-bound ownership, not physical memory erasure.
+
+The focused validator policy run passes all four transfer compositions, eight concurrent session jobs and revocation/downgrade refusal. Its public evidence is `.local/9hJGGqnhCK3gXedo5G7AFDptb6JA8u9LGc4qznprDZru/evidence.json`. An earlier full run completed native transfers and restart cases but refused a later simulation. Its original error omitted the validator reason; the worker now includes the structured simulation error, without relaxing refusal or adding automatic signing retries. The cause of that first refusal was not established.
+
+The subsequent complete validator/process run passes with the rebuilt workers and relay: native account/CPI transfers, expiry and durable-nonce behavior, sixteen worker-restart cases, concurrent signing, and all four policy transfer compositions. Public evidence is `.local/EAdXkNKC1kdQ22Jrcj7WZzBVpCCU6Hvtd5kRiTDwm1dQ/evidence.json`. These are local development results using existing unchanged program artifacts, not hardware or production deployment evidence.
+
+### Remaining production blockers
+
+- **Custom cryptography:** independent review of malicious/adaptive setup, repeated possession proofs, concurrent signing and related public tweaks. Correct interpolation and possession verification do not prove KDF compliance by a malicious party. Static roots do not resist sequential extraction of both providers.
+- **Compromise scope:** a child share exposes that participant's namespace share and siblings; a complete child secret exposes the complete namespace family. Paths are not independent compromise domains. Provider-root compromise spans that provider's namespaces.
+- **Snapshots and erasure:** local ownership cannot prevent restored snapshots from spending the same nonce. Require protected entropy, external generation/single-use enforcement, restart rules and measured clone/rollback resistance. Clearing explicit Rust owners does not certify dependency buffers, compiler temporaries, dumps or retained snapshots.
+- **Production trust and durable controls:** real attestation, provisioning and upgrade independence, trusted time, independent state providers and authoritative restart bootstrap remain unverified. Local locks and incident flags neither fence other replicas nor survive restart. Define durable incident authority and coordinated release semantics before replication.
+- **Authorization boundaries:** COMMIT remains exact-byte repeatable permission; SESSION has per-operation limits. Neither provides cumulative accounting or exactly-once execution. Constrained SIMULATE is a trusted-source predicate, not a destination-state reservation.
+- **Recovery:** choose and test the recovery access structure and durability. Current FROST root escrow would span all provider namespaces. A retained complete historical signing quorum defeats registry retirement and same-address refresh.
+
+### DKLS23 remains a proposal
+
+No DKLS dependency, ECDSA backend, OT state store or recovery code is added. The conservative candidate remains native DKG, supported non-hardened public derivation, complete fresh signing and encrypted persistent packages scoped to each controller/recovery root. A provider root can seal those packages but cannot recreate lost interactive setup. Independent-KDF DKLS share injection has no established audited integration path.
+
+The inspected candidate was `af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7`, not a selected dependency. Its duplicate-ID comparison permits distinct participant-index tuples with the same package ID, leading to a self-ID assertion. Resolve that static panic-path finding, validate identity/coordinate mappings, pin dependencies and review changes from the historical audit before adoption. Resolve intended-use licensing rights as well. [Pinned finding](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/sign/dsg.rs#L142), [assertion](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/keygen/keyshare.rs#L314), [license](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/LICENSE).
+
+Persistent OT seeds remain package/pair scoped, with fresh invocation randomness and protocol sessions. No global cross-root OT reuse or reusable arbitrary-message presignatures are approved. Relevant cryptographic failures require aborting concurrent sessions and refusing future sessions with the offending counterparty. Durable fencing must cover every process and session sharing affected OT state. The historical assessment's limited scope and partially resolved OT specification finding do not certify current HEAD or PairKey. [Assessment report](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/docs/ToB-SilenceLaboratories_2024.04.10.pdf).
+
+Before adoption, specify authenticated manifests and encryption context, independently durable/restorable replicas, atomic package/refresh epoch activation, rollback and mixed-epoch refusal, interrupted-transition recovery and sealing-key replacement. Rewrapping does not revoke retained ciphertext or historical quorums. The 2-of-2 proposal restores complete packages through protected backups; genuine 2-of-3 requires C in initial DKG and epoch maintenance, with A+C and B+C valid signing quorums. Dormancy is a governance policy. See [v0.4 lifecycle and recovery](architecture-v0.4.md).

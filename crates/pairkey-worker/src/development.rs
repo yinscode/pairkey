@@ -13,7 +13,9 @@ use pairkey_core::{
     authorize, prepare, ControlFence, Freshness, Observation, ObservedAccount,
     SimulationObservation, Trust,
 };
-use pairkey_frost::{aggregate, register, Possession, Root, RoundOne, RoundTwo, Signer};
+use pairkey_frost::{
+    aggregate, register, Possession, Root, RoundOne, RoundTwo, Signer, SigningAttempt,
+};
 use pairkey_sdk::rpc::Rpc;
 use pairkey_types::{derive_public, Attempt, Namespace, Role};
 use rand_core::OsRng;
@@ -23,12 +25,15 @@ use solana_sdk::pubkey::Pubkey;
 use std::{
     collections::BTreeMap,
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
-        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, MutexGuard,
     },
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use zeroize::Zeroizing;
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,10 +49,75 @@ pub struct Config {
     pub set_id: [u8; 32],
     pub set_governor: [u8; 32],
 }
+const ATTEMPT_TTL: Duration = Duration::from_secs(15);
+struct AttemptLease {
+    cancelled: AtomicBool,
+    // Held until BOTH metadata and any in-flight nonce owner have been dropped.
+    _permit: tokio::sync::OwnedSemaphorePermit,
+}
 struct Pending {
-    attempt: Attempt,
+    signing: Option<SigningAttempt>,
+    lease: Arc<AttemptLease>,
     peer_boot: [u8; 32],
     created: Instant,
+}
+impl Drop for Pending {
+    fn drop(&mut self) {
+        self.lease.cancelled.store(true, Ordering::SeqCst);
+    }
+}
+struct InFlight {
+    worker: W,
+    id: [u8; 32],
+    signing: Option<SigningAttempt>,
+    lease: Arc<AttemptLease>,
+    peer_boot: [u8; 32],
+    deadline: Instant,
+}
+impl InFlight {
+    fn sign(&mut self, rounds: &[RoundOne; 2]) -> anyhow::Result<RoundTwo> {
+        ensure!(
+            !self.lease.cancelled.load(Ordering::SeqCst) && Instant::now() < self.deadline,
+            "cancelled or expired attempt"
+        );
+        Ok(self
+            .signing
+            .take()
+            .context("consumed attempt")?
+            .finish(rounds)?)
+    }
+}
+impl Drop for InFlight {
+    fn drop(&mut self) {
+        let mut pending = self.worker.pending.lock().unwrap();
+        // An expired/aborted identifier may already name a new generation.
+        if pending
+            .get(&self.id)
+            .is_some_and(|p| Arc::ptr_eq(&p.lease, &self.lease))
+        {
+            pending.remove(&self.id);
+        }
+        // The owned SigningAttempt clears its nonce and key on every exit.
+    }
+}
+#[derive(Default)]
+struct ReleaseState {
+    highest_slot: u64,
+    controls: ControlFence,
+    incident: bool,
+    policies: BTreeMap<Pubkey, (u64, u64)>,
+}
+impl ReleaseState {
+    fn protocol_error(&mut self, error: &pairkey_frost::Error) {
+        // An attempt/transcript mismatch is stale routing, not proof of cheating.
+        if matches!(error, pairkey_frost::Error::Frost(_)) {
+            self.incident = true;
+        }
+    }
+}
+struct AuthorizedView {
+    observation: Observation,
+    minimum_slot: u64,
 }
 struct Worker {
     signer: Signer,
@@ -55,13 +125,13 @@ struct Worker {
     rpc: Rpc,
     trust: Trust,
     pending: Mutex<BTreeMap<[u8; 32], Pending>>,
-    highest_slot: AtomicU64,
-    controls: ControlFence,
-    incident: AtomicBool,
+    // One lock orders known control/policy/incident updates with local issuance.
+    // It is held through signing/sealing, never across an await or network I/O.
+    release: Mutex<ReleaseState>,
     freshness: Freshness,
     started: Instant,
-    policies: Mutex<BTreeMap<Pubkey, (u64, u64)>>,
     capacity: Arc<tokio::sync::Semaphore>,
+    nonce_capacity: Arc<tokio::sync::Semaphore>,
 }
 type W = Arc<Worker>;
 type Failure = (StatusCode, Json<Value>);
@@ -98,29 +168,75 @@ fn secret_file(path: &str) -> anyhow::Result<Zeroizing<[u8; 32]>> {
 impl Worker {
     fn active(&self) -> anyhow::Result<()> {
         ensure!(
-            !self.incident.load(Ordering::SeqCst),
+            !self.release.lock().unwrap().incident,
             "authenticated protocol incident; worker refuses signing until operator investigation"
         );
         Ok(())
     }
     fn prune(&self) {
+        let _release = self.release.lock().unwrap();
         let mut map = self.pending.lock().unwrap();
-        map.retain(|_, p| {
-            if p.created.elapsed().as_secs() >= 15 {
-                self.signer.abort(&p.attempt);
-                false
-            } else {
-                true
-            }
-        });
+        map.retain(|_, p| p.created.elapsed() < ATTEMPT_TTL);
     }
-    async fn observe(&self, begin: &Begin) -> anyhow::Result<u64> {
+    fn claim(self: &Arc<Self>, id: [u8; 32]) -> anyhow::Result<InFlight> {
+        let mut pending = self.pending.lock().unwrap();
+        let p = pending.get_mut(&id).context("unknown or expired attempt")?;
+        Ok(InFlight {
+            worker: Arc::clone(self),
+            id,
+            signing: Some(p.signing.take().context("attempt already in flight")?),
+            lease: Arc::clone(&p.lease),
+            peer_boot: p.peer_boot,
+            deadline: p.created + ATTEMPT_TTL,
+        })
+    }
+    fn observe_inactive(&self, slot: u64) -> anyhow::Result<()> {
+        let mut release = self.release.lock().unwrap();
+        release.controls.observe_inactive(slot)?;
+        release.highest_slot = release.highest_slot.max(slot);
+        Ok(())
+    }
+    fn release_guard(
+        &self,
+        begin: &Begin,
+        view: &AuthorizedView,
+    ) -> anyhow::Result<MutexGuard<'_, ReleaseState>> {
+        let release = self.release.lock().unwrap();
+        ensure!(!release.incident, "authenticated protocol incident");
+        // Revalidate time/session expiry after waiting for the issuance lock.
+        self.freshness.check(
+            view.observation.slot,
+            view.observation.block_time,
+            self.started.elapsed().as_millis() as u64,
+            self.trust.max_observation_age_secs as u64 * 1000,
+        )?;
+        let reg = authorize(
+            &self.trust,
+            &view.observation,
+            &begin.attempt,
+            &begin.message,
+            now(),
+            view.minimum_slot,
+        )?;
+        ensure!(reg == begin.registration, "registration changed");
+        release.controls.check_active(view.observation.slot)?;
+        ensure!(
+            release
+                .policies
+                .get(&view.observation.namespace.address)
+                .map(|p| p.0)
+                == Some(begin.attempt.authorization.policy_version),
+            "policy changed before issuance"
+        );
+        Ok(release)
+    }
+    async fn observe(&self, begin: &Begin) -> anyhow::Result<AuthorizedView> {
         self.active()?;
         // Capture the lower bound once; concurrent newer reads cannot invalidate this read.
-        let minimum_slot = self
-            .highest_slot
-            .load(Ordering::SeqCst)
-            .max(self.controls.minimum_slot());
+        let minimum_slot = {
+            let release = self.release.lock().unwrap();
+            release.highest_slot.max(release.controls.minimum_slot())
+        };
         let program = pair_registry::id();
         let namespace = pair_registry::namespace_address(&program, &begin.registration).0;
         let request =
@@ -203,13 +319,13 @@ impl Worker {
         );
         if let Err(error) = preparation {
             if matches!(error, pairkey_core::Error::Inactive) {
-                self.controls.observe_inactive(slot)?;
-                self.highest_slot.fetch_max(slot, Ordering::SeqCst);
+                self.observe_inactive(slot)?;
             }
             return Err(error.into());
         }
         {
-            let mut policies = self.policies.lock().unwrap();
+            let mut release = self.release.lock().unwrap();
+            let policies = &mut release.policies;
             let version = begin.attempt.authorization.policy_version;
             if let Some((old_version, old_slot)) = policies.get(&namespace) {
                 ensure!(
@@ -269,7 +385,8 @@ impl Worker {
             let simulated = self.rpc.call("simulateTransaction",json!([STANDARD.encode(bincode::serialize(&tx)?),{"encoding":"base64","commitment":"finalized","minContextSlot":slot,"replaceRecentBlockhash":false,"sigVerify":true}])).await?;
             ensure!(
                 simulated["value"].get("err") == Some(&Value::Null),
-                "simulation refused"
+                "simulation refused: {}",
+                simulated["value"]["err"]
             );
             let returned = &simulated["value"]["returnData"];
             ensure!(
@@ -304,8 +421,7 @@ impl Worker {
         let reg=match decision {
             Ok(reg)=>reg,
             Err(pairkey_core::Error::Inactive)=> {
-                self.controls.observe_inactive(slot)?;
-                self.highest_slot.fetch_max(slot,Ordering::SeqCst);
+                self.observe_inactive(slot)?;
                 return Err(pairkey_core::Error::Inactive.into());
             }
             Err(e)=>return Err(e).with_context(||format!("finalized view rejected: slot={slot}, required={minimum_slot}, block_time={block_time}, now={}",now())),
@@ -314,18 +430,21 @@ impl Worker {
             reg == begin.registration,
             "delivered registration differs from chain"
         );
-        self.highest_slot.fetch_max(slot, Ordering::SeqCst);
+        let mut release = self.release.lock().unwrap();
+        release.highest_slot = release.highest_slot.max(slot);
         // Also fences older reads which began before another request saw the freeze.
-        self.controls.check_active(slot)?;
+        release.controls.check_active(slot)?;
         {
-            let policies = self.policies.lock().unwrap();
-            let (version, _) = policies.get(&namespace).context("policy fence")?;
+            let (version, _) = release.policies.get(&namespace).context("policy fence")?;
             ensure!(
                 *version == begin.attempt.authorization.policy_version,
                 "policy changed during authorization"
             );
         }
-        Ok(slot)
+        Ok(AuthorizedView {
+            observation,
+            minimum_slot,
+        })
     }
     fn decode_rounds(&self, request: &Finish) -> anyhow::Result<[RoundOne; 2]> {
         let b = &request.begin;
@@ -346,7 +465,7 @@ async fn health(State(w): State<W>) -> Json<Health> {
         identity: w.channel.identity(),
         boot_id: w.channel.boot_id(),
         development: true,
-        incident: w.incident.load(Ordering::SeqCst),
+        incident: w.release.lock().unwrap().incident,
     })
 }
 async fn attest(
@@ -392,52 +511,58 @@ async fn ack(State(w): State<W>, Json(q): Json<Ack>) -> Result<Json<Vec<u8>>, Fa
 async fn begin(State(w): State<W>, Json(q): Json<Begin>) -> Result<Json<Envelope>, Failure> {
     w.prune();
     w.channel.authenticate_peer(&q.peer).map_err(failure)?;
-    w.observe(&q).await.map_err(failure)?;
-    let round = w
-        .signer
-        .begin(&q.registration, &q.attempt, &q.message, &mut OsRng)
-        .map_err(failure)?;
-    let result = w
-        .channel
-        .seal(&q.peer, q.attempt.digest(), 1, &round)
-        .map_err(failure);
-    if result.is_err() {
-        w.signer.abort(&q.attempt);
-    } else {
-        w.pending.lock().unwrap().insert(
-            q.attempt.digest(),
-            Pending {
-                attempt: q.attempt,
-                peer_boot: q.peer.evidence.boot_id,
-                created: Instant::now(),
-            },
-        );
+    let view = w.observe(&q).await.map_err(failure)?;
+    let _release = w.release_guard(&q, &view).map_err(failure)?;
+    let mut pending = w.pending.lock().unwrap();
+    let id = q.attempt.digest();
+    if pending.contains_key(&id) {
+        return Err(failure("attempt already pending"));
     }
-    result.map(Json)
+    let permit = w
+        .nonce_capacity
+        .clone()
+        .try_acquire_owned()
+        .map_err(failure)?;
+    let (round, signing) = w
+        .signer
+        .begin_owned(&q.registration, &q.attempt, &q.message, &mut OsRng)
+        .map_err(failure)?;
+    let envelope = w.channel.seal(&q.peer, id, 1, &round).map_err(failure)?;
+    pending.insert(
+        id,
+        Pending {
+            signing: Some(signing),
+            lease: Arc::new(AttemptLease {
+                cancelled: AtomicBool::new(false),
+                _permit: permit,
+            }),
+            peer_boot: q.peer.evidence.boot_id,
+            created: Instant::now(),
+        },
+    );
+    Ok(Json(envelope))
 }
 async fn finish(State(w): State<W>, Json(q): Json<Finish>) -> Result<Json<Envelope>, Failure> {
     w.prune();
-    let meta = w
-        .pending
-        .lock()
-        .unwrap()
-        .remove(&q.begin.attempt.digest())
-        .ok_or_else(|| failure("unknown or expired attempt"))?;
+    let mut in_flight = w.claim(q.begin.attempt.digest()).map_err(failure)?;
+    let deadline = in_flight.deadline;
     let work = async {
         ensure!(
-            meta.peer_boot == q.begin.peer.evidence.boot_id,
+            in_flight.peer_boot == q.begin.peer.evidence.boot_id,
             "peer restarted during attempt"
         );
         w.channel.authenticate_peer(&q.begin.peer)?;
-        w.observe(&q.begin).await?;
+        let view = w.observe(&q.begin).await?;
         let rounds = w.decode_rounds(&q)?;
-        let share = match w.signer.finish(&q.begin.attempt, &rounds) {
+        let mut release = w.release_guard(&q.begin, &view)?;
+        let share = match in_flight.sign(&rounds) {
             Ok(share) => share,
-            Err(e @ pairkey_frost::Error::Frost(_)) => {
-                w.incident.store(true, Ordering::SeqCst);
-                anyhow::bail!(e);
+            Err(e) => {
+                if let Some(protocol) = e.downcast_ref::<pairkey_frost::Error>() {
+                    release.protocol_error(protocol);
+                }
+                return Err(e);
             }
-            Err(e) => anyhow::bail!(e),
         };
         Ok::<_, anyhow::Error>(w.channel.seal(
             &q.begin.peer,
@@ -445,9 +570,10 @@ async fn finish(State(w): State<W>, Json(q): Json<Finish>) -> Result<Json<Envelo
             2,
             &share,
         )?)
-    }
-    .await;
-    w.signer.abort(&q.begin.attempt);
+    };
+    let work = tokio::time::timeout_at(deadline.into(), work)
+        .await
+        .map_err(failure)?;
     work.map(Json).map_err(failure)
 }
 async fn result(
@@ -457,7 +583,7 @@ async fn result(
     let begin = &q.finish.begin;
     let id = begin.attempt.digest();
     w.channel.authenticate_peer(&begin.peer).map_err(failure)?;
-    let slot = w.observe(begin).await.map_err(failure)?;
+    let view = w.observe(begin).await.map_err(failure)?;
     let rounds = w.decode_rounds(&q.finish).map_err(failure)?;
     if q.shares[0].sender != Role::A || q.shares[1].sender != Role::B {
         return Err(failure("incorrect role order"));
@@ -470,6 +596,7 @@ async fn result(
             .open(&begin.peer, id, 2, &q.shares[1])
             .map_err(failure)?,
     ];
+    let mut release = w.release_guard(begin, &view).map_err(failure)?;
     let signature = aggregate(
         &begin.registration,
         &begin.attempt,
@@ -478,7 +605,7 @@ async fn result(
         &shares,
     )
     .map_err(|e| {
-        w.incident.store(true, Ordering::SeqCst);
+        release.protocol_error(&e);
         failure(e)
     })?;
     let receipt = Receipt {
@@ -492,7 +619,7 @@ async fn result(
             .map_err(failure)?,
         message_hash: begin.attempt.commit.message_hash,
         signature: signature.to_vec(),
-        finalized_slot: slot,
+        finalized_slot: view.observation.slot,
         provider_domain: w.trust.provider_domain.clone(),
     };
     let identity_signature = w.channel.sign_public(&receipt_message(&receipt));
@@ -503,7 +630,7 @@ async fn result(
     }))
 }
 async fn abort(State(w): State<W>, Json(at): Json<Attempt>) -> StatusCode {
-    w.signer.abort(&at);
+    let _release = w.release.lock().unwrap();
     w.pending.lock().unwrap().remove(&at.digest());
     StatusCode::NO_CONTENT
 }
@@ -563,13 +690,11 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
         rpc,
         trust,
         pending: Mutex::new(BTreeMap::new()),
-        highest_slot: AtomicU64::new(0),
-        controls: ControlFence::default(),
-        incident: AtomicBool::new(false),
+        release: Mutex::new(ReleaseState::default()),
         freshness: Freshness::default(),
         started: Instant::now(),
-        policies: Mutex::new(BTreeMap::new()),
         capacity: Arc::new(tokio::sync::Semaphore::new(16)),
+        nonce_capacity: Arc::new(tokio::sync::Semaphore::new(64)),
     });
     let router = Router::new()
         .route("/health", get(health))

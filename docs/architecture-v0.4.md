@@ -438,6 +438,12 @@ The current repository license limits use to non-commercial applications and req
 
 Production gates include the actual KMS release configurations, reproducible builds, independent upgrade control, hardware entropy and rollback behavior, recovery construction, destination adapter, and registry program. Source availability and attestations do not replace those reviews.
 
+The October 10 source review inspected candidate DKLS23 revision `af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7`; this is an audit reference, not a selected dependency. Its duplicate-party-ID check compares complete `(participant_index, party_id)` tuples, allowing a peer's repeated package ID to reach a self-ID assertion. Resolve this static panic-path finding and enforce identity-to-package-ID mapping before adoption. [Pinned signing check](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/sign/dsg.rs#L142), [pinned assertion](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/keygen/keyshare.rs#L314).
+
+The historical audit does not certify that revision or this integration. Only Lagrange sharing was in scope, and the report includes supplemental review and a partially resolved OT specification finding. Relevant selective-abort failures require aborting current and concurrent sessions with the offending counterparty and refusing future sessions. The integration must durably fence all sessions sharing affected OT material, including replicas and restarts; process-local FROST refusal is not a reusable DKLS incident design. No global cross-root OT pool or independent-KDF DKLS share injection is approved. [Assessment report](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/docs/ToB-SilenceLaboratories_2024.04.10.pdf).
+
+The current implementation still uses the experimental FROST construction in ADR 001. Its [audit remediation](implementation-status.md#frost-audit-remediation-october-10-2026) fixes local ownership, transcript and issuance defects without implementing this proposed DKG/package architecture. ECDSA, package persistence and recovery remain proposals.
+
 ## Performance and deployment
 
 V0.3 latency numbers remain unmeasured hypotheses. V0.4 does not promise a fixed latency until benchmarked across the chosen providers with authorization checks enabled.

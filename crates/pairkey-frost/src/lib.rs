@@ -2,7 +2,7 @@
 use curve25519_dalek::{constants::ED25519_BASEPOINT_POINT, scalar::Scalar};
 use frost_ed25519 as frost;
 use hkdf::Hkdf;
-use pairkey_types::{derive_public, point, tweak, Attempt, Namespace, Registration, Role};
+use pairkey_types::{derive_public, digest, point, tweak, Attempt, Namespace, Registration, Role};
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
@@ -69,21 +69,21 @@ pub fn prove<R: RngCore + CryptoRng>(
     role: Role,
     rng: &mut R,
 ) -> Result<Possession, Error> {
-    let mut s = share(root, ns, role)?;
+    let mut s = Zeroizing::new(share(root, ns, role)?);
     let mut wide = Zeroizing::new([0u8; 64]);
     rng.fill_bytes(wide.as_mut());
-    let mut r = Scalar::from_bytes_mod_order_wide(&wide);
-    if r == Scalar::ZERO {
+    let mut r = Zeroizing::new(Scalar::from_bytes_mod_order_wide(&wide));
+    if *r == Scalar::ZERO {
         s.zeroize();
         return Err(Error::Proof);
     }
     let mut p = Possession {
         role,
-        public_share: (s * ED25519_BASEPOINT_POINT).compress().to_bytes(),
-        commitment: (r * ED25519_BASEPOINT_POINT).compress().to_bytes(),
+        public_share: (*s * ED25519_BASEPOINT_POINT).compress().to_bytes(),
+        commitment: (*r * ED25519_BASEPOINT_POINT).compress().to_bytes(),
         response: [0; 32],
     };
-    p.response = (r + proof_challenge(ns, &p) * s).to_bytes();
+    p.response = (*r + proof_challenge(ns, &p) * *s).to_bytes();
     s.zeroize();
     r.zeroize();
     Ok(p)
@@ -122,18 +122,18 @@ fn packages(
     reg: &Registration,
     path: &pairkey_types::AccountPath,
     role: Role,
-) -> Result<(frost::keys::KeyPackage, frost::keys::PublicKeyPackage), Error> {
+) -> Result<Zeroizing<frost::keys::KeyPackage>, Error> {
     reg.validate()?;
-    let mut s = share(root, &reg.namespace, role)?;
-    if (s * ED25519_BASEPOINT_POINT).compress().to_bytes() != reg.public_shares[role.index()] {
+    let mut s = Zeroizing::new(share(root, &reg.namespace, role)?);
+    if (*s * ED25519_BASEPOINT_POINT).compress().to_bytes() != reg.public_shares[role.index()] {
         s.zeroize();
         return Err(pairkey_types::Error::Metadata.into());
     }
     let t = tweak(reg, path)?;
-    s += t;
+    *s += t;
     let mut serialized = Zeroizing::new(s.to_bytes());
     s.zeroize();
-    let signing = frost::keys::SigningShare::deserialize(serialized.as_ref())?;
+    let signing = Zeroizing::new(frost::keys::SigningShare::deserialize(serialized.as_ref())?);
     serialized.zeroize();
     let mut public = BTreeMap::new();
     for side in [Role::A, Role::B] {
@@ -148,8 +148,13 @@ fn packages(
     }
     let vk = frost::VerifyingKey::deserialize(&derive_public(reg, path)?)?;
     let own = public[&identifier(role)];
-    let key = frost::keys::KeyPackage::new(identifier(role), signing, own, vk, 2);
-    Ok((key, frost::keys::PublicKeyPackage::new(public, vk)))
+    Ok(Zeroizing::new(frost::keys::KeyPackage::new(
+        identifier(role),
+        *signing,
+        own,
+        vk,
+        2,
+    )))
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -164,18 +169,36 @@ pub struct RoundOne {
 pub struct RoundTwo {
     pub role: Role,
     pub attempt_digest: [u8; 32],
+    /// Required wire binding: shares from another commitment generation are stale,
+    /// even when the caller reuses an external attempt identifier.
+    pub transcript_digest: [u8; 32],
     pub share: Vec<u8>,
 }
-struct Pending {
-    nonces: frost::round1::SigningNonces,
+/// Sole owner of a signing nonce and reconstructed key. Dropping this value burns
+/// the nonce, including when an async caller is cancelled before signing.
+/// Adapters using `begin_owned` must bound admission and enforce their deadlines.
+pub struct SigningAttempt {
+    nonces: Zeroizing<frost::round1::SigningNonces>,
     commitment: frost::round1::SigningCommitments,
-    key: frost::keys::KeyPackage,
+    key: Zeroizing<frost::keys::KeyPackage>,
     message: Vec<u8>,
+    id: [u8; 32],
+    role: Role,
 }
-impl Drop for Pending {
-    fn drop(&mut self) {
-        self.nonces.zeroize();
-        self.key.zeroize();
+impl SigningAttempt {
+    pub fn finish(self, rounds: &[RoundOne; 2]) -> Result<RoundTwo, Error> {
+        let commitments = round_map(self.id, rounds)?;
+        if commitments[&identifier(self.role)] != self.commitment {
+            return Err(Error::Attempt);
+        }
+        let package = frost::SigningPackage::new(commitments, &self.message);
+        let share = frost::round2::sign(&package, &self.nonces, &self.key)?;
+        Ok(RoundTwo {
+            role: self.role,
+            attempt_digest: self.id,
+            transcript_digest: transcript_digest(self.id, rounds),
+            share: share.serialize().to_vec(),
+        })
     }
 }
 /// Pending nonces are memory-only and removed *before* any round-two validation.
@@ -183,7 +206,7 @@ impl Drop for Pending {
 pub struct Signer {
     root: Root,
     role: Role,
-    pending: Mutex<BTreeMap<[u8; 32], Pending>>,
+    pending: Mutex<BTreeMap<[u8; 32], SigningAttempt>>,
 }
 impl Signer {
     pub fn new(root: Root, role: Role) -> Self {
@@ -207,8 +230,6 @@ impl Signer {
         message: &[u8],
         rng: &mut R,
     ) -> Result<RoundOne, Error> {
-        attempt.commit.authorize(reg, message)?;
-        let (key, _) = packages(&self.root, reg, &attempt.commit.account, self.role)?;
         let id = attempt.digest();
         let mut pending = self.pending.lock().expect("nonce mutex");
         if pending.contains_key(&id) {
@@ -217,22 +238,38 @@ impl Signer {
         if pending.len() >= 64 {
             return Err(Error::Capacity);
         }
+        let (round, owned) = self.begin_owned(reg, attempt, message, rng)?;
+        pending.insert(id, owned);
+        Ok(round)
+    }
+    pub fn begin_owned<R: RngCore + CryptoRng>(
+        &self,
+        reg: &Registration,
+        attempt: &Attempt,
+        message: &[u8],
+        rng: &mut R,
+    ) -> Result<(RoundOne, SigningAttempt), Error> {
+        attempt.commit.authorize(reg, message)?;
+        let key = packages(&self.root, reg, &attempt.commit.account, self.role)?;
+        let id = attempt.digest();
         let (nonces, commitment) = frost::round1::commit(key.signing_share(), rng);
+        let nonces = Zeroizing::new(nonces);
         let bytes = commitment.serialize()?;
-        pending.insert(
-            id,
-            Pending {
+        Ok((
+            RoundOne {
+                role: self.role,
+                attempt_digest: id,
+                commitment: bytes,
+            },
+            SigningAttempt {
                 nonces,
                 commitment,
                 key,
                 message: message.to_vec(),
+                id,
+                role: self.role,
             },
-        );
-        Ok(RoundOne {
-            role: self.role,
-            attempt_digest: id,
-            commitment: bytes,
-        })
+        ))
     }
     pub fn abort(&self, attempt: &Attempt) {
         self.pending.lock().unwrap().remove(&attempt.digest());
@@ -245,18 +282,15 @@ impl Signer {
             .expect("nonce mutex")
             .remove(&id)
             .ok_or(Error::Attempt)?;
-        let commitments = round_map(id, rounds)?;
-        if commitments[&identifier(self.role)] != pending.commitment {
-            return Err(Error::Attempt);
-        }
-        let package = frost::SigningPackage::new(commitments, &pending.message);
-        let share = frost::round2::sign(&package, &pending.nonces, &pending.key)?;
-        Ok(RoundTwo {
-            role: self.role,
-            attempt_digest: id,
-            share: share.serialize().to_vec(),
-        })
+        pending.finish(rounds)
     }
+}
+fn transcript_digest(id: [u8; 32], rounds: &[RoundOne; 2]) -> [u8; 32] {
+    // Role order and attempt binding are checked by round_map before use.
+    digest(
+        b"pairkey/frost-commitment-transcript/v1",
+        &(id, &rounds[0].commitment, &rounds[1].commitment),
+    )
 }
 fn round_map(
     id: [u8; 32],
@@ -286,9 +320,13 @@ pub fn aggregate(
 ) -> Result<[u8; 64], Error> {
     attempt.commit.authorize(reg, message)?;
     let id = attempt.digest();
+    let commitments = round_map(id, rounds)?;
+    let transcript = transcript_digest(id, rounds);
     if responses[0].role != Role::A
         || responses[1].role != Role::B
-        || responses.iter().any(|r| r.attempt_digest != id)
+        || responses
+            .iter()
+            .any(|r| r.attempt_digest != id || r.transcript_digest != transcript)
     {
         return Err(Error::Attempt);
     }
@@ -311,7 +349,7 @@ pub fn aggregate(
     }
     let vk = frost::VerifyingKey::deserialize(&derive_public(reg, &attempt.commit.account)?)?;
     let pubkeys = frost::keys::PublicKeyPackage::new(pubshares, vk);
-    let package = frost::SigningPackage::new(round_map(id, rounds)?, message);
+    let package = frost::SigningPackage::new(commitments, message);
     let signature = frost::aggregate(&package, &shares, &pubkeys)?;
     vk.verify(message, &signature)?;
     signature

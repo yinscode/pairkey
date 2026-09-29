@@ -230,3 +230,71 @@ fn canonical_derivation_vectors() {
         ]
     );
 }
+
+#[test]
+fn reused_attempt_generations_are_distinguished_before_share_verification() {
+    let (a, b, reg) = setup(1);
+    let msg = b"approved";
+    let at = attempt(&reg, 1, msg);
+    let first = [
+        a.begin(&reg, &at, msg, &mut OsRng).unwrap(),
+        b.begin(&reg, &at, msg, &mut OsRng).unwrap(),
+    ];
+    let old_shares = [
+        a.finish(&at, &first).unwrap(),
+        b.finish(&at, &first).unwrap(),
+    ];
+    let second = [
+        a.begin(&reg, &at, msg, &mut OsRng).unwrap(),
+        b.begin(&reg, &at, msg, &mut OsRng).unwrap(),
+    ];
+    assert!(matches!(
+        aggregate(&reg, &at, msg, &second, &old_shares),
+        Err(pairkey_frost::Error::Attempt)
+    ));
+    let new_shares = [
+        a.finish(&at, &second).unwrap(),
+        b.finish(&at, &second).unwrap(),
+    ];
+    let mixed = [old_shares[0].clone(), new_shares[1].clone()];
+    assert!(matches!(
+        aggregate(&reg, &at, msg, &second, &mixed),
+        Err(pairkey_frost::Error::Attempt)
+    ));
+    aggregate(&reg, &at, msg, &first, &old_shares).unwrap();
+    aggregate(&reg, &at, msg, &second, &new_shares).unwrap();
+    // There is no compatibility fallback for an unbound, old-format share.
+    let mut old_wire = serde_json::to_value(&new_shares[0]).unwrap();
+    old_wire
+        .as_object_mut()
+        .unwrap()
+        .remove("transcript_digest");
+    assert!(serde_json::from_value::<pairkey_frost::RoundTwo>(old_wire).is_err());
+}
+
+#[test]
+fn duplicate_and_full_admission_reject_before_secret_reconstruction() {
+    let (a, _, reg) = setup(1);
+    let msg = b"approved";
+    let mut attempts = Vec::new();
+    for i in 0..64 {
+        let at = attempt(&reg, i, msg);
+        a.begin(&reg, &at, msg, &mut OsRng).unwrap();
+        attempts.push(at);
+    }
+    // Invalid registration would fail validation/reconstruction if admission
+    // reached that code. Neither refusal may construct a throwaway key package.
+    let mut invalid = reg.clone();
+    invalid.public_key = [0; 32];
+    assert!(matches!(
+        a.begin(&invalid, &attempts[0], msg, &mut OsRng),
+        Err(pairkey_frost::Error::Attempt)
+    ));
+    let fresh = attempt(&reg, 65, msg);
+    assert!(matches!(
+        a.begin(&invalid, &fresh, msg, &mut OsRng),
+        Err(pairkey_frost::Error::Capacity)
+    ));
+    a.abort(&attempts[0]);
+    a.begin(&reg, &fresh, msg, &mut OsRng).unwrap();
+}
