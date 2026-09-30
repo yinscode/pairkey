@@ -1,6 +1,6 @@
 # Draft questions for Silence about the PairKey constructor
 
-Draft version 2, updated 2026-10-11 for Silence maintainers and the PairKey cryptographic reviewer.
+Draft version 3, updated 2026-10-11 for Silence maintainers and the PairKey cryptographic reviewer.
 **Draft only; not sent.** We seek the native input contract and evidence needed
 to assess PairKey's custom two-party key/setup construction. We retain Silence's
 DKLS23 implementation and locked parameters. The 2026 paper is optional background;
@@ -23,6 +23,11 @@ Any external review packet should identify the final exact tree/patch and hashes
   and [registration](src/registration.rs).
 - [Exact parameters and source hashes](SECURITY-REVIEW.md#exact-otvole-realization)
   and [dependency lockfile](Cargo.lock).
+- [Migration alternatives](DERIVED-SHARES-VIA-MIGRATION.md) and
+  [pool review evidence](OT-POOL-REVIEW.md), subject to the corrections and
+  route-specific O1–O6 statuses in the
+  [contract reconciliation](CONSTRUCTOR-SECURITY-CONTRACT.md#reconciliation-of-claudes-migration-and-pool-review).
+  The proposal that either registration mode closes O1 is not an accepted premise.
 
 PairKey's honest contributions are root-derived scalars `a,b`; public key
 `Q=(a+b)G` is represented as shares `a/2,-b` at coordinates 1,2. An immutable
@@ -85,6 +90,49 @@ is the leading direction for reusing the paper's argument, not a completed
 proof that Theorem 7.2 carries over. Existing Schnorr checks remain in place;
 any versioned registration change requires a separate implementation review.
 
+### Q1a Native migration and initial derived-key generation O1/O6
+
+The pinned migration wrapper supplies the local additive contribution directly
+as `KeyRefreshData.s_i_0`. `run_inner` uses it as the polynomial constant,
+commits to the full coefficient-point vector in round 1 (including that constant
+point), checks the expected Q, and returns complete native keyshare/OT/zero state.
+Can Silence support this as an additive-share import with root-derived honest
+inputs, without assuming a previously secure DKG? Please identify whether the
+contract is fresh-key generation or imported-key signing, and give the input
+distribution and prior-disclosure requirements. Does any review explicitly cover
+this use, beyond shared implementation with refresh? The README lists migration
+as unaudited.
+
+Would you provide a separately typed initial derived-keygen mode, or another
+supported API, that fixes supplied local constant terms using fresh protocol
+randomness but learns Q inside the first run? Recovery would always require
+the recorded expected Q. An optional wrapper argument alone is not sufficient:
+the internal expected-key type/validation and chain-code policy also change.
+
+Please address this first-run failure trace: honest A is revealed, the corrupt
+peer aborts, no wallet record is produced, and a new first-run attempt lets it
+choose a different b after learning A. Concurrent first runs have the same
+problem. Is a durable reservation of the root/role/key-ID contribution namespace,
+one initial attempt, and permanent retirement after potentially revealing failure
+sufficient under the proposed model? Alternatively, what native transcript state
+must be durably retained for exact recovery without a fresh adversarial choice?
+Previously disclosed contributions cannot be made fresh by changing identities
+or ceremony IDs while retaining the same KDF inputs.
+
+Which chain-code policy is supported for initial mode: native jointly generated
+chain code, or a specified public deterministic rule? Our current H(key_id,Q)
+cannot be supplied before Q is known. H(key_id) would change existing child
+addresses and needs an explicit versioned contract; it is not a silent substitute.
+What final-record agreement and crash-recovery requirements accompany this API?
+
+**Requested result:** a supported API and lifecycle/input contract, with explicit
+proof and audit scope, rather than approval of a proposed three-to-five-line patch.
+Mode 1 (external contribution commitment plus migration) and Mode 2 (native
+initial derived-keygen) remain candidates; neither is assumed to inherit
+Theorem 7.2 automatically. The additive-tweak fallback also remains unproved:
+if supported, please identify a result covering adversarial b(A), concurrent
+queries and the resulting threshold/public-child-key family.
+
 ### Q2 Representation and public child derivation O2
 
 Are fixed coordinates `[1,2]`, ranks `[0,0]`, and the converted shares `a/2,-b`
@@ -101,6 +149,12 @@ offsets `delta`, across multiple wallet keys and signatures?
 and key family, not merely confirmation that interpolation and ECDSA verification
 work. The separate invalid-child `IL == n` boundary issue remains deferred; no
 dependency change is proposed in this draft.
+
+For Q1a's migration route, the custom fixed-coordinate constructor is absent:
+we retain the native output without a splice. Please separate this eliminated
+representation boundary from the still-relevant root-input and public chain-code/
+child-derivation obligations. A native package does not establish the provenance
+of its imported secret by its format alone.
 
 ### Q3 Imported preprocessing and common zero material O3
 
@@ -132,6 +186,15 @@ bias conditioned on completion and repeated failed setups?
 signing, and a reviewable mapping or identified gap for our setup. Local type
 compatibility and cancellation algebra are already checked.
 
+Additional source evidence confirms both base-OT direction order (OT receiver
+first), PPRF direction order (builder first), the reversed RVOLE seed roles, and
+the two-party EachParty[0] zero-seed slot. The layout test copies native seeds
+and checks constructor placement; it does not generate seeds through our pool.
+The native lower-indexed party samples the pair seed alone. Please distinguish
+the fact that both signers know it from the separate question of selective abort
+and adversarial seed choice. Withholding a pool reveal may cause only a timeout
+burn, not an attributable quarantine.
+
 ### Q4 Offline preparation and later binding O4
 
 Can these base-OT/PPRF seeds and zero material be generated before the wallet,
@@ -149,6 +212,21 @@ published or internal argument for this offline/online split that can be cited?
 **Requested result:** a supported composition statement, or the exact additional
 PairKey binding/order requirement. We are not asking to alter native challenges
 or OT/VOLE parameters on the basis of the 2026 reference.
+
+Section 8.2 explicitly amortizes OT setup per pair across extension instances,
+and section 3.1 allows zero-seed reuse. We do not consider offline setup or reuse
+alone a defect. The remaining question is the exact concrete composition above.
+In the pinned implementation, final_session_id binds the package SID and round-1
+SIDs for MtA, but zeta is indexed by digest_i (DSG label, ordered round-1 SIDs
+and nonce commitments), which does not directly contain the package SID. Please
+assess this actual trace together with native envelope/instance checks; do not
+assume every hash directly includes the consumption digest. The cited native
+duplicate check concerns party IDs, not round-1 SIDs.
+
+If instead PairKey caches the entire native migration package per wallet in RAM,
+the wallet-independent pool boundary disappears. What cache generation,
+agreement, lifetime and failure/refresh rules preserve the native reusable-seed
+contract across repeated signatures and process restarts?
 
 ### Q5 Failure handling and session scope O5
 
@@ -174,6 +252,13 @@ Cross-host authority and hostile rollback protection are outside the experiment.
 local boundary is sufficient for the claimed research model. Identify any
 additional attribution assumptions specific to the two-party case.
 
+The saved mismatch experiment reported peer-ban errors for mixed OT material
+and consistency-check-3 failures for differing zero seeds. Its assertions require
+only some error, so this is observed diagnostic evidence, not an exhaustive
+failure-classification test. Please confirm the required actions independently
+of that observation, including whether configuration changes may ever clear a
+pairing incident and under what authority.
+
 ### Q6 Audit correspondence and current native specification O6
 
 Please map the audit's DKLS23 target
@@ -194,6 +279,12 @@ evidence of an exploit.
 **Requested result:** a source-linked revision/coverage matrix, explicit unsupported
 interfaces and current specification references. A blanket statement that DKLS23
 was audited does not establish coverage of PairKey's custom constructor.
+
+Please identify a vouched revision and any review extension covering migration
+with independently root-derived inputs or the proposed initial derived-keygen
+mode. Keeping the native package intact removes our constructor/pool boundaries;
+it does not by itself transfer refresh audit coverage to a different input
+contract. A source-linked confirmation is requested before any pin upgrade.
 
 Protocol 5.2's stated dimension rules give `xi=512` and `rho=1` at the locked
 values `kappa=256`, `lambda_s=128`, `lambda_c=256`. This is parameter-rule

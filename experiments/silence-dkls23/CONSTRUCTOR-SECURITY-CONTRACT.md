@@ -1,6 +1,6 @@
 # Draft Spike C constructor security contract
 
-Draft version 2, 2026-10-11. This contract describes the PairKey replacement
+Draft version 3, 2026-10-11. This contract describes the PairKey replacement
 boundary around Silence DKLS23 signing. It separates implemented checks from
 environmental assumptions and unresolved cryptographic obligations. Finding C1
 (custom key generation and preprocessing composition) remains **OPEN**.
@@ -255,6 +255,15 @@ This trace establishes propagation, not that a hash of earlier setup includes
 future native online messages or that every Fiat–Shamir dependency is sufficient.
 O4 must assess the actual native challenge order and adaptive consumption.
 
+The zero-mask trace is different from the MtA trace: native `dsg.rs:169-183`
+computes `digest_i` from the DSG label, ordered round-1 session IDs and nonce
+commitments, and `dsg.rs:233-234` passes **that digest**, not `final_session_id`,
+to `get_zeta_i`. The latter hashes the pair seed and this digest with its labels.
+Thus package/consumption binding must not be described as a direct input to every
+native hash. The native instance/envelope and other transcript checks remain
+part of the argument. `dsg.rs:139-152` rejects duplicate/out-of-range **party
+IDs**; it does not establish rejection of duplicate round-1 session IDs.
+
 ## Native key generation properties and open obligations
 
 | ID | Replacement boundary and unresolved obligation | Required closure evidence |
@@ -265,6 +274,120 @@ O4 must assess the actual native challenge order and adaptive consumption.
 | **O4** | PairKey prepares material before wallet/message selection and binds a single later consumption. Establish security under adaptive choice, concurrent setup/consumption and the concrete identifier/challenge ordering. | Written composition argument for this offline/online split, naming any restrictions. Functional signing and identifier tracing alone do not close it. |
 | **O5** | PairKey burns failed material and locally fences the signer pairing. Determine which failures require stopping simultaneous and future sessions, and over which identity/wallet/configuration scope. | Upstream failure-to-action contract plus an assessment that the local scope satisfies the claimed deployment model. State restrictions beyond cooperating local processes. |
 | **O6** | Historical audit evidence must be connected to the exact pin and dependencies, and its native guarantees separated from imported material. | Source-linked audit/revision/patch coverage matrix; current disposition of TOB-SILA-13 and combined OT specification; explicit supported/unsupported import assumptions. |
+
+### Reconciliation of Claude's migration and pool review
+
+Reviewed the notes committed in `f2adfc4` and `74b4564`, and the supplied
+`CLAUDE-TLDR-FOR-ASTRA.md`. This section qualifies their closure claims for this
+contract. The source mappings below were checked against the local patched pin;
+the saved layout-test source and log were inspected, not independently rerun in
+this documentation update. No signing/registration code, native parameter or
+dependency is changed.
+
+**Confirmed implementation evidence:**
+
+- Native migration passes the additive contribution directly to `run_inner`;
+  `dkg.rs:209-210` fixes the polynomial constant to it. The round-1 hash
+  (`hash_commitment`, `dkg.rs:752-775`) includes every polynomial commitment
+  point, including the constant-term point. This is real commitment ordering
+  within an attempt, not a claim that earlier disclosures become hidden again.
+- The expected-key check runs before processing the peer OT1 round.
+  Local OT1 is already generated and queued at `dkg.rs:294-328` before the R2
+  reveal/key check. Do not generalize the check to "before any OT message".
+- Pool base-OT IDs order **OT receiver, OT sender**, corresponding to native
+  **message sender, message receiver**. PPRF IDs order builder/sender, evaluator/
+  receiver. `SenderOTSeed` feeds `RVOLEReceiver`; `ReceiverOTSeed` feeds
+  `RVOLESender`. Both two-party keyshares store their common zeta seed in
+  `EachParty[0]`. These placement/direction questions are resolved locally.
+- Section 8.2 (printed p. 64) explicitly amortizes endemic OT setup per pair
+  across extension instances; section 3.1 permits reuse of zero-sharing seeds.
+  This supports the modular design direction. Offline preparation is not by
+  itself an identified defect. The cost assumption does not supply the missing
+  argument for PairKey's concrete adaptive wallet selection and identifiers.
+- Migration returns native shares/coordinates and complete native setup state.
+  When that state is retained intact, there is no PairKey constructor, fixed
+  coordinate conversion, pool coin flip or separate PairKey OT channel.
+  Authenticated transport and request/lifecycle responsibilities still exist.
+
+| Obligation | Spike C status after this evidence | Migration route, with complete native output |
+|---|---|---|
+| O1 | **Open.** Neither proposed registration mode closes the root-input/functionality argument. | **Open.** Commitment-first registration or initial derived-keygen needs the KDF, commitment, first-disclosure and retry argument. |
+| O2 | Layout/interpolation supporting checks strengthened; admissibility and public child-key argument **open**. | Custom fixed-coordinate/constructor sub-obligation **not applicable**. Root-input distribution remains O1; public deterministic chain code and child derivation remain **open**. |
+| O3 | Direction, storage and primitive-call correspondence established locally; malicious joint distribution and zero-seed/abort composition **open**. | Separate PairKey preprocessing replacement **not applicable** if all native state is retained. Native OT realization and imported-input coverage remain upstream questions. |
+| O4 | MtA propagation and local single-use evidence strengthened; adaptive offline/online composition **open**. | Wallet-independent pool boundary **not applicable**. A warm cache still needs agreed generation, lifetime, invalidation and concurrency rules. |
+| O5 | Local error-action evidence strengthened; required cross-session/identity/configuration scope **open**. | Native failure duties and local enforcement still apply; cache eviction does not authorize retry after a ban-worthy error. |
+| O6 | **Open**, including audit-to-pin correspondence and historical TOB-SILA-13. | **Open**, including explicit migration/derived-input coverage. Shared implementation is not sufficient audit attribution. |
+
+The pool review's statement that all closable rows are closed is accepted only
+for the specific checked implementation properties, not as closure of O3/O4.
+The same primitive calls and valid signatures do not prove equivalence against
+a malicious peer choosing messages, aborts and later wallets adaptively. The
+zero seed being known to both parties is expected in two-party signing; this
+does not prove every seed-selection/abort strategy immaterial. Withholding a
+reveal can appear as a timeout and burn the generation without peer quarantine;
+the claim that every such abort incurs quarantine is not supported by the code.
+The old coverage-plan test expecting disagreement to return an entry remains
+incorrect: reservation precedes agreement and burns the entry.
+
+**Mode 1 remains a candidate construction.** A point commitment plus migration
+is not literally Protocol 7.1, which uses committed polynomial data and private
+evaluations. Establish the required commitment functionality and joint output
+mapping before invoking Theorems 7.2/4.1. Include the joint wallet/identity KDF
+assumption, reduction bias, prior disclosures (including ordinary worker startup
+Hello, not only pool Describe), and exact retries. Preserve the existing
+chain-code rule for this candidate rather than change addresses incidentally.
+
+**Mode 2 needs more than an optional expected-key field.** A first attempt may
+reveal the honest constant point and abort before any public record is saved.
+A retry with no expected key then permits a newly chosen corrupt contribution
+after that disclosure. Concurrent first attempts can likewise choose different
+corrupt constants, despite deterministic honest inputs. A supported design must
+reserve/serialize the contribution namespace before the first attempt, and
+either resume against durably fixed peer commitments or retire the identifier
+after any potentially revealing failed/uncertain attempt. Merely persisting one
+winning output with create-new does not supply this property. Previously exposed
+contributions are ineligible for a fresh-keygen claim under a new ceremony ID.
+
+Prefer an upstream interface that distinguishes initial derived-key generation
+from recovery/migration with a required expected key. The native
+`KeyRefreshData.expected_public_key` type and validation, not only the wrapper
+argument, would change. Chain-code policy also needs an explicit mode: the
+existing `H(key_id,Q)` cannot be supplied before an unknown Q is generated.
+Changing it to `H(key_id)` is an address/contract change; native fresh chain-code
+generation is another upstream design option. Neither is approved here. Fresh
+native RNG, durable public records and recovery checks remain required.
+
+**Additive-tweak fallback:** retain only as an unproved research question, not
+as a closure route or basis for dropping registration protection. Honest-key
+ECDSA unforgeability or public BIP32 offsets alone do not establish threshold
+signing for a malicious scalar chosen after seeing the honest point. A proposed
+result must cover that key-selection oracle, proof/extraction assumptions if
+needed, repeated/concurrent registrations and signing under the resulting key
+family. No such reduction is supplied by the reviewed notes.
+
+**Layout-test disposition:** keep the submitted source/log as review evidence;
+promote a strengthened version to the automated suite in a separate test-only
+change if this constructor remains. It deliberately reconstructs the synthetic
+test key and re-shares it at coordinates 1/2, so it is not a distributed import
+procedure or a test of pool-generated seed distribution. The excluded fields
+are intentional; random native coordinates prevent direct whole-buffer equality
+for this fixed-coordinate constructor, not all byte-identical splice tests.
+An identity splice preserving native coordinates/shares is still testable.
+Before promotion, require exactly two completed results, bounded completion,
+typed expected errors (the submitted negatives assert only `any(is_err)`),
+explicit signature verification and no accepted signature on either negative
+path. Use independent fresh material for each case and retain pin/patch/command
+provenance; do not add a production secret-state accessor just for the test.
+
+The option comparisons also need a cold-wallet qualification: a wallet-independent
+pool can hide setup latency for the first signature on a newly selected wallet,
+whereas O-C' needs that wallet's native package first. Later warm-cache signing
+has no corresponding setup cost. Per-attempt migration refreshes OT too, so
+freshness is not unique to the pool. O-C' performance is still a projection.
+NEAR's different triple/preprocessing architecture is not a contract for stripping
+Silence keyshares; the precise "scalar only/per triple" claim is not used to
+close any obligation here. The 2026 dimension question stays supplementary and
+is not a new acceptance gate for unchanged Silence parameters.
 
 The public child offset `delta` produces native weighted contributions of the
 form `a + delta/2 - z` and `b + delta/2 + z`, which sum to `a+b+delta`.
@@ -343,6 +466,12 @@ implementation review; if neither option has an argument, C1 remains open.
   failures, wrong/missing publication acknowledgments, duplicate replies, reader
   failures and incomplete drain. Real worker cases cover idle/active typed
   cutoffs; [lifecycle.rs](src/lifecycle.rs) tests preserve original failure causes.
+- **E6 — Submitted layout/mismatch experiment:** Claude's
+  [test source](review-evidence/pairkey_research_layout_test.rs) and
+  [saved output](review-evidence/pairkey_research_layout_test.output.txt)
+  support field-placement and observed mismatch diagnostics, with the limits and
+  test-promotion requirements in the reconciliation above. Source/log inspection
+  in this update is not an independent runtime reproduction.
 
 The prior remediation validation recorded 83 distinct tests across default and
 fault-feature configurations, plus formatting, Clippy and a release build; see
