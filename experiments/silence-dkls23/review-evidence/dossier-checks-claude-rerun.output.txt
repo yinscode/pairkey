@@ -1,0 +1,9 @@
+# Claude independent rerun of donor-proof/checks.py from commit 3b065e5, 2026-10-12
+# command: python3 -I checks.py --repo <codex worktree> --output <scratch>/checks.json; registry package sl-oblivious-1.0.0-beta
+algebra_checks: passed; prehash_equivalence: confirmed; params: unchanged
+variant III at m=512: s=12 holds (rhs 511.99), s=13 fails (rhs 529.91); minimum m: s=60 -> 1408, s=128 -> 2656
+35-bit truncation: rhs without the 2s*log(e*m/s) term 511.34, full rhs 883.28; the table row contains the term
+hypothetical p=2^-12 detection: P(no success in 4096 trials)=0.368; 12,270 trials for 95% chance of one; not an attack rate
+scalar reduction total variation: 256-bit reduce 2^-127.65, 512-bit reduce 2^-258.08
+source anchors resolved with sha256: 17
+full json: /private/tmp/claude-501/-Users-user-Library-Application-Support-Claude-scratch-workspaces-8bd3f48d-7603-4ff4-b8a2-a7c6517f6ab9-65724095-b3a8-4b28-acb3-a40e39e2dc3f-scratch-2026-10-10-59f604/37f19edb-a303-4cce-a75a-ef7c66a6aa56/scratchpad/dossier-check/checks.json

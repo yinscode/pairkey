@@ -80,7 +80,7 @@ them. Algebraic consistency of the shares is necessary, not sufficient; sufficie
 | Item and theorem | Code | Inputs, correlations, adversary knowledge | Enforcement and tests | Gap or counterexample |
 |---|---|---|---|---|
 | Donor DKG is an honest native key generation with fresh randomness, Theorem 7.2 route | `Service::prepare`, `src/d_worker.rs:264-354`: context digest over peers, boot generations, configuration, limits and attempt, line 272; attempt id burned on disk before any message, 283; counter issued, 287; hedged seed, 288; `keygen::run`, 314; errors mapped by `Failure::native_migration`, 316-325 | the donor key is random and never used; the adversary learns the donor public key and, as a participant, its own share and seeds | `native_donor_violation_and_aggregate_failure_matrix` covers PPRF corruption and abort-send loss (`process_tests.rs:217`) | none specific to D; the base-OT selective-abort leakage of section 5 applies here exactly as in native DKG |
-| Separability of seeds and zero seed from the donor signing key | `keygen/dkg.rs`: base OT receiver randomness and sender randomness come from the protocol RNG independently of the polynomial, lines 296-330 and 446-470; the zero seed is sampled by the lower-indexed party, 476-480, stored at 556; the final DLog proofs, 626-642, cover shares and chain code only; no native check relates seeds to the key | the seeds are random correlations statistically independent of the donor polynomial given the RNG | `Donor::extract`, `src/d/material.rs:57-112`: pinned offsets 172, 98, 368, zero slot at 66 of entry 0, sizes 32,768 and 32,832 checked, copies in zeroizing owners, the donor keyshare dropped at line 99 with native `ZeroizeOnDrop`; `native_donor_extraction_reuses_exact_material_with_concurrent_transient_wallets` (`tests.rs:366`) | established at the implementation level. The formal statement that signing with these seeds equals signing with freshly generated ones is immediate in the hybrid model once A7 holds; it should be written as a corollary of the realization lemma, not assumed |
+| Separability of seeds and zero seed from the donor signing key | `keygen/dkg.rs`: base OT receiver randomness and sender randomness come from the protocol RNG independently of the polynomial, lines 296-330 and 446-470; the zero seed is sampled by the lower-indexed party, 476-480, stored at 556; the final DLog proofs, 626-642, cover shares and chain code only; no native check relates seeds to the key | the seeds and the donor polynomial are outputs of one seeded PRG; the usable statement is pseudorandomness of the joint stream given the public transcript, not statistical independence | `Donor::extract`, `src/d/material.rs:57-112`: pinned offsets 172, 98, 368, zero slot at 66 of entry 0, sizes 32,768 and 32,832 checked, copies in zeroizing owners, the donor keyshare dropped at line 99 with native `ZeroizeOnDrop`; `native_donor_extraction_reuses_exact_material_with_concurrent_transient_wallets` (`tests.rs:366`) | established at the implementation level. The formal statement that signing with these seeds equals signing with freshly generated ones is immediate in the hybrid model once A7 holds; it should be written as a corollary of the realization lemma, not assumed |
 | Representation validity: the package is a legitimate output form of Functionality 3.2 | `Donor::package`, `src/d/material.rs:124-161`: shares `a/2` and `-b`, public shares `A/2` and `-B`, session id over record digest, generation and instance, extra data the instance; `Keyshare::pairkey_research_two_party`, `keygen/pairkey_research.rs:7-47`: non-zero share, non-identity points, distinct public shares, `2·S_0 - S_1 = Q`, `s·G = S_party`, ranks 0, coordinates 1 and 2, zero seed in entry 0, both seeds in the single peer entry | adversary knows `A`, `B`, `Q`, the coordinates and the public shares | layout test in `review-evidence/pairkey_research_layout_test.rs`; tamper matrix `transient_package_tamper_matrix_records_native_validation_boundary` (`native_review_tests.rs:220`) | counterexample recorded by the tamper matrix: native signing accepts a package whose public-share, key-id or extra fields were altered and signs the correct wallet; coordinate, aggregate-key and session alterations are refused. So record validation, `Record::local` and the constructor are the trust boundary for those fields, inside the honest process of A1. Not a vulnerability, a boundary to state |
 | Pairing and role fixedness | `Donor::package` refuses a record whose identities differ from the donor's, lines 129-132; the donor key may never be a wallet key, 125-128; generation agreed and journaled, `src/d_worker.rs:327-345` | | multiwallet and rotation tests (`process_tests.rs:75`) | roles are fixed per pairing by construction; a role swap would fail at the generation agreement or at native checks |
 
@@ -123,9 +123,10 @@ Enforcement and tests: `seed_hedge_keeps_entropy_and_separates_context_role_coun
 observer tests above, mismatched zero seed in the matrix test, which fails native check 3 at
 `sign/dsg.rs:429` and freezes. Gap: none at the binding level. Two facts to keep in view: the mask
 digest omits the package id, so the masks are session-bound but not wallet-bound, which is sufficient
-because they are public to both parties; and the only adaptive lever the peer holds is its own
-round-1 contribution, whose effect on the honest party is confined to which public mask value
-applies and to session-id grinding that the honest id defeats.
+because they are public to both parties; and within the session-id and mask domains the only adaptive lever the peer holds is its own
+round-1 contribution, whose effect is confined to which public mask value applies and to session-id
+grinding that the honest id defeats. In the full protocol it also chooses setup messages, requests
+and RVOLE inputs, which a simulator must handle; the trace does not replace one.
 
 ## 7. Obligation 5: failure and lifecycle composition
 
@@ -153,24 +154,32 @@ add as q·2^-128.
 
 The 2026/976 preprint, Theorem B.17, requires for the DKLs24 variant with the gadget chosen at the
 onset, which is the compiled `rvole.rs` arrangement, that `m ≥ log q + 7s + 2 log(s+1) + 2s·log(e·m/s)`
-for statistical parameter `s`. With `m = 512` and `log q = 256` the largest `s` satisfying it is 12;
-the simplified table row without the last term admits 35. If that analysis applies to the pinned code,
-the statistical margin per RVOLE instance is between 12 and 35 bits, not 128, and a cheating party
-passes a check with inconsistent inputs with probability up to about 2^-12 per instance rather than
-2^-128. Whether it applies, and to which party's input, is the reconciliation Silence owes; the
-preprint's section 4.5 attack in the endemic-OT hybrid model should be read against the compiled
-stack in the same exercise. Nothing in the donor design changes this; it is the margin of every
+for statistical parameter `s`. With `m = 512` and `log q = 256` the largest `s` for which that sufficient condition holds is 12.
+Corrected after the proof dossier at `3b065e5`: this says only that Theorem B.17 cannot certify more
+than a 12-bit statistical margin at these dimensions. It does not say the true margin is 12 bits, and it
+constructs no attack with probability 2^-12; the inequality is a sufficient condition for the
+theorem's last hybrid, which concerns the distribution of the receiver's masked input, not an
+acceptance probability for inconsistent products. An earlier version of this paragraph also quoted 35
+bits from a table row; that figure dropped the `2s·log(e·m/s)` term, which wraps to the next line in
+the table, and is withdrawn. The theorem is also stated in the Sender Random OT hybrid, so applying
+it to the compiled endemic stack needs its own mapping. Section 4.5 of the preprint attacks the
+endemic hybrid by letting the VOLE sender choose its OT outputs after the challenge; in the compiled
+code the sender's extended outputs are determined by base-OT material fixed at donor time and by the
+receiver's matrix, both before `theta` is derived from the correction rows, so that attack does not
+transfer as stated, and the lemma to write is the output-fixing premise of Claim 6.7 for the SoftSpoken
+realization. Whether the dimension condition can be met by a different argument at `ξ = 512` is the
+reconciliation Silence owes. Nothing in the donor design changes this; it is the margin of every
 Silence signature at this pin.
 
 What bound can be stated across attempts, wallets and generations today: none that is independent of
 A7 and A8. Conditionally, with A7 and the paper's own margins, each session is independent given
 fresh ids, and the leakage an adversary can accumulate against one generation's correlation secret
 before retirement is bounded by the guess-set model, k bits with probability 2^-k, with no carry-over
-between generations because each has fresh base OTs. Under the 2026/976 margin instead, the operative
-cap is the policy: a failed cheat quarantines the pairing permanently under A10, so exposure per
-adversary identity is about 2^-s per generation it is allowed to attack; across many pairings or
-with resettable quarantine that cap does not hold. That is why A10 is listed as an assumption and
-why the reconciliation is the most consequential open item.
+between generations because each has fresh base OTs. If the true per-instance margin were ever shown to be small, the quarantine policy under A10 would
+bound the expected number of successful attempts per pairing, not prevent a first success; a
+non-negligible attack probability is answered by a cryptographic fix or a narrower claim, not by
+lifecycle controls. That is why A10 is an assumption and not a bound, and why the reconciliation is
+the most consequential open item.
 
 ## 9. Independent rerun
 
@@ -223,10 +232,12 @@ found, and functional correctness at scale.
   session-bound digest realizes Functionality 3.4's leakage profile. Routine, but it should be on paper.
 
 **Most useful adversarial experiments, in order.**
-1. A cheating RVOLE party in a scratch `sl-oblivious` that follows the 2026/976 analysis and measures
-   the actual pass rate of inconsistent inputs against the compiled checks at `ξ = 512`. If the margin
-   is near 12 bits, a few thousand trials show it; if near 128, nothing does. This is the only
-   experiment that can move L3 locally.
+1. Two separate RVOLE experiments in a scratch `sl-oblivious`, as the dossier distinguishes: a
+   consistency experiment, an explicit admissible cheating algorithm for a named corrupt role against the
+   unmodified honest endpoint, measuring whether inconsistent products are accepted; and a distribution
+   experiment at reduced parameters reproducing the preprint's leftover-hash mechanism. Neither certifies
+   the production dimensions, and no 2^-12 rate is a prediction; with zero successes only a binomial bound
+   on that algorithm follows.
 2. An accepted leaky donor carried into signing, then a cheating extension receiver using the known
    base-choice bits, measuring the consistency-check pass rate against the predicted 2^-(4-k) per
    chunk; confirms the amplification analysis and the retirement policy's effect.
@@ -252,3 +263,28 @@ found, and functional correctness at scale.
    A4, A10 and snapshot policy.
 6. Concrete security: L3 from Silence or an independent cryptographer, with the pinned parameters
    held fixed; this is the item that gates any production claim for any route, donor or not.
+
+## 11. Erratum and additions after the proof dossier at `3b065e5`
+
+Applied in place above, recorded here for the reader of the earlier version:
+- Section 8: the 35-bit figure is withdrawn; it omitted the `2s·log(e·m/s)` term of Theorem B.17.
+  The 12 is what the sufficient condition certifies at `m = 512`, not an estimate of the true margin
+  and not an attack probability. The theorem's Sender Random OT premise and its section 4.5 attack are
+  now described against the compiled stack.
+- Section 8: the quarantine policy bounds expected successful attempts; it cannot prevent a first
+  success. Wording changed accordingly.
+- Section 4: independence of seeds and donor share restated as pseudorandomness of one PRG stream.
+- Section 6: the peer's adaptive lever is confined to the session-id and mask domains only.
+- Section 10: experiment 1 split into consistency and distribution questions.
+
+Additions:
+- **Prehash equivalence.** ECDSA reduces the digest modulo the group order, so prehashes `h` and
+  `h + q` below 2^256 verify under the same signature. Any claim or journal keyed by the raw 32-byte
+  prehash must instead be keyed by the digest modulo `q`, and the request validator should refuse a
+  prehash at or above `q`, which costs nothing and removes the ambiguity. This is a claim-definition
+  point, not an attack on PairKey.
+- **L5, public-tweak signing.** Child keys are the root key plus public offsets, so the signing game must
+  cover an oracle for the whole family of tweaked keys, or a reduction that simulates all child oracles
+  consistently. This was folded into O2 above and is now a named missing lemma.
+- **A7 is a realization assumption, not a conclusion.** The structural tests show its preconditions are
+  met; they do not supply it.
