@@ -1,5 +1,6 @@
 //! Isolated research harness. No production authorization or TEE claims.
 mod authority;
+pub mod d;
 pub mod lifecycle;
 pub mod pool;
 pub mod registration;
@@ -316,6 +317,8 @@ pub struct Outcome {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", content = "body")]
 pub enum Frame {
+    DCommand(Box<d::Command>),
+    DReply(d::Reply),
     Hello(Hello),
     Start(Box<Request>),
     Setup(Vec<u8>),

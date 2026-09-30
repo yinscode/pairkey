@@ -30,6 +30,7 @@ impl Probe {
     pub fn setup(&self, label: &str) {
         if (self.stage == "setup" && matches!(label, "base-ot-1" | "pool-base-ot-1"))
             || (self.stage == "consume" && label == "pool-reservation")
+            || (self.stage == "setup" && label == "d-sign-generation")
         {
             self.armed.store(true, Ordering::SeqCst);
         }
@@ -53,6 +54,9 @@ impl Probe {
                     || (self.stage == "first-native" && !self.armed.swap(true, Ordering::SeqCst))
             }
             Frame::Result(_) => self.stage == "result",
+            Frame::DReply(pairkey_dkls23_research::d::Reply::Signed { .. }) => {
+                self.stage == "result"
+            }
             _ => false,
         };
         if !selected {
@@ -117,13 +121,16 @@ pub fn observe(frame: &Frame) {
                 | Frame::Result(_)
                 | Frame::WalletEndorsement(_)
                 | Frame::WalletRegistered(_)
+                | Frame::DReply(pairkey_dkls23_research::d::Reply::Signed { .. })
         )
     {
         use std::io::Write;
         let kind = match frame {
             Frame::Relay(_) => "native",
             Frame::Setup(_) => "setup",
-            Frame::Result(_) => "result",
+            Frame::Result(_) | Frame::DReply(pairkey_dkls23_research::d::Reply::Signed { .. }) => {
+                "result"
+            }
             Frame::WalletEndorsement(_) => "endorsement",
             _ => "commit",
         };

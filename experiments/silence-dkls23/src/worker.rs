@@ -536,6 +536,7 @@ mod tests {
                 control_inputs.push(controls);
                 outputs.push(out);
                 wires.push(Wire {
+                    d_guard: None,
                     tx,
                     rx,
                     control,

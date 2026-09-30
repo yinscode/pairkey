@@ -1,3 +1,5 @@
+mod d_driver;
+mod d_worker;
 mod measure;
 #[cfg(all(test, feature = "research-faults"))]
 mod native_process_tests;
@@ -805,6 +807,27 @@ async fn compare(dir: &Path, samples: usize) -> Result<()> {
 async fn main() -> Result<()> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     match args.first().map(String::as_str) {
+        Some("d-bench") if args.len() == 2 => d_driver::bench(Path::new(&args[1])).await,
+        Some("d-worker") if args.len() == 6 => {
+            d_worker::run(
+                args[1].parse()?,
+                Path::new(&args[2]),
+                unhex(&args[3])?,
+                pairkey_dkls23_research::d::Limits {
+                    uses: args[4].parse()?,
+                    age_secs: args[5].parse()?,
+                    ..Default::default()
+                },
+            )
+            .await
+        }
+        Some("d-demo") => {
+            d_driver::demo(
+                Path::new(args.get(1).context("D demo requires ignored directory")?),
+                args.get(2).map(|s| s.parse()).transpose()?.unwrap_or(1000),
+            )
+            .await
+        }
         Some("compare") => {
             compare(
                 Path::new(args.get(1).context("compare requires ignored directory")?),

@@ -49,6 +49,7 @@ pub struct PartialProbe {
     pub bypass_gate: bool,
 }
 pub struct Wire {
+    pub d_guard: Option<Arc<pairkey_dkls23_research::d::R1Guard>>,
     pub abort_watch: Option<AbortWatch>,
     pub gate: Option<ReleaseGate>,
     #[cfg(all(test, feature = "research-faults"))]
@@ -87,7 +88,11 @@ impl Wire {
         });
         failed
     }
-    pub fn send(&self, frame: Frame) -> Result<()> {
+    pub fn send(&self, mut frame: Frame) -> Result<()> {
+        if let (Some(guard), Frame::Relay(bytes)) = (&self.d_guard, &mut frame) {
+            guard.fault_outbound(bytes);
+            guard.observe(bytes, true)?;
+        }
         #[cfg(all(test, feature = "research-faults"))]
         let process_target = self.process_probe.as_ref().is_some_and(|p| p.pause(&frame));
         let is_abort = matches!((&self.abort_watch,&frame),(Some(watch),Frame::Relay(bytes)) if bytes.get(..32)==Some(watch.id.as_slice()));
@@ -113,7 +118,8 @@ impl Wire {
         }
         let gated = matches!(
             frame,
-            Frame::Relay(_)
+            Frame::DReply(_)
+                | Frame::Relay(_)
                 | Frame::Setup(_)
                 | Frame::Result(_)
                 | Frame::WalletEndorsement(_)
@@ -151,7 +157,20 @@ impl Wire {
 impl Stream for Wire {
     type Item = Vec<u8>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Vec<u8>>> {
-        self.rx.poll_recv(cx)
+        match self.rx.poll_recv(cx) {
+            Poll::Ready(Some(bytes)) => {
+                if self
+                    .d_guard
+                    .as_ref()
+                    .is_some_and(|guard| guard.observe(&bytes, false).is_err())
+                {
+                    Poll::Ready(None)
+                } else {
+                    Poll::Ready(Some(bytes))
+                }
+            }
+            other => other,
+        }
     }
 }
 impl Sink<Vec<u8>> for Wire {
@@ -228,6 +247,7 @@ pub fn stdio() -> (
     });
     (
         Wire {
+            d_guard: None,
             gate: None,
             abort_watch: None,
             #[cfg(all(test, feature = "research-faults"))]
