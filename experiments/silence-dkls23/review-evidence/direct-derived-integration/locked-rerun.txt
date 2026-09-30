@@ -1,0 +1,28 @@
+Upstream pin: af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7
+Scratch: /tmp/pairkey-direct-review-9hou2i_f
+Native additions: exact existing research constructor + test-only material accessor
+   Compiling sl-dkls23 v1.0.0-beta (/tmp/pairkey-direct-review-9hou2i_f/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7)
+   Compiling pairkey-dkls23-research v0.1.0 (/tmp/pairkey-direct-review-9hou2i_f/research)
+   Compiling direct-derived-integration-probe v0.1.0 (/tmp/pairkey-direct-review-9hou2i_f/probe)
+    Finished `release` profile [optimized] target(s) in 5.70s
+     Running `target/silence-dkls23/release/direct-derived-integration-probe`
+PASS KDF determinism/role/wallet separation and wrong-root rejection; FINDING: same root/role/key-ID repeats a contribution across different peer pairs
+PASS constructor: valid input accepted; seven malformed/degenerate inputs rejected
+PASS registration: chain-code, coordinates, endorsement-role and signature mutations rejected
+PASS: discarded records reload from both public stores; wallet file schema contains record + endorsements only
+Stage 1 verified signatures: 100
+Stage 1 verified signatures: 200
+Stage 1 verified signatures: 300
+Stage 1 verified signatures: 400
+Stage 1 verified signatures: 500
+Stage 2 verified signatures: 100
+Stage 2 verified signatures: 200
+Stage 2 verified signatures: 300
+Stage 2 verified signatures: 400
+Stage 2 verified signatures: 500
+  expected rejection: [Err(InvalidFinalSessionID), Err(InvalidFinalSessionID)]
+  expected rejection: [Err(InvalidFinalSessionID), Err(InvalidFinalSessionID)]
+PASS: mixed wallets and setup generations rejected
+PASS: same roots + public record + same global setup deterministically reconstruct identical packages; signing randomness remains fresh
+RESULT: 500 derived-share signatures with per-wallet setup + 500 with shared OT AND masking state across 20 wallets
+LIMITS: no aggregate scalar reconstructed; local no-auth signing relay; native donors supply setup state; no proof of malicious registration/composition, distributed quarantine, rollback resistance or physical erasure

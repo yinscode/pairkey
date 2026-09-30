@@ -1,0 +1,192 @@
+Directly derived shares: two-stage integration review
+2026-10-11
+
+Conclusion
+The existing root-derived share representation works with the pinned native
+signer, both with dedicated per-wallet OT setup and with shared setup across
+wallets. The latter meets the functional shape of roots + global setup secrets
++ per-wallet public records. This is experimental compatibility evidence for
+the stated honest-party model, not a security audit or a proof that replacing
+native key generation preserves its malicious-security guarantees.
+
+What was reviewed
+Silence dkls23 af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7, freshly extracted from
+the cached upstream archive; sl-oblivious 1.0.0-beta. Only the exact existing
+PairKey research constructor and a test-only setup-material accessor were
+appended to the pristine keyshare module. Native signing was not edited.
+The actual research Root, Manifest, registration and WalletStore implementations
+were copied into the temporary build. Source hashes and Cargo.lock.used pin
+the reviewed inputs. Production/research application sources were not changed.
+
+Construction
+Each party independently holds a 32-byte root. The current KDF uses HKDF-SHA512,
+a versioned salt, and a versioned digest of (role, key ID), expands 64 bytes,
+reduces modulo secp256k1 order n, and rejects zero.
+
+    A derives a; B derives b.
+    Public contributions: A = aG, B = bG; Q = A + B.
+    Native coordinates: 1, 2; Lagrange coefficients at zero: 2, -1.
+    Native secret shares: s_A = a/2, s_B = -b modulo n.
+    Public share relation: 2S_A - S_B = Q.
+
+Only group points are added to obtain Q. The harness never computes a+b as a
+private scalar. Both endpoints do run inside one test process, so this does
+not demonstrate host/process isolation: that process has access to both roots.
+An actual deployment must keep the two roots under separate control.
+
+Results
+Stage 1: 20 registered wallets, separate native setup donor for each wallet,
+500 successful signatures.
+Stage 2: same 20 root-derived wallets, one native setup donor shared across all
+wallets, 500 successful signatures. Both OT directions AND the pairwise masking
+seed were reused. This differs from the earlier native-wallet experiment,
+which shared OT but preserved each wallet's original masking seed.
+
+Both stages ran batches of four, alternating concurrent sessions for the same
+wallet and different wallets. They covered root and m/0/7 paths, fixed and
+random prehashes. Each attempt reloaded roots from disk, loaded and validated
+the public registration, rederived secret shares, and constructed transient
+packages. Both outputs agreed; each signature independently verified under
+the intended derived public key, including recovery-ID validation.
+
+Checked boundaries:
+- KDF reproducibility after reload; role and wallet-ID separation; wrong-root
+  and wrong-role refusal.
+- Constructor accepts valid inputs and rejects seven invalid cases: party ID,
+  zero secret, inconsistent local secret, wrong aggregate Q, identity point,
+  equal public shares/constant polynomial, and swapped public shares.
+- Registration rejects altered chain code, coordinates, endorsement order,
+  and endorsement signature.
+- Both public stores reload the same registered records; wallet files have
+  the expected record + endorsements schema. Their defined fields are public.
+- Cross-wallet packages and packages from different setup generations fail
+  with InvalidFinalSessionID on both endpoints. These are binding checks;
+  they do NOT independently exercise detection of bad OT correlations.
+- Rebuilding from the same roots, public record and global setup yields
+  byte-identical packages. Fresh signing randomness is supplied separately.
+
+The complete 1,000-signature suite passed again using the resolved lockfile
+with --locked; locked-rerun.txt records that independent fresh-fixture run.
+
+The existing library test suite also passed: 34 passed, zero failed, three
+ignored subprocess entry points. Parent tests invoke the subprocess fixtures.
+These include registration crash/failure recovery and single-use pool checks.
+They do not establish a reusable-setup service's crash safety.
+
+What to persist in the proposed shared-setup design
+Secret per party, globally/pair-scoped:
+- Its root, with independently protected backup.
+- Its local sender/receiver OT setup state and the agreed pairwise masking
+  seed, bound to peer identities, roles, implementation/configuration, and
+  setup generation. Never copy both parties' private OT state to one host.
+Public per wallet:
+- Immutable registered record: key ID, identities and roles, public
+  contributions/Q, coordinates, chain code, supported versions/configuration,
+  and both endorsements. Keep the registry's prepared/committed recovery data.
+Durable operational state:
+- Setup generation/status, attempt uniqueness/replay information, failure and
+  quarantine records, and any reservation/consumption journal. This can be
+  global metadata; eliminating per-wallet secrets does not eliminate state.
+Transient secret state:
+- Derived share, constructed native package, signing randomness, extension
+  outputs, and presignatures. Do not reuse an attempted signing transcript or
+  presignature. Remove transient material after completion or abandonment.
+
+The harness stores only test roots and public registry files on disk; donor
+setup state stays in memory. It tests record/root reload, not persistence and
+recovery of an encrypted global OT store, host snapshot rollback, or guaranteed
+physical erasure. Stage 1's per-wallet donor secrets are an isolation control,
+not a deployment proposal satisfying the no-per-wallet-secrets requirement.
+
+Review findings and integration requirements
+1. Registration is a different key-generation ceremony.
+   It authenticates the complete record and proves possession of contributions,
+   but has no contribution commit-before-reveal phase. Honest independent root
+   derivation avoids an adaptive contribution choice in the stated model.
+   A malicious-party claim still needs a written mapping to DKLs23's relaxed
+   key-generation functionality and contribution-fixing assumptions. A Schnorr
+   proof and valid signature are not automatically that mapping. This review
+   does not claim a working attack against the current registration protocol.
+
+2. KDF scope must be explicit before deploying multiple pairs.
+   The test confirms that the same root, role and key ID repeat the same public
+   contribution with a different peer. Peer identity, tenant and root epoch
+   are not explicit KDF inputs today; the record's namespace label does not
+   change that fact. A fixed pair with a well-defined root/key-ID namespace is
+   consistent with the user's model. For broader use, specify canonical pair,
+   tenant, epoch and version separation in a reviewed new derivation version
+   or enforce an equivalent namespace policy. Changing the derivation changes
+   wallet keys; do not silently retrofit funded wallets.
+
+3. A constructor checks representation, not setup provenance.
+   It validates the share equations and local secret, not remote OT correlation,
+   peer agreement, setup transcript, root independence, or replay status.
+   Keep it behind validated registration and a setup authority. The harness
+   binds its package SID to the registered-record digest and donor setup SID;
+   this is an explicit test binding recipe, not a certified service protocol.
+
+4. Reuse setup state; keep all signing attempts fresh.
+   Native signing hashes fresh party session contributions with the package SID,
+   then separates multiplication sessions by direction. The masking function
+   uses a different digest of round-one session IDs and commitments; that digest
+   does not directly include the package/wallet SID. Consequently wallet binding
+   alone is not a substitute for fresh signing randomness, especially when the
+   masking seed is shared. Never derive signing RNG seeds just from a root and
+   wallet ID, restore an in-flight RNG snapshot, or restart a failed transcript.
+   Session uniqueness must hold across the entire shared setup context.
+   The earlier low-level probe demonstrated choice-XOR leakage from reusing
+   the same OT state and extension SID with different choices. This review
+   neither repeats that misuse nor asserts that functional success rules it out.
+
+5. The existing pool is single-use, not a reusable setup controller.
+   Passing its lifecycle tests does not authorize replacing consumption with
+   cloning. A shared service needs cross-wallet attempt allocation, authenticated
+   context binding, rollback/restart policy, and shared failure handling. A
+   cryptographically attributable violation must trigger the reviewed peer/setup
+   quarantine and concurrent-session cancellation policy. A different wallet
+   must not reset failure accounting. Transport timeouts need distinct handling.
+   Selective-abort leakage and the permitted failure/reuse policy require a
+   concrete security argument, rather than an invented universal reuse count.
+
+6. Root recovery is not proactive share refresh.
+   Fixed roots always regenerate the same contributions. Sequential compromise
+   of both roots can expose all wallets in their namespace even if OT setup was
+   rotated between compromises. Do not claim proactive security from OT rotation.
+   Supporting share refresh while preserving Q requires additional evolving
+   secret state or a separately reviewed recovery/derivation construction.
+
+7. Pin-specific audit and parameter coverage remain open.
+   The historical Silence audit does not cover this custom constructor and
+   registration/shared-setup composition by inheritance. The 2026/976 preprint
+   reports that original VOLE parameters require adjustment for intended security
+   levels. This review does not establish whether this exact dependency pin meets
+   a particular concrete security target. A cryptographer must reconcile the
+   actual parameter constants, failure model, dependencies and audit fixes.
+
+Review handoff
+Before making a malicious-security or production-readiness claim, obtain explicit
+answers for (a) the KDF/registration-to-keygen mapping, (b) reuse of both OT and
+masking state across keys and concurrent sessions, (c) session/failure/rollback
+rules and their enforcement, and (d) current VOLE parameter and audit coverage.
+Passing signing tests is evidence for functional correctness only. For the stated
+honest-party research objective, direct derivation is the tested route that
+avoids retaining randomized refresh/migration output shares per wallet.
+
+Reproduce
+python3 experiments/silence-dkls23/review-evidence/direct-derived-integration/run.py
+Requires this workspace's cached archive and Cargo dependencies. Builds offline
+in a temporary source tree, retaining the exact existing research constructor.
+Once Cargo.lock.used exists, the runner uses --locked. output.txt is the initial
+successful run; locked-rerun.txt records the reproducibility check. Signatures,
+roots, OT seeds and secret shares are not printed. sha256.json inventories evidence.
+
+Primary sources and related evidence
+https://eprint.iacr.org/2023/765
+  Relaxed key generation, signing, OT functionality and section 8.2 setup reuse.
+https://crypto.iacr.org/2022/papers/530630_1_En_23_Chapter_OnlinePDF.pdf
+  SoftSpokenOT section 2.3 selective-abort model.
+https://eprint.iacr.org/2026/976
+  Concrete VOLE parameter analysis (preprint; not a certification of this pin).
+../ot-cross-wallet-reuse/REPORT.txt and its primitive/native probe output.
+Research src/lib.rs, src/registration.rs, src/pool.rs; exact constructor and
+native sign/dsg.rs. reviewed-source-hashes.json and Cargo.lock.used identify inputs.

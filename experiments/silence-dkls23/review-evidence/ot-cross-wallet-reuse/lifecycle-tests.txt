@@ -1,0 +1,19 @@
+   Compiling pairkey-dkls23-research v0.1.0 (/Users/user/000/_COOL/pairkey/experiments/silence-dkls23)
+    Finished `release` profile [optimized] target(s) in 3.24s
+     Running unittests src/lib.rs (target/silence-dkls23/release/deps/pairkey_dkls23_research-0e20a1e5784a9bc8)
+
+running 11 tests
+test pool::tests::canonical_encoding_vector_and_domain_boundaries ... ok
+test pool::tests::consumption_binds_provenance_wallet_path_prehash_receipt_policy_attempt ... ok
+test pool::tests::transcript_is_arrival_independent_and_rejects_duplicates_missing_and_substitution ... ok
+test pool::tests::setup_inputs_exclude_wallet_and_payload_and_bind_roles_generation_config ... ok
+test pool::tests::bounded_pool_expiry_empty_and_wrong_generation_fail_closed ... ok
+test pool::tests::concurrent_refill_incident_and_reservation_share_release_cutoff ... ok
+test pool::tests::restart_discards_unused_pool_and_setup_ids_remain_burned ... ok
+test pool::tests::concurrent_reservation_has_one_winner_and_cancellation_stays_retired ... ok
+test pool::tests::pool_consumption_moves_seeds_into_one_bound_native_package ... ok
+test pool::tests::incident_fences_reserved_packages_and_discards_available_material ... ok
+test pool::tests::provenance_and_consumption_mismatches_burn_without_unreserve ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.05s
+

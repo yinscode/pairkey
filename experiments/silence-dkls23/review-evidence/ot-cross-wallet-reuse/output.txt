@@ -1,0 +1,28 @@
+Upstream pin: af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7
+Scratch: /tmp/pairkey-ot-reuse-3526r7xk
+Only upstream change: test-only Keyshare OT accessors
+   Compiling sl-dkls23 v1.0.0-beta (/tmp/pairkey-ot-reuse-3526r7xk/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7)
+   Compiling ot-cross-wallet-reuse-probe v0.1.0 (/tmp/pairkey-ot-reuse-3526r7xk/probe)
+    Finished `release` profile [optimized] target(s) in 4.21s
+     Running `target/silence-dkls23/release/ot-cross-wallet-reuse-probe`
+PASS negative control: SAME seed + SAME extension SID exposes choice-vector XOR; both individual checks accept
+PASS: fresh SID removes that cancellation; wrong SID and altered extension message are rejected
+PASS selective-abort reproduction: 22/32 accepted, all select the unmodified branch; 10/32 decode rejection. No wallet-key recovery tested.
+PASS: 20 native wallet controls; only OT regions replaced by the same matched donor setup
+Sequential cross-wallet signatures: 100
+Sequential cross-wallet signatures: 200
+Sequential cross-wallet signatures: 300
+Sequential cross-wallet signatures: 400
+Sequential cross-wallet signatures: 500
+Concurrent cross-wallet/same-wallet signatures: 100
+Concurrent cross-wallet/same-wallet signatures: 200
+Concurrent cross-wallet/same-wallet signatures: 300
+Concurrent cross-wallet/same-wallet signatures: 400
+Concurrent cross-wallet/same-wallet signatures: 500
+PASS: 1000 signatures verified under intended wallet/path; both outputs and recovery IDs agree; OT state unchanged
+  rejection: [Err(AbortProtocolAndBanParty(0)), Err(AbortProtocolAndBanParty(1))]
+PASS: mismatched OT states rejected
+  rejection: [Err(InvalidFinalSessionID), Err(InvalidFinalSessionID)]
+PASS: mixed-wallet packages with the same OT state rejected
+Local release timing: native control median 16.390 ms (n=20); reuse median 16.669 ms (n=1000, mixed concurrency; NOT a performance comparison)
+LIMITS: local in-process no-auth test relay; no production replay/rollback/quarantine enforcement tested; successful signatures do not prove secrecy or multi-wallet composition security.

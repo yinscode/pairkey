@@ -1,0 +1,83 @@
+OT setup reuse: local experiments, 2026-10-11
+
+Scope
+Pristine Silence dkls23 af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7 extracted
+from the cached archive. Only two test-accessor methods were appended to
+Keyshare in a temporary directory. No production protocol edits. Dependency
+sl-oblivious 1.0.0-beta; exact resolved dependencies in Cargo.lock.used.
+The local research checkout has other pre-existing changes; it was not used
+for the signing/primitive probe. It was used for the separate pool unit tests.
+
+Run
+python3 experiments/silence-dkls23/review-evidence/ot-cross-wallet-reuse/run.py
+This needs the workspace's cached upstream archive and Cargo dependencies.
+It creates disposable native source and builds a release binary. The source
+contains no wallet private-key reconstruction. Generated fixtures remain
+in memory; no secret state or signatures are logged. This is an in-process
+simulation with both endpoints under the harness, not two isolated hosts.
+
+Results (output.txt)
+20 independently generated wallet packages passed native signing controls.
+Each wallet then received the same donor OT region, on both parties. Byte
+assertions ensure all bytes outside the OT region stay unchanged, including
+wallet shares, coordinates, public key, chain code, setup SID and zero seed.
+500 sequential signatures and 500 signatures in batches of four all passed.
+Concurrency covers both same-wallet and different-wallet sessions. Sequential
+coverage alternates root and m/0/7 paths, and fixed versus random prehashes.
+All 1000 attempts independently verify under the intended derived public key,
+have agreeing party outputs and valid recovery IDs. OT state remains unchanged.
+Mismatched OT regions reject with AbortProtocolAndBanParty on both sides.
+Mixed-wallet packages using matching OT regions reject with InvalidFinalSessionID.
+
+Misuse/leakage tests
+With identical setup seed and identical extension SID, two distinct choice
+vectors both pass the native per-extension verification. XOR of public matrix
+messages reveals the XOR of the choices (checked over 32 bytes). Fresh padding
+randomness does not prevent this cancellation. This is a deliberate violation
+of the fresh-SID contract, not an attack on correctly separated sessions.
+A fresh SID removes that specific cancellation. Presenting a message under
+the wrong SID or changing a matrix byte is rejected.
+
+The existing selective-abort probe was independently reproduced using native
+EndemicOT and PPRF APIs: corrupt branch 0's curve-point encoding in one base OT.
+Of 32 fresh independent fixtures, 22 continued and passed PPRF verification;
+all accepted fixtures chose the unmodified branch. 10 returned Decode error.
+Thus observable acceptance filters a secret base choice. These are isolated
+primitive experiments, not retries against a live or quarantined peer.
+Neither experiment recovers a wallet private key.
+
+Lifecycle checks (lifecycle-tests.txt)
+11 existing pool unit tests passed. They cover context binding, duplicate
+reservation, cancellation, incident cutoff, mismatch retirement, expiry and
+restart behavior. Some use synthetic OT state; they test lifecycle behavior,
+not cryptographic security. They describe the current single-use pool, not a
+complete controller for a new cross-wallet reusable setup service. Host snapshot
+rollback and distributed quarantine enforcement were not tested.
+
+Interpretation and rules
+DKLs23 section 8.2 (printed p.64) explicitly assumes endemic OT-extension setup
+once per pair and reuse in later FEOTE instances. Functionality 5.1 requires a
+fresh SID. SoftSpokenOT section 2.3 explicitly models selective abort leakage.
+DKLs23 signing failure handling and the historical audit require stopping
+appropriate concurrent sessions and denylisting an attributable offending peer.
+
+Reuse persistent setup correlations only under the protocol's fresh-session,
+fresh-randomness, role, parameter and verification requirements. Never replay
+extension masks, nonces or presignatures. Store OT state as secret material.
+For a proposed shared setup service, quarantine/failure accounting must cover
+all uses of the shared context; a wallet change is not a reset. A transport
+timeout is distinct from a verified cryptographic violation. The precise
+cross-wallet failure policy and composition need review, rather than an invented
+fixed reuse limit or blanket claim of unlimited safety.
+
+These tests show functional cross-wallet reuse, rejection of selected faults,
+and two explicit leakage mechanisms. They do not prove secrecy, provide a
+security-bit bound, certify the current pin, or establish full malicious and
+concurrent composition security. The 2026/976 VOLE parameter-analysis paper
+also means old audit labels alone are insufficient for concrete-security claims.
+
+Sources
+https://eprint.iacr.org/2023/765 (sections 5.1 functionality, 8.2; signing abort handling)
+https://crypto.iacr.org/2022/papers/530630_1_En_23_Chapter_OnlinePDF.pdf (section 2.3)
+https://eprint.iacr.org/2026/976 (concrete VOLE security analysis)
+Native dkg.rs, sign/dsg.rs, sl-oblivious endemic_ot.rs and soft_spoken_ot.rs.
