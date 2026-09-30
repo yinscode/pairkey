@@ -807,6 +807,10 @@ async fn compare(dir: &Path, samples: usize) -> Result<()> {
 async fn main() -> Result<()> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     match args.first().map(String::as_str) {
+        Some("d-stress") if args.len() == 3 => {
+            d_driver::stress(Path::new(&args[1]), args[2].parse()?).await
+        }
+        Some("d-expiry") if args.len() == 2 => d_driver::expiry_probe(Path::new(&args[1])).await,
         Some("d-bench") if args.len() == 2 => d_driver::bench(Path::new(&args[1])).await,
         Some("d-worker") if args.len() == 6 => {
             d_worker::run(

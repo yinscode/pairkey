@@ -97,11 +97,20 @@ impl Session {
                         .env("PAIRKEY_NATIVE_RACE_STAGE", race)
                         .env("PAIRKEY_NATIVE_RACE_ROLE", role.to_string())
                         .env("PAIRKEY_NATIVE_RACE_BYPASS", victim.to_string());
+                    #[cfg(all(test, feature = "research-faults"))]
+                    command.env("PAIRKEY_TRACE_ALL", "1");
                 } else {
                     command
                         .env("PAIRKEY_D_STAGE", stage)
                         .env("PAIRKEY_D_ROLE", victim.to_string())
                         .env("PAIRKEY_D_PROBE", dir);
+                    #[cfg(all(test, feature = "research-faults"))]
+                    command
+                        .env("PAIRKEY_NATIVE_RACE_DIR", dir)
+                        .env("PAIRKEY_NATIVE_RACE_STAGE", "trace-only")
+                        .env("PAIRKEY_NATIVE_RACE_ROLE", role.to_string())
+                        .env("PAIRKEY_NATIVE_RACE_BYPASS", "0")
+                        .env("PAIRKEY_TRACE_ALL", "1");
                 }
             }
             let mut child = command
@@ -477,12 +486,19 @@ pub async fn demo(dir: &Path, samples: usize) -> Result<()> {
     for index in 0..3 {
         records.push(s.register(digest(b"D/demo-wallet", &index), None).await?);
     }
-    let (generation, donor) = s.prepare(None).await?;
+    let (mut generation, donor) = s.prepare(None).await?;
+    let mut rotations = vec![];
     let mut attempts = vec![];
     let mut instances = BTreeSet::new();
     let mut sessions = BTreeSet::new();
     let mut rs = BTreeSet::new();
     for i in 0..samples {
+        if i > 0 && i % Limits::default().uses as usize == 0 {
+            let (next, rotation) = s.prepare(None).await?;
+            ensure!(next != generation, "D donor rotation unchanged");
+            generation = next;
+            rotations.push(rotation);
+        }
         let key = records[i % 3].record.wallet.key_id;
         let r = s.request(key, generation, Some("repeat-entropy"), i)?;
         let other = r.clone();
@@ -506,7 +522,7 @@ pub async fn demo(dir: &Path, samples: usize) -> Result<()> {
     let r = s.request(records[0].record.wallet.key_id, next, None, samples)?;
     let after = s.sign_request([r.clone(), r]).await?;
     s.stop().await?;
-    let report = json!({"route":"D/donor-base","fixture":"two root files on one research host only","signatures":samples,"wallets":records,"donor":donor,"rotation":rotation,"after_rotation":after,"attempts":attempts,"instance_ids_unique":true,"observed_native_final_sids_unique":true,"aggregate_r_unique":true,"deliberately_repeated_os_entropy":"hedged with distinct context/counter","warm_sign_median_ms":median(attempts.iter().map(|r|r["wall_ms"].as_f64().unwrap()).collect()),"native_parameters":"unchanged","wallet_package_cache":false});
+    let report = json!({"route":"D/donor-base","fixture":"two root files on one research host only","signatures":samples,"wallets":records,"limits":Limits::default(),"donor":donor,"bounded_rotations":rotations,"rotation":rotation,"after_rotation":after,"attempts":attempts,"instance_ids_unique":true,"observed_native_final_sids_unique":true,"aggregate_r_unique":true,"deliberately_repeated_os_entropy":"hedged with distinct context/counter; uniqueness test, not protected entropy","warm_sign_median_ms":median(attempts.iter().map(|r|r["wall_ms"].as_f64().unwrap()).collect()),"native_parameters":"unchanged","wallet_package_cache":false});
     std::fs::write(
         dir.join("spike-d.json"),
         serde_json::to_vec_pretty(&report)?,
@@ -560,5 +576,223 @@ pub async fn bench(dir: &Path) -> Result<()> {
         serde_json::to_vec_pretty(&report)?,
     )?;
     println!("{}", serde_json::to_string_pretty(&report)?);
+    Ok(())
+}
+
+async fn finish_failed(session: &mut Session) -> Result<()> {
+    session.inputs.clear();
+    for child in &mut session.group.children {
+        ensure!(
+            tokio::time::timeout(Duration::from_secs(5), child.wait())
+                .await??
+                .success(),
+            "D failed worker did not shut down cleanly"
+        );
+    }
+    for reader in &mut session.group.readers {
+        reader.await?;
+    }
+    Ok(())
+}
+fn expected_hygiene_refusal(error: &anyhow::Error) -> Result<Value> {
+    let t = error
+        .downcast_ref::<Terminals>()
+        .context("D missing structured refusal")?;
+    ensure!(
+        !t.drain_timed_out,
+        "D refusal diagnostics not fully drained"
+    );
+    ensure!(
+        t.failures.iter().all(|(_, f)| f.action
+            == pairkey_dkls23_research::lifecycle::Action::Burn
+            && !f.incident_attempted),
+        "D unexpected quarantine/freeze: {error:#}"
+    );
+    ensure!(
+        t.failures
+            .iter()
+            .any(|(_, f)| f.kind == FailureKind::Context
+                && f.detail.contains("generation/bound mismatch")),
+        "D missing hygiene refusal: {error:#}"
+    );
+    Ok(
+        json!({"expected":true,"reason":"generation absent/exhausted/expired","failures":t.failures,"diagnostic":t.to_string()}),
+    )
+}
+fn no_incident(dir: &Path, peers: [[u8; 32]; 2]) -> Result<()> {
+    let scope = pairkey_dkls23_research::lifecycle::pair_scope_dir(&dir.join("controls"), peers, 1);
+    ensure!(
+        !scope.join("0.quarantined").exists() && !scope.join("1.quarantined").exists(),
+        "D hygiene refusal must not quarantine pairing"
+    );
+    Ok(())
+}
+pub async fn stress(dir: &Path, batches: usize) -> Result<()> {
+    ensure!(
+        cfg!(feature = "research-faults"),
+        "D stress is a research fixture"
+    );
+    ensure!((1..=100).contains(&batches), "D batches 1..100");
+    let limits = Limits::default();
+    let mut session = Session::start(dir, 0, limits.clone()).await?;
+    let mut certs = BTreeMap::new();
+    for i in 0..10usize {
+        let key = digest(b"D/stress-wallet", &i);
+        certs.insert(key, session.register(key, None).await?);
+    }
+    let keys = certs.keys().copied().collect::<Vec<_>>();
+    let peers = session.boots.clone().map(|b| b.identity);
+    let mut rows = vec![];
+    let mut instances = BTreeSet::new();
+    let mut finals = BTreeSet::new();
+    let mut rs = BTreeSet::new();
+    let mut pubkeys = BTreeMap::new();
+    let mut generations = BTreeSet::new();
+    for batch in 0..batches {
+        // Alternate normal in-process rotation and restart. Deliberate failed
+        // attempts are separate from this throughput schedule: the collector
+        // closes both inputs on a failure, which legitimately accounts a peer
+        // disconnect and can trigger the unchanged transport rate limiter.
+        if batch > 0 && batch % 2 == 0 {
+            session.stop().await?;
+            session = Session::start(dir, 0, limits.clone()).await?;
+            session.wallets = certs.clone();
+        }
+        let (generation, donor) = session.prepare(None).await?;
+        ensure!(generations.insert(generation), "D repeated generation");
+        let mut attempts = vec![];
+        for index in 0..limits.uses as usize {
+            let key = keys[(index + batch) % keys.len()];
+            let r = session.request(key, generation, None, batch * limits.uses as usize + index)?;
+            let path = r.path.clone();
+            let result = match session.sign_request([r.clone(), r]).await {
+                Ok(v) => v,
+                Err(e) => {
+                    std::fs::write(
+                        dir.join("stress-failure.json"),
+                        serde_json::to_vec_pretty(
+                            &json!({"batch":batch,"index":index,"unexpected":true,"detail":format!("{e:#}"),"completed_batches":rows}),
+                        )?,
+                    )?;
+                    return Err(e);
+                }
+            };
+            ensure!(
+                result["uses"].as_u64() == Some(index as u64 + 1),
+                "D count disagreement"
+            );
+            ensure!(
+                instances.insert(result["instance"].as_str().unwrap().to_owned()),
+                "D repeated instance"
+            );
+            ensure!(
+                finals.insert(result["final_session"].as_str().unwrap().to_owned()),
+                "D repeated native final session"
+            );
+            ensure!(
+                rs.insert(result["signature"].as_str().unwrap()[..64].to_owned()),
+                "D repeated aggregate r"
+            );
+            let public = result["public_key"].as_str().unwrap().to_owned();
+            if let Some(old) = pubkeys.insert((key, path), public.clone()) {
+                ensure!(old == public, "D address changed across rotation");
+            }
+            attempts.push(result);
+        }
+        let refusal = if batch + 1 == batches {
+            let r = session.request(
+                keys[batch % keys.len()],
+                generation,
+                None,
+                (batch + 1) * limits.uses as usize,
+            )?;
+            let error = session
+                .sign_request([r.clone(), r])
+                .await
+                .err()
+                .context("D attempt 101 unexpectedly succeeded")?;
+            let refusal = expected_hygiene_refusal(&error)?;
+            finish_failed(&mut session).await?;
+            Some(refusal)
+        } else {
+            None
+        };
+        no_incident(dir, peers)?;
+        // Both workers must have retired this generation before reuse/restart.
+        let retired = dir
+            .join("controls/d")
+            .join(hex(&pairkey_dkls23_research::d::pairing(peers)))
+            .join("retired-generations");
+        for role in 0..2 {
+            ensure!(
+                std::fs::read(retired.join(format!("{role}-{}.retired", hex(&generation))))?
+                    == generation,
+                "D generation not durably retired"
+            );
+        }
+        rows.push(json!({"batch":batch+1,"donor":donor,"attempts":attempts,"successes":attempts.len(),"warm_median_ms":median(attempts.iter().map(|a|a["wall_ms"].as_f64().unwrap()).collect()),"both_roles_retired_at_100":true,"attempt_101":refusal,"establishment":if batch==0 {"initial"} else if batch%2==0 {"restart"} else {"in-process rotation"}}));
+        std::fs::write(
+            dir.join("stress-progress.json"),
+            serde_json::to_vec_pretty(
+                &json!({"completed_batches":rows.len(),"limits":limits,"batches":rows}),
+            )?,
+        )?;
+        println!(
+            "D stress: batch {}/{}: {} signatures, both donors retired{}",
+            batch + 1,
+            batches,
+            limits.uses,
+            if refusal.is_some() {
+                "; expected attempt-101 burn"
+            } else {
+                ""
+            }
+        );
+    }
+    let report = json!({"limits":limits,"wallets":certs.values().collect::<Vec<_>>(),"signatures":instances.len(),"batches":rows,"generations_distinct":generations.len(),"instance_ids_unique":true,"observed_native_final_sessions_unique":true,"aggregate_r_unique":true,"addresses_stable_across_rotations":true,"expected_limit_refusals":1,"unexpected_failures":0,"entropy":"fresh OS entropy for every native setup/signing attempt"});
+    std::fs::write(dir.join("stress.json"), serde_json::to_vec_pretty(&report)?)?;
+    Ok(())
+}
+pub async fn expiry_probe(dir: &Path) -> Result<()> {
+    ensure!(
+        cfg!(feature = "research-faults"),
+        "D expiry probe is a research fixture"
+    );
+    let limits = Limits::default();
+    let mut s = Session::start(dir, 0, limits.clone()).await?;
+    let key = [7; 32];
+    let cert = s.register(key, None).await?;
+    let (g, donor) = s.prepare(None).await?;
+    let start = Instant::now();
+    let r = s.request(key, g, None, 0)?;
+    let before = s.sign_request([r.clone(), r]).await?;
+    println!(
+        "D age probe: valid initial signature; waiting {} seconds for real expiry",
+        limits.age_secs + 2
+    );
+    tokio::time::sleep(Duration::from_secs(limits.age_secs + 2)).await;
+    let r = s.request(key, g, None, 1)?;
+    let error = s
+        .sign_request([r.clone(), r])
+        .await
+        .err()
+        .context("D expired donor unexpectedly signed")?;
+    let refusal = expected_hygiene_refusal(&error)?;
+    finish_failed(&mut s).await?;
+    no_incident(dir, cert.record.wallet.identities)?;
+    let mut replacement = Session::start(dir, 0, limits.clone()).await?;
+    replacement.wallets.insert(key, cert.clone());
+    let (next, rotation) = replacement.prepare(None).await?;
+    ensure!(next != g, "D age rotation reused generation");
+    let r = replacement.request(key, next, None, 2)?;
+    let after = replacement.sign_request([r.clone(), r]).await?;
+    ensure!(
+        before["public_key"] == after["public_key"],
+        "D expiry recovery changed address"
+    );
+    replacement.stop().await?;
+    let report = json!({"limits":limits,"real_elapsed_secs":start.elapsed().as_secs_f64(),"donor":donor,"initial_signature":before,"expiry_refusal":refusal,"rotation":rotation,"signature_after_rotation":after,"unexpected_failures":0});
+    std::fs::write(dir.join("expiry.json"), serde_json::to_vec_pretty(&report)?)?;
+    println!("D age probe: expected expiry burn, fresh rotation signed successfully");
     Ok(())
 }

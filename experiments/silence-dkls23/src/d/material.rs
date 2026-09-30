@@ -22,8 +22,8 @@ pub struct Limits {
 impl Default for Limits {
     fn default() -> Self {
         Self {
-            uses: 1000,
-            age_secs: 86400,
+            uses: 100,
+            age_secs: 600,
             abort_window_secs: 60,
             abort_limit: 3,
         }
@@ -32,8 +32,8 @@ impl Default for Limits {
 impl Limits {
     pub fn validate(&self) -> Result<()> {
         ensure!(
-            (1..=1000).contains(&self.uses)
-                && (1..=86400).contains(&self.age_secs)
+            (1..=100).contains(&self.uses)
+                && (1..=600).contains(&self.age_secs)
                 && self.abort_limit > 0
                 && self.abort_window_secs > 0,
             "invalid D donor hygiene bounds"
@@ -110,9 +110,11 @@ impl Donor {
             limits,
         })
     }
+    pub fn remaining_age(&self) -> Duration {
+        Duration::from_secs(self.limits.age_secs).saturating_sub(self.created.elapsed())
+    }
     pub fn usable(&self) -> bool {
-        self.uses < self.limits.uses
-            && self.created.elapsed() < Duration::from_secs(self.limits.age_secs)
+        within_bounds(self.uses, self.created.elapsed(), &self.limits)
     }
     pub fn reserve(&mut self) -> Result<()> {
         ensure!(self.usable(), "D donor bound reached");
@@ -167,5 +169,40 @@ impl Donor {
                 &*self.zero,
             ],
         )
+    }
+}
+
+fn within_bounds(uses: u64, age: Duration, limits: &Limits) -> bool {
+    uses < limits.uses && age < Duration::from_secs(limits.age_secs)
+}
+#[cfg(test)]
+mod hygiene_tests {
+    use super::*;
+    #[test]
+    fn default_hygiene_is_100_attempts_or_600_seconds_with_strict_edges() {
+        let limits = Limits::default();
+        assert_eq!(limits.uses, 100);
+        assert_eq!(limits.age_secs, 600);
+        assert!(within_bounds(99, Duration::from_secs(599), &limits));
+        assert!(!within_bounds(100, Duration::ZERO, &limits));
+        assert!(within_bounds(
+            0,
+            Duration::from_secs(600) - Duration::from_nanos(1),
+            &limits
+        ));
+        assert!(!within_bounds(0, Duration::from_secs(600), &limits));
+        assert!(!within_bounds(0, Duration::from_secs(601), &limits));
+        assert!(Limits {
+            uses: 101,
+            ..limits.clone()
+        }
+        .validate()
+        .is_err());
+        assert!(Limits {
+            age_secs: 601,
+            ..limits
+        }
+        .validate()
+        .is_err());
     }
 }

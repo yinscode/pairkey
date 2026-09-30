@@ -116,7 +116,7 @@ async fn age_generation_and_replay_refuse_before_native_freeze() {
         let (mut s, key, g) = setup(
             &f,
             Limits {
-                age_secs: if kind == "age" { 1 } else { 86400 },
+                age_secs: if kind == "age" { 1 } else { 600 },
                 ..Limits::default()
             },
         )
@@ -135,6 +135,17 @@ async fn age_generation_and_replay_refuse_before_native_freeze() {
         };
         if kind == "age" {
             tokio::time::sleep(Duration::from_millis(1100)).await;
+            // Expiry must dispose the idle donor without needing a request.
+            let retired =
+                f.0.join("controls/d")
+                    .join(hex(&d::pairing(s.boots.clone().map(|b| b.identity))))
+                    .join("retired-generations");
+            for role in 0..2 {
+                assert_eq!(
+                    fs::read(retired.join(format!("{role}-{}.retired", hex(&g)))).unwrap(),
+                    g
+                );
+            }
         }
         let e = s
             .sign_request([request.clone(), request])
@@ -151,6 +162,56 @@ async fn age_generation_and_replay_refuse_before_native_freeze() {
             "{kind}"
         );
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn age_expiry_cancels_inflight_attempt_and_fresh_rotation_preserves_wallet() {
+    let _slot = crate::process_probe::native_fixture_slot().await;
+    let f = Fixture::new();
+    let limits = Limits {
+        age_secs: 1,
+        ..Limits::default()
+    };
+    let (mut s, key, g) = setup(&f, limits.clone()).await;
+    let cert = s.wallets[&key].clone();
+    let first = s.request(key, g, None, 0).unwrap();
+    let before = s.sign_request([first.clone(), first]).await.unwrap();
+    // Real one-second age with delayed peer flights: no mocked clock and no
+    // alteration of native cryptographic parameters.
+    s.delay = Duration::from_millis(350);
+    let request = s.request(key, g, None, 2).unwrap();
+    let error = s
+        .sign_request([request.clone(), request])
+        .await
+        .unwrap_err();
+    let terminals = error.downcast_ref::<Terminals>().unwrap();
+    assert!(!terminals.drain_timed_out, "{error:#}");
+    assert!(
+        terminals
+            .failures
+            .iter()
+            .any(|(_, f)| f.kind == FailureKind::Context
+                && f.detail == "D donor age bound expired during attempt"),
+        "{error:#}"
+    );
+    assert!(
+        terminals
+            .failures
+            .iter()
+            .all(|(_, f)| f.action == Action::Burn && !f.incident_attempted),
+        "{error:#}"
+    );
+    finish_failed(&mut s).await.unwrap();
+    no_incident(&f.0, cert.record.wallet.identities).unwrap();
+    let mut next = Session::start(&f.0, 0, limits).await.unwrap();
+    next.wallets.insert(key, cert);
+    let (generation, _) = next.prepare(None).await.unwrap();
+    assert_ne!(generation, g);
+    let request = next.request(key, generation, None, 2).unwrap();
+    let after = next.sign_request([request.clone(), request]).await.unwrap();
+    assert_eq!(before["public_key"], after["public_key"]);
+    assert_ne!(before["final_session"], after["final_session"]);
+    next.stop().await.unwrap();
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn native_donor_violation_and_aggregate_failure_matrix() {
@@ -399,4 +460,234 @@ async fn incomplete_donor_retirement_marker_cannot_report_success() {
     assert!(failure(&error, Action::Burn), "{error:#}");
     assert!(format!("{error:#}").contains("already reserved or ledger unavailable"));
     assert!(fs::read(marker).unwrap().is_empty());
+}
+
+async fn finish_workers(session: &mut Session) {
+    session.inputs.clear();
+    for child in &mut session.group.children {
+        assert!(tokio::time::timeout(Duration::from_secs(5), child.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success());
+    }
+    for reader in &mut session.group.readers {
+        reader.await.unwrap();
+    }
+}
+fn observed_handoffs(dir: &Path) -> [Vec<u8>; 2] {
+    std::array::from_fn(|role| fs::read(dir.join(format!("{role}.handoffs"))).unwrap_or_default())
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn wallet_incident_fences_other_registered_wallet_across_worker_restarts() {
+    let _slot = crate::process_probe::native_fixture_slot().await;
+    for publisher in 0..2u8 {
+        let f = Fixture::new();
+        let mut s = Session::start_options(&f.0, 0, Limits::default(), Some(("race:r4", 0)))
+            .await
+            .unwrap();
+        let first = s.register([7; 32], None).await.unwrap();
+        let second = s.register([8; 32], None).await.unwrap();
+        let (generation, _) = s.prepare(None).await.unwrap();
+        // Positive control: the second wallet actually signs with this same donor.
+        // Resume initially so this control does not stop at the R4 race barrier.
+        fs::write(f.0.join("resume"), []).unwrap();
+        let r = s.request([8; 32], generation, None, 0).unwrap();
+        s.sign_request([r.clone(), r]).await.unwrap();
+        fs::remove_file(f.0.join("resume")).unwrap();
+        for role in 0..2 {
+            fs::remove_file(f.0.join(format!("{role}.reached"))).unwrap();
+            fs::remove_file(f.0.join(format!("{role}.queued"))).unwrap();
+        }
+        let request = s.request([7; 32], generation, None, 1).unwrap();
+        let pending = tokio::spawn(async move {
+            let result = s.sign_request([request.clone(), request]).await;
+            (s, result)
+        });
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !(f.0.join("0.reached").exists() && f.0.join("1.reached").exists()) {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .unwrap();
+        fs::write(
+            f.0.join("peers.json"),
+            serde_json::to_vec(&first.record.wallet.identities).unwrap(),
+        )
+        .unwrap();
+        let mut child = ProcessCommand::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "d_driver::tests::d_process_child",
+                "--ignored",
+                "--nocapture",
+                "--quiet",
+            ])
+            .env("PAIRKEY_D_CHILD_ROLE", "2")
+            .env("PAIRKEY_D_PUBLISH_DIR", &f.0)
+            .env("PAIRKEY_D_PUBLISH_ROLE", publisher.to_string())
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        assert!(child.wait().await.unwrap().success());
+        let scope = pair_scope_dir(&f.0.join("controls"), first.record.wallet.identities, 1);
+        assert_eq!(
+            fs::read(scope.join(format!("{publisher}.quarantined"))).unwrap(),
+            [9; 32]
+        );
+        fs::write(f.0.join("resume"), []).unwrap();
+        let (mut old, result) = pending.await.unwrap();
+        let error = result.unwrap_err();
+        let terminals = error.downcast_ref::<Terminals>().unwrap();
+        // A native queue refusal is returned as SendMessage; do not infer
+        // incident persistence from it. The independently synced marker and
+        // actual queue oracle establish this cutoff.
+        for role in 0..2 {
+            assert!(
+                terminals.failures.iter().any(|(r, f)| *r == role
+                    && f.action == Action::Burn
+                    && (f.is_incident_cutoff()
+                        || matches!(f.kind, FailureKind::Transport | FailureKind::PeerAbort))),
+                "{error:#}"
+            );
+        }
+        finish_workers(&mut old).await;
+        for role in 0..2 {
+            assert!(!f.0.join(format!("{role}.queued")).exists());
+        }
+        let base =
+            f.0.join("controls/d")
+                .join(hex(&d::pairing(second.record.wallet.identities)))
+                .join("wallets");
+        let journals = std::array::from_fn::<_, 2, _>(|role| {
+            Journal::new(&base, &second.record.wallet, role as u8).unwrap()
+        });
+        let saved = journals
+            .each_ref()
+            .map(|j| fs::read(j.path("active")).unwrap());
+        // Restart twice, keeping roots/public authority/records, but fresh boots.
+        for _ in 0..2 {
+            let before = observed_handoffs(&f.0);
+            let mut replacement =
+                Session::start_options(&f.0, 0, Limits::default(), Some(("race:none", 0)))
+                    .await
+                    .unwrap();
+            assert_ne!(old.boots[0].generation, replacement.boots[0].generation);
+            assert_ne!(old.boots[1].generation, replacement.boots[1].generation);
+            replacement.wallets.insert([8; 32], second.clone());
+            let r = replacement.request([8; 32], generation, None, 2).unwrap();
+            // Gate may close stdin before delivery; drain authenticated worker
+            // diagnostics independently rather than accepting a broken pipe.
+            for role in 0..2 {
+                let _ = replacement
+                    .deliver(role, Frame::DCommand(Box::new(Command::Sign(r.clone()))))
+                    .await;
+            }
+            let error = tokio::time::timeout(Duration::from_secs(10), replacement.collect())
+                .await
+                .unwrap()
+                .err()
+                .expect("other wallet must be fenced");
+            let t = error.downcast_ref::<Terminals>().unwrap();
+            assert!(t.closed.iter().all(|closed| *closed));
+            assert!(!t.drain_timed_out);
+            for role in 0..2 {
+                assert!(
+                    t.failures
+                        .iter()
+                        .any(|(r, f)| *r == role && f.is_incident_cutoff()),
+                    "{error:#}"
+                );
+            }
+            finish_workers(&mut replacement).await;
+            assert_eq!(
+                observed_handoffs(&f.0),
+                before,
+                "no setup/native/result handoff allowed after restart"
+            );
+            for role in 0..2 {
+                assert_eq!(
+                    fs::read(journals[role].path("active")).unwrap(),
+                    saved[role]
+                );
+            }
+        }
+        // Negative scope control: another identity pairing remains usable.
+        let independent = Fixture::new();
+        let (mut other, key, g) = setup(&independent, Limits::default()).await;
+        let r = other.request(key, g, None, 0).unwrap();
+        other.sign_request([r.clone(), r]).await.unwrap();
+        other.stop().await.unwrap();
+    }
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn peer_abort_after_reveal_cannot_return_with_a_new_commitment() {
+    let _slot = crate::process_probe::native_fixture_slot().await;
+    let f = Fixture::new();
+    let s = Session::start_options(&f.0, 0, Limits::default(), Some(("before-prepared", 1)))
+        .await
+        .unwrap();
+    let wallet = s.wallet([7; 32]);
+    let pid = s.group.children[1].id().unwrap();
+    let task = tokio::spawn(async move {
+        let mut s = s;
+        let result = s.register([7; 32], None).await;
+        (s, result)
+    });
+    reached(&f.0).await;
+    assert_eq!(unsafe { libc::kill(pid as i32, libc::SIGKILL) }, 0);
+    let (mut old, result) = task.await.unwrap();
+    assert!(result.is_err());
+    old.inputs.clear();
+    for (role, child) in old.group.children.iter_mut().enumerate() {
+        assert_eq!(child.wait().await.unwrap().success(), role == 0);
+    }
+    for reader in &mut old.group.readers {
+        reader.await.unwrap();
+    }
+    let base =
+        f.0.join("controls/d")
+            .join(hex(&d::pairing(wallet.identities)))
+            .join("wallets");
+    let journals =
+        std::array::from_fn::<_, 2, _>(|r| Journal::new(&base, &wallet, r as u8).unwrap());
+    let commitments = journals
+        .each_ref()
+        .map(|j| fs::read(j.path("commit")).unwrap());
+    let peer_commitments = journals
+        .each_ref()
+        .map(|j| fs::read(j.path("peer-commit")).unwrap());
+    let before = observed_handoffs(&f.0);
+    let mut replacement =
+        Session::start_options(&f.0, 0, Limits::default(), Some(("race:trace-only", 0)))
+            .await
+            .unwrap();
+    assert!(replacement.register([7; 32], None).await.is_err());
+    finish_workers(&mut replacement).await;
+    assert!(journals[1].retired());
+    for role in 0..2 {
+        assert_eq!(
+            fs::read(journals[role].path("commit")).unwrap(),
+            commitments[role]
+        );
+        assert_eq!(
+            fs::read(journals[role].path("peer-commit")).unwrap(),
+            peer_commitments[role]
+        );
+        assert!(!journals[role].exists("active"));
+    }
+    // Exactly one authenticated public-state exchange per side is released by
+    // the retry; a new commitment/reveal/endorsement must never be queued.
+    for (role, bytes) in observed_handoffs(&f.0).into_iter().enumerate() {
+        assert!(bytes.starts_with(&before[role]));
+        let bytes = &bytes[before[role].len()..];
+        let frames = bytes
+            .split(|b| *b == b'\n')
+            .filter(|b| !b.is_empty())
+            .map(|b| serde_json::from_slice::<Value>(b).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0]["kind"], "setup");
+    }
 }

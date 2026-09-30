@@ -493,7 +493,7 @@ impl Service {
                 == key,
             "D recovery mismatch"
         );
-        Ok(Reply::Signed {
+        let reply = Reply::Signed {
             role: self.role,
             instance,
             generation: r.generation,
@@ -503,7 +503,11 @@ impl Service {
             recovery_id: recovery.to_byte(),
             uses: self.donor.as_ref().unwrap().uses,
             elapsed_ms: start.elapsed().as_secs_f64() * 1000.0,
-        })
+        };
+        if self.donor.as_ref().is_some_and(|d| !d.usable()) {
+            self.discard()?;
+        }
+        Ok(reply)
     }
     async fn command(&mut self, command: Command, wire: &mut Wire) -> Result<Reply> {
         match command {
@@ -569,19 +573,43 @@ pub async fn run(role: u8, root_path: &Path, peer: [u8; 32], limits: Limits) -> 
         let Command::Enroll(boots)=*command else{anyhow::bail!("expected D boot pair")};
         for (role,b) in boots.iter().enumerate(){b.validate()?;ensure!(b.role as usize==role,"D boot roles");}
         ensure!(boots[role as usize].message()==own.message() && boots[(1-role) as usize].identity==peer,"D enrollment pin");
-        let controls=root_path.parent().context("D root directory")?.join("controls");let gate=ReleaseGate::new(pair_scope_dir(&controls,boots.clone().map(|b|b.identity),1),role);wire.gate=Some(gate.clone());
+        let controls=root_path.parent().context("D root directory")?.join("controls");
+        let gate=ReleaseGate::new(pair_scope_dir(&controls,boots.clone().map(|b|b.identity),1),role);wire.gate=Some(gate.clone());
         let base=controls.join("d").join(crate::hex(&d::pairing(boots.clone().map(|b|b.identity))));
         let mut service=Service{role,root,dh,boots,gate:gate.clone(),controls,counter:Counter::new(base.join("counters"),role),donor:None,limits};
         loop {
-            let command=tokio::select!{biased; f=gate.cancelled()=>return Err(f.into()),frame=wire.receive()=>frame?};
-            let Frame::DCommand(command)=command else{anyhow::bail!("expected D command")};if matches!(*command,Command::Stop){break;}
+            let age=service.donor.as_ref().map(Donor::remaining_age);
+            let command=tokio::select!{
+                biased;
+                f=gate.cancelled()=>return Err(f.into()),
+                _=wait_age(age)=>{service.discard()?;continue;},
+                frame=wire.receive()=>frame?,
+            };
+            let Frame::DCommand(command)=command else{anyhow::bail!("expected D command")};
+            if matches!(*command,Command::Stop){break;}
             let operation_context=digest(b"pairkey/d/operation",&*command);
             let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs();
             service.counter.check_rate(now,service.limits.abort_window_secs,service.limits.abort_limit)?;
-            let result=tokio::select!{biased; f=gate.cancelled()=>Err(f.into()),r=tokio::time::timeout(Duration::from_secs(30),service.command(*command,&mut wire))=>r.unwrap_or_else(|_|Err(Failure::burn(Phase::Control,FailureKind::Timeout,"D command timeout").into()))};
-            match result {Ok(reply)=>wire.send(Frame::DReply(reply))?,Err(error)=>{let discard=service.discard();let mut failure=error.downcast_ref::<Failure>().cloned().unwrap_or_else(||Failure::burn(Phase::Control,FailureKind::Local,format!("{error:#}")));if let Err(e)=discard{failure.detail.push_str(&format!("; donor retirement failed: {e:#}"));}
-                if matches!(failure.kind,FailureKind::Transport|FailureKind::PeerAbort|FailureKind::Timeout){if let Err(e)=service.counter.transport(now,operation_context){failure.detail.push_str(&format!("; transport accounting failed: {e:#}"));}}wire.send(Frame::Failure(gate.apply(failure,operation_context)))?;break;}}
-        }Ok(())
+            let attempt_age=if matches!(*command,Command::Sign(_)){service.donor.as_ref().map(Donor::remaining_age)}else{None};
+            let result=tokio::select!{
+                biased;
+                f=gate.cancelled()=>Err(f.into()),
+                _=wait_age(attempt_age)=>Err(context("D donor age bound expired during attempt")),
+                r=tokio::time::timeout(Duration::from_secs(30),service.command(*command,&mut wire))=>r.unwrap_or_else(|_|Err(Failure::burn(Phase::Control,FailureKind::Timeout,"D command timeout").into())),
+            };
+            match result {
+                Ok(reply)=>wire.send(Frame::DReply(reply))?,
+                Err(error)=>{
+                    wire.d_guard=None;
+                    let discard=service.discard();
+                    let mut failure=error.downcast_ref::<Failure>().cloned().unwrap_or_else(||Failure::burn(Phase::Control,FailureKind::Local,format!("{error:#}")));
+                    if let Err(e)=discard{failure.detail.push_str(&format!("; donor retirement failed: {e:#}"));}
+                    if matches!(failure.kind,FailureKind::Transport|FailureKind::PeerAbort|FailureKind::Timeout){if let Err(e)=service.counter.transport(now,operation_context){failure.detail.push_str(&format!("; transport accounting failed: {e:#}"));}}
+                    wire.send(Frame::Failure(gate.apply(failure,operation_context)))?;break;
+                }
+            }
+        }
+        Ok(())
     }.await;
     if let Err(error) = result {
         wire.send(Frame::Failure(
@@ -594,4 +622,12 @@ pub async fn run(role: u8, root_path: &Path, peer: [u8; 32], limits: Limits) -> 
     writer.await??;
     reader.abort();
     Ok(())
+}
+
+async fn wait_age(age: Option<Duration>) {
+    if let Some(age) = age {
+        tokio::time::sleep(age).await;
+    } else {
+        std::future::pending::<()>().await;
+    }
 }

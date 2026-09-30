@@ -483,3 +483,64 @@ fn strict_reservation_checkpoint_errors_never_reopen_created_slots() {
         );
     }
 }
+
+#[test]
+fn registration_commitments_do_not_replay_across_wallet_role_pairing_or_epoch() {
+    let f = Fixture::new();
+    let r = f.record();
+    let opening = r.openings[0].clone();
+    let original = opening.commitment(&f.wallet, 0);
+    assert_ne!(original, opening.commitment(&f.wallet, 1));
+    for field in 0..4 {
+        let mut w = f.wallet.clone();
+        match field {
+            0 => w.key_id[0] ^= 1,
+            1 => w.namespace.push('x'),
+            2 => w.epoch += 1,
+            _ => {
+                w.identities[1] = ed25519_dalek::SigningKey::from_bytes(&[99; 32])
+                    .verifying_key()
+                    .to_bytes()
+            }
+        };
+        assert_ne!(original, opening.commitment(&w, 0));
+        let mut wrong = r.clone();
+        wrong.wallet = w;
+        assert!(wrong.validate().is_err());
+    }
+    let mut swapped = r;
+    swapped.openings.swap(0, 1);
+    assert!(swapped.validate().is_err());
+}
+#[test]
+fn competing_ceremonies_have_one_reservation_winner_per_role() {
+    let f = Fixture::new();
+    for role in 0..2 {
+        let j = Journal::new(&f.dir.join("race"), &f.wallet, role).unwrap();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let results = std::thread::scope(|scope| {
+            let handles = (0..2)
+                .map(|i| {
+                    let b = barrier.clone();
+                    let j = j.clone();
+                    let w = f.wallet.clone();
+                    scope.spawn(move || {
+                        b.wait();
+                        (i, j.reserve(&w, [i; 32]).is_ok())
+                    })
+                })
+                .collect::<Vec<_>>();
+            handles
+                .into_iter()
+                .map(|h| h.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(results.iter().filter(|(_, ok)| *ok).count(), 1);
+        let (w, attempt): (Wallet, Hash) = j.read("reserved").unwrap();
+        assert_eq!(w, f.wallet);
+        assert_eq!(attempt, [results.iter().find(|(_, ok)| *ok).unwrap().0; 32]);
+        assert!(j.reserve(&f.wallet, [9; 32]).is_err());
+    }
+}
+#[path = "native_review_tests.rs"]
+mod native_review;

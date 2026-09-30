@@ -27,7 +27,7 @@ No donor seed, zero seed, wallet contribution, native package or signing nonce i
 
 ## Limits and failure scope
 
-One donor per worker/pair. Attempts are serialized in the worker; separate native tests exercise concurrent transient packages. Defaults: 1,000 attempts or 24 hours. Attempts consume the bound before signing, including unsuccessful attempts. These are **operational hygiene bounds**, not a proven safe number of reuses.
+One donor per worker/pair. Attempts are serialized in the worker; separate native tests exercise concurrent transient packages. Defaults and maximums: **100 attempts or 10 minutes (600 seconds), whichever comes first**. Smaller bounds may be configured for tests. Reservation consumes a use before native signing, including unsuccessful attempts; earlier failures discard the entire generation. The 100th successful attempt retires the donor before the result handoff. A monotonic timer disposes idle expired material and cancels an in-flight sign at expiry. Rotation requires fresh donor DKG; public wallet records remain unchanged. Previously queued frames cannot be recalled, and this timer is an operational lifecycle control, not a real-time release theorem. These are **operational hygiene bounds**, not a proven safe number of reuses.
 
 Every command failure discards the donor, including transport failures and context mismatches. A peer must establish a fresh donor generation before a replacement attempt. Persistent transport/peer-abort accounting permits fewer than three such events in a 60-second window; future timestamps refuse clock regression. This uses host clocks in the fixture.
 
@@ -65,6 +65,12 @@ bash experiments/silence-dkls23/bootstrap.sh test --locked --offline
 bash experiments/silence-dkls23/bootstrap.sh test --locked --offline --features research-faults
 bash experiments/silence-dkls23/bootstrap.sh run --release --locked --offline --features research-faults -- d-demo .local/spike-d-soak 1000
 bash experiments/silence-dkls23/bootstrap.sh run --release --locked --offline --features research-faults -- d-bench .local/spike-d-latency
+bash experiments/silence-dkls23/bootstrap.sh run --release --locked --offline --features research-faults -- d-stress .local/spike-d-bounded-stress 10
+bash experiments/silence-dkls23/bootstrap.sh run --release --locked --offline --features research-faults -- d-expiry .local/spike-d-real-expiry
 ```
 
 Use new ignored fixture directories after source changes; immutable record configuration checks deliberately refuse an older realization. Benchmark reports include public records, signatures and timings only. They exclude secret material.
+
+The stress schedule rotates ten generations across ten wallets and two paths, alternating in-process rotation with worker restart. Both roles must persist retirement after each 100th signature. It probes attempt 101 only after the last batch: deliberately failing every batch makes the driver close both inputs, which produces secondary transport-abort accounting and can legitimately exhaust the unchanged three-events-per-60-seconds limiter. Negative expiry/refusal schedules are kept separate from normal rotation. The real expiry probe waits 602 seconds; the shorter test also delays an in-flight native attempt across a real one-second test age.
+
+Transport deployments must deduplicate exact retransmissions per instance and stage before native admission. The native R1 replay guard currently treats duplicate authenticated frames as a burn; it is not a reliable-network deduplication layer. Public counter/instance/session journals have no safe pruning implementation yet. Never prune them merely because a donor retired. Immutable source-pinned records need an explicit configuration migration design; incomplete/prepared wallet slots require operator-visible diagnosis rather than automatic rewrite.
