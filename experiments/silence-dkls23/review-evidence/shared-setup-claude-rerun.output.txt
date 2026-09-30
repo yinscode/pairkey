@@ -1,0 +1,53 @@
+# Claude independent rerun of the shared-setup evidence harnesses, 2026-10-11
+# sources: commit 2b1cfb8; runners patched only for root path, scratch dir and target dir; python3 -I; cargo --offline --locked --release
+--- ot-cross-wallet-reuse
+Upstream pin: af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7
+Scratch: /private/tmp/claude-501/-Users-user-Library-Application-Support-Claude-scratch-workspaces-8bd3f48d-7603-4ff4-b8a2-a7c6517f6ab9-65724095-b3a8-4b28-acb3-a40e39e2dc3f-scratch-2026-10-10-59f604/37f19edb-a303-4cce-a75a-ef7c66a6aa56/scratchpad/rerun-shared-setup/tmp/pairkey-ot-reuse-d0a5rglu
+Only upstream change: test-only Keyshare OT accessors
+PASS negative control: SAME seed + SAME extension SID exposes choice-vector XOR; both individual checks accept
+PASS: fresh SID removes that cancellation; wrong SID and altered extension message are rejected
+PASS selective-abort reproduction: 12/32 accepted, all select the unmodified branch; 20/32 decode rejection. No wallet-key recovery tested.
+PASS: 20 native wallet controls; only OT regions replaced by the same matched donor setup
+Sequential cross-wallet signatures: 100
+Sequential cross-wallet signatures: 200
+Sequential cross-wallet signatures: 300
+Sequential cross-wallet signatures: 400
+Sequential cross-wallet signatures: 500
+Concurrent cross-wallet/same-wallet signatures: 100
+Concurrent cross-wallet/same-wallet signatures: 200
+Concurrent cross-wallet/same-wallet signatures: 300
+Concurrent cross-wallet/same-wallet signatures: 400
+Concurrent cross-wallet/same-wallet signatures: 500
+PASS: 1000 signatures verified under intended wallet/path; both outputs and recovery IDs agree; OT state unchanged
+  rejection: [Err(AbortProtocolAndBanParty(1)), Err(AbortProtocolAndBanParty(0))]
+PASS: mismatched OT states rejected
+  rejection: [Err(InvalidFinalSessionID), Err(InvalidFinalSessionID)]
+PASS: mixed-wallet packages with the same OT state rejected
+Local release timing: native control median 16.722 ms (n=20); reuse median 16.935 ms (n=1000, mixed concurrency; NOT a performance comparison)
+LIMITS: local in-process no-auth test relay; no production replay/rollback/quarantine enforcement tested; successful signatures do not prove secrecy or multi-wallet composition security.
+exit=0
+--- direct-derived-integration
+Upstream pin: af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7
+Scratch: <scratch>/tmp/pairkey-direct-review-5hsq5bir
+Native additions: exact existing research constructor + test-only material accessor
+PASS KDF determinism/role/wallet separation and wrong-root rejection; FINDING: same root/role/key-ID repeats a contribution across different peer pairs
+PASS constructor: valid input accepted; seven malformed/degenerate inputs rejected
+PASS registration: chain-code, coordinates, endorsement-role and signature mutations rejected
+PASS: discarded records reload from both public stores; wallet file schema contains record + endorsements only
+Stage 1 verified signatures: 100
+Stage 1 verified signatures: 200
+Stage 1 verified signatures: 300
+Stage 1 verified signatures: 400
+Stage 1 verified signatures: 500
+Stage 2 verified signatures: 100
+Stage 2 verified signatures: 200
+Stage 2 verified signatures: 300
+Stage 2 verified signatures: 400
+Stage 2 verified signatures: 500
+  expected rejection: [Err(InvalidFinalSessionID), Err(InvalidFinalSessionID)]
+  expected rejection: [Err(InvalidFinalSessionID), Err(InvalidFinalSessionID)]
+PASS: mixed wallets and setup generations rejected
+PASS: same roots + public record + same global setup deterministically reconstruct identical packages; signing randomness remains fresh
+RESULT: 500 derived-share signatures with per-wallet setup + 500 with shared OT AND masking state across 20 wallets
+LIMITS: no aggregate scalar reconstructed; local no-auth signing relay; native donors supply setup state; no proof of malicious registration/composition, distributed quarantine, rollback resistance or physical erasure
+exit=0
