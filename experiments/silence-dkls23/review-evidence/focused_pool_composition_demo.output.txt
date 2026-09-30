@@ -1,0 +1,4 @@
+   Compiling pairkey-dkls23-research v0.1.0 (/Users/user/000/_COOL/pairkey/experiments/silence-dkls23)
+    Finished `release` profile [optimized] target(s) in 8.37s
+     Running `target/silence-dkls23/release/dkls-spike pool-demo .local/silence-dkls23/focused-composition-20261011-01 1`
+{"evidence":".local/silence-dkls23/focused-composition-20261011-01/pool-evidence.json","refusals":23,"successful_signatures":6}

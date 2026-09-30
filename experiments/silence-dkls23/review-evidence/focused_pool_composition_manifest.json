@@ -1,0 +1,164 @@
+{
+  "date": "2026-10-11",
+  "head": "0b78e58000ca442d11f0c0b943c3ec01c5f709a3",
+  "scope": "Original Spike C; source review, existing worker demo, existing pool unit tests, new public API primitive probes. Not a full malicious-security proof.",
+  "native_pin": "af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7",
+  "source_sha256": {
+    "experiments/silence-dkls23/Cargo.toml": "d56180334d5352f61b73b9f20741c503668212004c3ab1f1da4efd231312952d",
+    "experiments/silence-dkls23/Cargo.lock": "c8f40215fac308da2bcf140301f4e71c2ae72a9970f690fe37f9aefc7ece1eff",
+    "experiments/silence-dkls23/patch-source.py": "6e393567a3e06551a20df319f0bcecc30aae5971692a0760878d838ff41d5172",
+    "experiments/silence-dkls23/patches/research-keyshare.rs": "b632d9443b96709b8cdc6dec0cf8eb821f0d9966c5ac619cfe0a276a218a563a",
+    "experiments/silence-dkls23/src/pool.rs": "5a2e63ebb68435f6ce6d2292829547f573d5d7b206c29e60e321939df710f8d7",
+    "experiments/silence-dkls23/src/pool_worker.rs": "45e43a9fe22d91ac76d2cf7dea6c5962046821525aef5645a28072c026f0a570",
+    "experiments/silence-dkls23/src/wire.rs": "419744bbc1edf0271afd5947748d70c1046b165938072997fa443c823239cd46",
+    "experiments/silence-dkls23/src/lifecycle.rs": "fa43a2127f3a8aeea97cdcc90832b305f52778cb0526637f24dec79717544e3d",
+    "experiments/silence-dkls23/src/authority.rs": "4377a21757dc7e2bd1b5f7f2861ce4d9c497d0c9bf85c52d617f49902736f6a1",
+    "experiments/silence-dkls23/src/pool_driver.rs": "7da42a750addae43cbec573dd3eaaa134440db600389f713a8ada7486681a53e",
+    "experiments/silence-dkls23/src/pool_tests.rs": "1b0dec289cf746cc962e458ab4fbbca208f02219ebeeb3cd0c5463d63e962bf6",
+    "experiments/silence-dkls23/review-evidence/focused_pool_composition_probe.rs": "7c8b3b9c9d96c837b21ab1fdd19e8edc33062f2f7c51a6fb854529de89ff3ae2",
+    ".local/silence-dkls23/sources/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/keygen/dkg.rs": "fe6b04d312bb43d3995b813adf09dabf2410499dc41f349dbceaa2d89e0f957d",
+    ".local/silence-dkls23/sources/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/sign/dsg.rs": "9fcc601127140a55099c86dc36366397b11bfa75f46ae6d85bb21ed75aaae41a",
+    ".local/silence-dkls23/sources/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/sign/constants.rs": "539d0329cbded6fc6c18d5828cdced63fa21fa7bcb149fc7655e4b9b94ef6326",
+    ".local/silence-dkls23/sources/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/setup.rs": "520e104e277a0ba8c9d591d1a3652d0ca0e14e825cde5c7af71e7d3013a1c315",
+    ".local/silence-dkls23/sources/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/proto/tags.rs": "2ff85795a0c03d32a831e6a5f15285b9a3cde1cbd41f2f014e7c7d6f4c9c15c7",
+    "/Users/user/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sl-oblivious-1.0.0-beta/src/endemic_ot.rs": "3dcc95332a5d6d063a12988f33c55397f8ce1984d749084615c347808de878fc",
+    "/Users/user/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sl-oblivious-1.0.0-beta/src/soft_spoken/all_but_one.rs": "e2876d196689ead18d2e61d54e491507cddd68821dc7b8ebedfb83cf25148aa8",
+    "/Users/user/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sl-oblivious-1.0.0-beta/src/soft_spoken/soft_spoken_ot.rs": "726a0aa845db21291e7617445fa9b80a72d603917e2c893a2afd0fdecf0299d4",
+    "/Users/user/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sl-oblivious-1.0.0-beta/src/rvole.rs": "4052a0ddd30d8c2446fccb7865bc8c5ea2d3a60f1c21449d7a06fd6b6fa224c1",
+    "/Users/user/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sl-oblivious-1.0.0-beta/src/params.rs": "f6bfeeab0d25ef47f404c78acaccf1578f8afb9776c7c74669386fce432549ab",
+    "/Users/user/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sl-oblivious-1.0.0-beta/src/constants.rs": "8e4661db81448428c9a4c2c788821f302cdac0acd7f2989e8f5e7716f46dad4b",
+    ".local/silence-dkls23/review-5a6c05a/2023-765.pdf": "fe41a45db716161472f66c84bb39721c3545000b5515594d7192e894ccbba7e1",
+    ".local/silence-dkls23/sources/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/proto/signed.rs": "f888baa7fa283d53f8133b7710f059c1058263698e94b795ded6b9d5b48eed93",
+    ".local/silence-dkls23/sources/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/proto/encrypted.rs": "702dc511594ce21d2411337fec9cf260cd0e6cd8cbb82db6099d015121da5810"
+  },
+  "commands": [
+    {
+      "command": "CARGO_TARGET_DIR=target/silence-dkls23 cargo test --manifest-path experiments/silence-dkls23/Cargo.toml --locked --offline --features research-faults pool::tests -- --nocapture",
+      "result": "11 passed; zero failed; other suites filtered out; output inspected during review"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=target/silence-dkls23 cargo run --manifest-path experiments/silence-dkls23/Cargo.toml --locked --offline --features research-faults --release -- pool-demo .local/silence-dkls23/focused-composition-20261011-01 1",
+      "exit_code": 0,
+      "log": "focused_pool_composition_demo.output.txt"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/Users/user/000/_COOL/pairkey/target/silence-dkls23 cargo test --manifest-path /var/folders/qj/80q6hzvx0ljg2sfrsd8mqy9m0000gn/T/pairkey-focused-pool-zw7mtpo5/Cargo.toml --locked --offline --features research-faults --test focused_pool_composition_probe -- --nocapture",
+      "exit_code": 0,
+      "passed": 4,
+      "log": "focused_pool_composition_probe.output.txt",
+      "scratch_changes": "Copied src, patches, Cargo.toml/Cargo.lock and included configuration files. Made existing native dependency path absolute. Added review probe as an integration test; no versions or native parameters changed."
+    }
+  ],
+  "demo": {
+    "configuration": "e58625900a2ea4e446670e0a83ed4dedeb729eb2b6ea9e55d7cc46f4f5ed9d6f",
+    "baseline_signatures": 6,
+    "baseline_wallets": 3,
+    "baseline_paths": [
+      "m",
+      "m/7/3"
+    ],
+    "registration_restart_signature": true,
+    "refusals": [
+      {
+        "fault": "bad-zero-reveal",
+        "quarantine": true
+      },
+      {
+        "fault": "truncated-ot",
+        "quarantine": true
+      },
+      {
+        "fault": "truncated-pprf",
+        "quarantine": true
+      },
+      {
+        "fault": "completed-mismatch",
+        "quarantine": true
+      },
+      {
+        "fault": "setup-timeout",
+        "quarantine": false
+      },
+      {
+        "fault": "wrong-consumption",
+        "quarantine": false
+      },
+      {
+        "fault": "wrong-provenance",
+        "quarantine": false
+      },
+      {
+        "fault": "cancel-reserved",
+        "quarantine": false
+      },
+      {
+        "fault": "sign-timeout",
+        "quarantine": false
+      },
+      {
+        "fault": "empty-pool",
+        "quarantine": false
+      },
+      {
+        "fault": "disconnect",
+        "quarantine": false
+      },
+      {
+        "fault": "generation-substitution",
+        "quarantine": false
+      },
+      {
+        "fault": "incident",
+        "quarantine": true
+      },
+      {
+        "fault": "corrupt-ot",
+        "quarantine": true
+      },
+      {
+        "fault": "full-pool",
+        "quarantine": false
+      },
+      {
+        "fault": "repeat-setup",
+        "quarantine": false
+      },
+      {
+        "fault": "repeat-consumption",
+        "quarantine": false
+      },
+      {
+        "fault": "unregistered-wallet",
+        "quarantine": false
+      },
+      {
+        "fault": "missing-wallet-digest",
+        "quarantine": false
+      },
+      {
+        "fault": "wrong-wallet-digest",
+        "quarantine": false
+      },
+      {
+        "fault": "registered-chain-code",
+        "quarantine": false
+      },
+      {
+        "fault": "partial-wallet-record",
+        "quarantine": false
+      },
+      {
+        "fault": "restart discards unused material",
+        "quarantine": null
+      }
+    ],
+    "raw_evidence": ".local/silence-dkls23/focused-composition-20261011-01/pool-evidence.json",
+    "raw_sha256": "473a91cecfc73a7f93d29b58d7f0d838e1fe298d18bc695619f660eeacd4cb42"
+  },
+  "limits": [
+    "No hostile rollback or cross-host authority experiment.",
+    "Primitive probes test actual EndemicOT/PPRF and late-selected RVOLE inputs, not the worker/channel path.",
+    "Existing layout/splice evidence from another reviewer was inspected, not rerun.",
+    "No private roots, OT seeds or aggregate signing scalar included in saved review evidence."
+  ]
+}

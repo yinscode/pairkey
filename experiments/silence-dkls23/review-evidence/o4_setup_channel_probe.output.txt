@@ -1,0 +1,9 @@
+   Compiling pairkey-dkls23-research v0.1.0 (/var/folders/qj/80q6hzvx0ljg2sfrsd8mqy9m0000gn/T/pairkey-focused-pool-zw7mtpo5)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.43s
+     Running unittests src/main.rs (target/silence-dkls23/debug/deps/dkls_spike-1c5195f69fbe0022)
+
+running 1 test
+2 matching-context controls succeeded; 20 context/phase mutations rejected on both sides with typed Burn/Context errors. No native signing invoked.
+test wire::o4_setup_channel_probe::o4_setup_and_consumption_mutations_fail_before_native_signing ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.04s

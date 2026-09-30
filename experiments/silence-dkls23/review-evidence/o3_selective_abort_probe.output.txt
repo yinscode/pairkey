@@ -1,0 +1,9 @@
+   Compiling pairkey-dkls23-research v0.1.0 (/var/folders/qj/80q6hzvx0ljg2sfrsd8mqy9m0000gn/T/pairkey-focused-pool-zw7mtpo5)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.45s
+     Running tests/o3_selective_abort_probe.rs (target/silence-dkls23/debug/deps/o3_selective_abort_probe-d3ad414d7d641b82)
+
+running 1 test
+Observed 1 accepted PPRF setup(s), all with first base choice 1; 4 typed decode rejection(s). No signing or peer retry performed.
+test malicious_reply_can_filter_an_accepted_base_choice ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.19s

@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-11",
+  "head": "0b78e58000ca442d11f0c0b943c3ec01c5f709a3",
+  "baseline_source_manifest": "focused_pool_composition_manifest.json",
+  "baseline_source_hashes_rechecked_unchanged": true,
+  "additional_sha256": {
+    "experiments/silence-dkls23/review-evidence/o3_selective_abort_probe.rs": "4766a84b6371e1c50cf07dfc19215b8dba37b81ead48bb8b3334e8fb3cda61fd",
+    "experiments/silence-dkls23/review-evidence/o4_setup_channel_probe.rs": "a8dc3c64c55eee17eb1ad36c5ddd0c68ca2966bfb034dff579576e3e1fe57781",
+    "/var/folders/qj/80q6hzvx0ljg2sfrsd8mqy9m0000gn/T/pairkey-focused-pool-zw7mtpo5/src/wire.rs": "f95a7bc33533fcd081502291844988648e41a96a99d98fc59356bfa8eea3c568",
+    "/var/folders/qj/80q6hzvx0ljg2sfrsd8mqy9m0000gn/T/pairkey-focused-pool-zw7mtpo5/Cargo.toml": "e69ad9510c97de0a03e20c3a66593979f5106343613eeb25fa95d00631696572",
+    "/var/folders/qj/80q6hzvx0ljg2sfrsd8mqy9m0000gn/T/pairkey-focused-pool-zw7mtpo5/Cargo.lock": "c8f40215fac308da2bcf140301f4e71c2ae72a9970f690fe37f9aefc7ece1eff",
+    ".local/silence-dkls23/sources/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/docs/ToB-SilenceLaboratories_2024.04.10.pdf": "d1f79a7c7326f419bc22ca53cb7a9f42ef5ee489550f6796ae67b6e9ec785423"
+  },
+  "scratch": "/var/folders/qj/80q6hzvx0ljg2sfrsd8mqy9m0000gn/T/pairkey-focused-pool-zw7mtpo5",
+  "scratch_changes": "Existing scratch copy. Added o3 probe in tests; copied o4 probe into src and appended one cfg(test) child-module declaration to wire.rs. Original channel code prefix verified byte-identical. Existing native dependency path is absolute; dependency versions/lock unchanged. Test-module text changes scratch configuration digest.",
+  "commands": [
+    {
+      "command": "CARGO_TARGET_DIR=/Users/user/000/_COOL/pairkey/target/silence-dkls23 cargo test --manifest-path /var/folders/qj/80q6hzvx0ljg2sfrsd8mqy9m0000gn/T/pairkey-focused-pool-zw7mtpo5/Cargo.toml --locked --offline --features research-faults --test o3_selective_abort_probe -- --nocapture",
+      "result": "1 test passed: 1 accepted valid-PPRF setup with first base choice 1; 4 typed Decode error outcomes across independent local trials. No signing or live-peer retry.",
+      "log": "o3_selective_abort_probe.output.txt"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/Users/user/000/_COOL/pairkey/target/silence-dkls23 cargo test --manifest-path /var/folders/qj/80q6hzvx0ljg2sfrsd8mqy9m0000gn/T/pairkey-focused-pool-zw7mtpo5/Cargo.toml --locked --offline --features research-faults --bin dkls-spike o4_setup_channel_probe -- --nocapture",
+      "result": "1 test passed: 2 matching-context controls; 20 context/phase mutations rejected at both channel endpoints with typed Burn/Context. No enrollment, reservation, incident publication or signing.",
+      "log": "o4_setup_channel_probe.output.txt"
+    }
+  ],
+  "paper_sources": [
+    {
+      "url": "https://crypto.iacr.org/2022/papers/530630_1_En_23_Chapter_OnlinePDF.pdf",
+      "used": "Published SoftSpokenOT: endemic/leakage functionality discussion, Theorems 5.1 and 6.2; read through web PDF extraction. Latest ePrint/full-proof PDF downloads returned HTTP 403."
+    },
+    {
+      "url": "https://eprint.iacr.org/2023/765",
+      "used": "Previously saved local PDF/text: FZero, F_EOTE, section 5.1, Theorem 6.1 and Claim 6.7."
+    },
+    {
+      "url": "https://eprint.iacr.org/2019/706",
+      "used": "Metadata and pinned implementation; full paper PDF retrieval returned HTTP 403. No claim to have independently verified its entire proof."
+    }
+  ],
+  "bounds": "No complete UC simulator or full multi-session security proof; no new parameter or dependency recommendation."
+}

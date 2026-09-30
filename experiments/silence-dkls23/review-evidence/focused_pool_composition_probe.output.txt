@@ -1,0 +1,11 @@
+   Compiling pairkey-dkls23-research v0.1.0 (/var/folders/qj/80q6hzvx0ljg2sfrsd8mqy9m0000gn/T/pairkey-focused-pool-zw7mtpo5)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.09s
+     Running tests/focused_pool_composition_probe.rs (target/silence-dkls23/debug/deps/focused_pool_composition_probe-d37dfb9e31266631)
+
+running 4 tests
+test corrupted_pprf_proof_is_rejected_at_setup ... ok
+test mismatched_online_sid_is_rejected_by_softspoken ... ok
+test cross_entry_material_is_rejected_by_softspoken ... ok
+test actual_preprocessing_supports_inputs_chosen_later ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.99s
