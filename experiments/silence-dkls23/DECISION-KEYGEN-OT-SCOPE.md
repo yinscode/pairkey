@@ -200,7 +200,9 @@ Reading of the table: O-E has no latency or round advantage over O-C and moves t
 keyshare construction out of audited code; it is only preferable if Silence will bless the exported OT
 API and an import constructor but not the migration wrapper. O-C' keeps everything O-C keeps and
 removes the per-signature refresh cost after the first signature per boot, at the price of adopting
-Silence's own OT-seed reuse model, which the quarantine logic already handles.
+Silence's own OT-seed reuse model, which the quarantine logic already handles. A wallet-independent pool additionally hides setup
+latency for the first signature on a cold wallet, which O-C' pays once per wallet per boot; per-attempt
+migration also refreshes OT, so freshness is not unique to the pool.
 
 ## 12. Additional suggestions
 
