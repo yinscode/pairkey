@@ -1,0 +1,9 @@
+[package]
+name = "leaky-donor-amp-probe"
+version = "0.1.0"
+edition = "2021"
+[workspace]
+[dependencies]
+sl-oblivious = "=1.0.0-beta"
+rand_core = { version = "=0.6.4", features = ["getrandom"] }
+bytemuck = { version = "=1.25.0", features = ["min_const_generics", "extern_crate_alloc"] }

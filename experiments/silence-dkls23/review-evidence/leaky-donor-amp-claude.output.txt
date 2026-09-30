@@ -1,0 +1,49 @@
+# Claude independent leaky-donor amplification probe, 2026-10-12
+# Question: how well does the honest SoftSpokenOT sender consistency check detect a
+# receiver that injects one inconsistency after learning all but j bits of the per-setup
+# correlation secret (nabla)? Confirms the 2^-(unknown bits) bound, the detection error
+# type, and that a leaked bit does not carry to another donor.
+#
+# Isolation: standalone cargo binary depending only on the registry crate
+# sl-oblivious =1.0.0-beta; the honest library is unmodified (soft_spoken_ot.rs
+# sha256 726a0aa845db21291e7617445fa9b80a72d603917e2c893a2afd0fdecf0299d4). No native parameter, dependency or honest-source change.
+# No signature, presignature or private key is formed; nabla values are read only
+# to model attacker knowledge, never output.
+# harness src/main.rs sha256: c675e8d32e4de437486a78127e7de37c4030599920e32bd412932fec7ffd0f92
+# release binary sha256:      6cc750ee4129019caa6b00d3766de383f1893b4ccbf031ba0a1f5c0862ce0aab
+# command: leaky-donor-amp-probe 8192   (8192 trials per cohort)
+#
+# Round1Output layout verified against the pinned source: u[64][80] then x[16] at
+# byte 5120 then t[256][16] at byte 5136; nabla bit for consistency row i is
+# (random_choices[i/4] >> (i%4)) & 1, matching soft_spoken_ot.rs:320-352.
+
+control: honest extension accepted
+trials per cohort: 8192
+  j   accepted   rate       predicted 2^-j   every reject = ban error
+  0   8192       1.000000   1.000000         yes
+  1   4151       0.506714   0.500000         yes
+  2   2060       0.251465   0.250000         yes
+  3   1018       0.124268   0.125000         yes
+  4   507        0.061890   0.062500         yes
+  6   135        0.016479   0.015625         yes
+  8   35         0.004272   0.003906         yes
+cross-setup repair (knowledge of another donor's secret): 0/8192 accepted
+DONE
+
+# Findings
+# 1. Detection probability of one injected inconsistency is 1 - 2^-j, where j is the
+#    number of correlation-secret bits the receiver has NOT learned. Measured rates sit
+#    on the 2^-j curve within binomial noise at 8192 trials.
+# 2. The honest sender's consistency check has exactly one failure variant,
+#    SoftSpokenOTError::AbortProtocolAndBanReceiver. The Rust compiler reports the
+#    second error arm unreachable, so every rejection is the typed ban. There is no
+#    silent-failure or untyped-error path.
+# 3. j=0 (receiver already holds all 256 bits) accepts every tamper. This is not a new
+#    weakness: it is the selective-abort model. The check's soundness rests entirely on
+#    nabla staying hidden, and learning each hidden bit costs a guess detected with the
+#    complementary probability.
+# 4. Repairing with a different donor's secret accepts 0 of 8192. Bits learned from one
+#    donor give no advantage against another's secret, so leakage does not compound
+#    across generations. This is the cryptographic basis for discard-on-failure plus a
+#    fresh donor: a detected miss both ends the current donor and resets the attacker's
+#    knowledge to zero against the next.
