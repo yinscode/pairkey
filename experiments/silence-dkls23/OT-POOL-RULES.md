@@ -65,3 +65,61 @@ peer-side journals covers the class. A policy document alone does not, because t
 6. **Tests.** Inject a repeated seed in the scratch harness and assert that the peer refuses the repeated
    instance id and that the hedged seed differs when only the prehash differs; keep the choice-XOR
    negative control as a permanent regression test; add an entropy self-test at worker start.
+
+## 4. A refill, by inputs and outputs
+
+Inputs to each worker, the parent sends the same command to both: a `SetupInput` with version 1,
+recipe 1, both identities, both boot generations, the configuration digest and a fresh random entry
+id; a test-only fault label; the worker's enrollment state with both signed boots and its role; its
+per-boot DH static secret; OS randomness for the coin and both base-OT roles; the `controls/pool-setups`
+ledger directory; and the shared incident gate, which refuses the refill if the pairing is fenced.
+
+Exchanged over the channel keyed by the input digest, one flight each: a 32-byte coin commitment, a
+32-byte coin reveal, base-OT message 1 of about 17 KB, a reply with base-OT message 2 of about 17 KB
+plus the PPRF of about 14 KB, and a 32-byte completed-transcript digest.
+
+Outputs: an `AvailableEntry` in RAM only, holding the input, the completed digest, the sender seed of
+32,768 bytes, the receiver seed of 32,832 bytes, the 32-byte zero seed and a 300-second expiry; a
+`{role}-{entry}.retired` ledger file holding the input digest, created before the first message and
+never removed; a `PoolStatus` to the parent with entry id, input digest, completed digest, entries
+available and timings, which the parent checks for agreement between the two workers; on failure a
+typed `Failure`, with the generation and all unused entries dropped.
+
+## 5. The zero share in Spike C
+
+During refill each party commits to a 32-byte coin as a hash of the input digest, its role and the
+coin; after both commitments are held, both reveal and verify; the zero seed is a hash of a label,
+the input digest and the two coins in role order. Both coins are in the completed transcript, so the
+package id commits to the seed. At consumption the constructor writes the seed into `each(0)` of both
+keyshares, the slot native signing reads for both parties in the two-party case. Inside signing,
+party 0 subtracts and party 1 adds the reduced hash of the DSG label, the seed, `digest_i` and the
+randomization label, so the masks differ per session and cancel exactly.
+
+Native key generation runs no coin flip: the lower-indexed party samples the seed alone and sends it
+encrypted in round 3, so the pool is closer to the paper's commit-and-release than native is. For two
+parties the masks are negatives of each other, so the seed hides nothing from the peer. A withheld
+reveal is a timeout burn without quarantine; the resulting bias is of no known value, an argument, not
+a proof.
+
+## 6. Per pair across wallets: cautions and validation
+
+Cautions: session-id uniqueness becomes the whole game, so fresh hedged seeds, no replay and
+instance-id journals on both sides, with the record digest and generation id in the package id;
+failure scope is the pairing, so any attributable failure retires the setup generation on both sides,
+quarantines the peer for every wallet and cuts every concurrent session, and a wallet change never
+resets failure accounting; leakage accumulates until retirement, so rotate by time or count, retire on
+the first visible failure and treat an abort cluster as grounds to rotate; the setup blob is key
+material, since one party's seeds plus its transcripts yield its secret inputs, so seal it, never
+co-locate both parties' blobs, and exclude or detect snapshot restore; fix roles per pairing and agree
+the generation id before signing, keeping a mismatch a context burn; keep only the donor's seeds, zero
+seed and session id, discard its share, never sign with it, and apply the normal incident policy to the
+donor run; registration ordering, derivation binding and the compiled OT question are unchanged.
+
+Validation: a soak across wallets and concurrent sessions asserting every final and MtA session id
+distinct and the seeds byte-identical throughout; a replay drill showing the peer refuses a repeated
+instance id and the hedged seed changes with the prehash alone; failure propagation from one wallet's
+session to all wallets of the pairing on both sides; generation mismatch classified as a context burn
+and reconciled; rotation with cross-generation mixing refused; the choice-XOR and selective-abort probes
+as permanent regression tests with retirement asserted through the worker; quarantine scope across
+wallets and restarts; and a reviewed statement from Silence that the compiled stack supports
+fresh-session-id reuse across keys with a usage bound, which tests cannot supply.
