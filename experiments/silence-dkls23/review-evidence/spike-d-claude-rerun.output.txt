@@ -1,0 +1,101 @@
+# Claude independent rerun of the Spike D suites, 2026-10-12
+# source: uncommitted worktree codex/spike-d (base 9ec3890) copied with rsync into an isolated snapshot; bootstrap.sh test --locked --offline, then with --features research-faults
+--- sha256 of copied experiment tree
+8b7188bdb9b00867a6b31d2fcbd808456a354d6faa4e5281376d5184261a8127  experiments/silence-dkls23/CLAUDE-CO-REVIEW-SHARED-SETUP.md
+64c7b71caa46c83d78ac1695181d80071bd947ab088ab645bed269be0b19b442  experiments/silence-dkls23/CLAUDE-FIRST-PASS-REPORT-v1.md
+75b01718ddeb601da8169f2a45e4214d1bdc413f35017e3c5d06556e2cb945c8  experiments/silence-dkls23/CLAUDE-FIRST-PASS-REPORT.md
+c8bbcd5b7e22d096269d86b5f31c8d5681d62a339911d0ad308defcba8edcf4a  experiments/silence-dkls23/CLAUDE-REVIEW-OF-MINIMAL-SPECS.md
+2482b215d8760c35a2cb46af6c6f1ff5f3d2b351b2ebed00f6bbb41da3142f1f  experiments/silence-dkls23/CLAUDE-REVIEW-OF-O3-O4-DEEP-DIVE.md
+d902ab822958b63bc73c94697251499e4e54665022fef6f0c7ac8d378028ee6b  experiments/silence-dkls23/CLAUDE-TLDR-FOR-ASTRA.md
+c6ace7f1dd50fee4835be7e64778fd32b609d138305c092d440622409aae983a  experiments/silence-dkls23/CLAUDE-VS-ASTRA-SECURITY-REVIEW.md
+08f5185fe71221bb06d983b55b9d5c1ef02fd579557ee449868156e18c42de84  experiments/silence-dkls23/CONSTRUCTOR-SECURITY-CONTRACT.md
+c8f40215fac308da2bcf140301f4e71c2ae72a9970f690fe37f9aefc7ece1eff  experiments/silence-dkls23/Cargo.lock
+d56180334d5352f61b73b9f20741c503668212004c3ab1f1da4efd231312952d  experiments/silence-dkls23/Cargo.toml
+706166a89f354c1753496c96876648120ba0345c2ff217310a9bc61f19c3573c  experiments/silence-dkls23/DECISION-KEYGEN-OT-SCOPE.md
+7e2a19c58d1997bb7b5cb219ecc01eaf1bca9b3cab7e64f364180d32e167b854  experiments/silence-dkls23/DERIVED-SHARES-VIA-MIGRATION.md
+e7c44adc60a1286d17ab99db86f90d42838800729596ba42cebf1f1c85eac441  experiments/silence-dkls23/FOCUSED-OT-POOL-COMPOSITION-REVIEW.md
+89da6f76e906545a25457e75cbb41aabb856bea1789c1b6d0ffdff3ebaf56c51  experiments/silence-dkls23/FOLLOWUP-PLAN.md
+efdb60b3cc269afd5519fd5e11094d017b342695cb8a852e09b128a795ddcc20  experiments/silence-dkls23/MODE-2-MINIMAL-SPEC.md
+e322e2b607a4b2e06eb3275edd2175eed51a893eff8d657b7f6ba8d4bb6e20ea  experiments/silence-dkls23/O3-O4-DEEP-DIVE.md
+4436337689a9fad1f9f4e7157dff6740142a3ef294707d7716f0f235d344b7cb  experiments/silence-dkls23/OT-POOL-MINIMAL-REVIEW-SPEC.md
+51c8a2e38171bf4439248dc4cfaa85f4393c36af5712181614636dab0d1c6502  experiments/silence-dkls23/OT-POOL-REVIEW-COVERAGE.md
+0145edcf6754a06a83d4d821c61d2d0bcca83254d2ad118b9d7df0cfc0a6cadb  experiments/silence-dkls23/OT-POOL-REVIEW.md
+6623c20362b4e75963436734cc88edca00550eddfd61d867b588b9cc4e53f87b  experiments/silence-dkls23/OT-POOL-RULES.md
+957641245b7b439a7ef85bf1085e0dcbdd49bdd948537220031afcd580ad940f  experiments/silence-dkls23/POOLING.md
+93a85b17f48b3f18a72906188c38d39c8728eeec5125f0c96ec1ad5cd8eda162  experiments/silence-dkls23/README.md
+5df5706161d297216017f6a6026efdc99683f07737e6becf29066d8a323c152f  experiments/silence-dkls23/REVIEW.md
+d90248c9b26bfcd4295d513bac96e89e751309905ca45e443d8f8213cc1c0b48  experiments/silence-dkls23/SECURITY-REVIEW.md
+7d54c2e2a90079c7348be0b6f8d2b50aa69ebe304b6622f375337352cababf41  experiments/silence-dkls23/SHARE-FLOW-AND-OT-REUSE.md
+f3aa9823249aeef923dd9a48872138a2fa65c0bc8677525e2c0c6bea219b13d3  experiments/silence-dkls23/SILENCE-REVIEW-QUESTIONS.md
+cf4df53da9c63b8a3951fffbfa4dfcb328b86a05d23c55ab8b7c738612ceded3  experiments/silence-dkls23/SPIKE-D-DONOR-DESIGN.md
+cf7a9ce6c6c09cdd0c7a15cb1e113b3cb5d8b1a2312f148846fe2b4d54605aff  experiments/silence-dkls23/SPIKE-D-INSTRUCTIONS.md
+b1bb3db7f9a73ab2a55be7008026180d24a2a811dbcef7fb0685fd9d89d38715  experiments/silence-dkls23/SPIKE-D-REPORT.md
+0001cb7375efedda7d38c1de32fa1a824e7a75ced267bf3c56af206512af5505  experiments/silence-dkls23/bootstrap.sh
+6e393567a3e06551a20df319f0bcecc30aae5971692a0760878d838ff41d5172  experiments/silence-dkls23/patch-source.py
+b632d9443b96709b8cdc6dec0cf8eb821f0d9966c5ac619cfe0a276a218a563a  experiments/silence-dkls23/patches/research-keyshare.rs
+ddc502f227b822ed8656a230faed309ec152a3714b7f32ef79c91e7c903eb90d  experiments/silence-dkls23/review-evidence/direct-derived-integration/main.rs
+d338d23997a704cbf63ed2babbe286b41a75981344f2f5902763aca1e83a41e9  experiments/silence-dkls23/review-evidence/direct-derived-integration/run.py
+7c8b3b9c9d96c837b21ab1fdd19e8edc33062f2f7c51a6fb854529de89ff3ae2  experiments/silence-dkls23/review-evidence/focused_pool_composition_probe.rs
+4766a84b6371e1c50cf07dfc19215b8dba37b81ead48bb8b3334e8fb3cda61fd  experiments/silence-dkls23/review-evidence/o3_selective_abort_probe.rs
+42068c23e546d047c8f46136c07b17eab04e68a38fae7464708d452da47878d5  experiments/silence-dkls23/review-evidence/o3_selective_abort_probe_ext.rs
+a8dc3c64c55eee17eb1ad36c5ddd0c68ca2966bfb034dff579576e3e1fe57781  experiments/silence-dkls23/review-evidence/o4_setup_channel_probe.rs
+1e8bb649d58a9148f213454dea737ce50837bf6843e0192c6f985d8919b95f28  experiments/silence-dkls23/review-evidence/ot-cross-wallet-reuse/keyshare_test_access.rs
+a1cf32f38008ad8677c3b709b4e6171d398808142e8ab1627f37ea3b8c88d31f  experiments/silence-dkls23/review-evidence/ot-cross-wallet-reuse/main.rs
+fa8cf849d19027dbc9f1ad57f0e0a7e62a0ee34d18bdc06b6a7411b6af5b38cc  experiments/silence-dkls23/review-evidence/ot-cross-wallet-reuse/run.py
+b762d6abc36bc3dcf6da132e20c9e9bd2d3715311fed89ad344f2b727a46143d  experiments/silence-dkls23/review-evidence/pairkey_research_layout_test.rs
+4377a21757dc7e2bd1b5f7f2861ce4d9c497d0c9bf85c52d617f49902736f6a1  experiments/silence-dkls23/src/authority.rs
+41301ce224ca89c77b50404ffaedf647f0deb5a501d1dde62485d6a05a80c6c8  experiments/silence-dkls23/src/d.rs
+87bc1f0d5f850ea565792ed0c19c2ddf1e6b6c9ebbe7e6cf012ad1ddc9d8f692  experiments/silence-dkls23/src/d/guard.rs
+18394355ed64fecbcb6660640fd0290a5a5c81a15ecf7e77eebb7bece1d12777  experiments/silence-dkls23/src/d/journal.rs
+fa5c25f6c64c634258839b9b3d61a979e1bfd7ddcf4b641b89e4749f01348864  experiments/silence-dkls23/src/d/material.rs
+c26911d4842b483ba375f6e6ee7306cc9b6e14fec6f53b2a579a23177cc91c8f  experiments/silence-dkls23/src/d/process_tests.rs
+89acd795a10211213933a225311b79b6eef81115d7b376fee6334833068f2464  experiments/silence-dkls23/src/d/tests.rs
+b70fb9acca8941ab3fb0d81b9492a5049e7e68530cba6630eeec4e7d2de328c2  experiments/silence-dkls23/src/d_driver.rs
+758b35f4e34cb90ac078e4457bccb364e46a7846ebf6cb640395e42d48f82c16  experiments/silence-dkls23/src/d_worker.rs
+0d4d5b0b9d30d95f4fb86d0208e77aa21d1f5443554f6c3babd5bf27085fcfaf  experiments/silence-dkls23/src/extended_process_tests.rs
+4696abb33d5341dc91e73ab8211c663d4f482fcf0456e979bcf10b77a1dd7c9f  experiments/silence-dkls23/src/lib.rs
+fa43a2127f3a8aeea97cdcc90832b305f52778cb0526637f24dec79717544e3d  experiments/silence-dkls23/src/lifecycle.rs
+7511725d07c8deeb13c0afb8fe0cfdbd533a7c1df27a6728abc7d2d8d1e72ac1  experiments/silence-dkls23/src/main.rs
+6e6f64fc9516ccbf2531ec4083c6b3ce34fb5d30dc990323df5a74206431290c  experiments/silence-dkls23/src/measure.rs
+e5aa5ea12bfa0d43599651301da37b55d40fefb6131d57b032bc15986ecffbe4  experiments/silence-dkls23/src/native_process_tests.rs
+5a2e63ebb68435f6ce6d2292829547f573d5d7b206c29e60e321939df710f8d7  experiments/silence-dkls23/src/pool.rs
+7da42a750addae43cbec573dd3eaaa134440db600389f713a8ada7486681a53e  experiments/silence-dkls23/src/pool_driver.rs
+1b0dec289cf746cc962e458ab4fbbca208f02219ebeeb3cd0c5463d63e962bf6  experiments/silence-dkls23/src/pool_tests.rs
+45e43a9fe22d91ac76d2cf7dea6c5962046821525aef5645a28072c026f0a570  experiments/silence-dkls23/src/pool_worker.rs
+3fd5a7029706df0dcd8bbf900c4a58894b637765ba6b801888341d3cf9236666  experiments/silence-dkls23/src/pooled_process_tests.rs
+9302b55d4cd0ac20a2f8ed89067782d67f3b71661f36cc96d02f0dd21d2b8d06  experiments/silence-dkls23/src/process_probe.rs
+94a1028f4a5acaf512687cbfcd02749ffd34f0da9bd695a6188e79b01a7350f8  experiments/silence-dkls23/src/registration.rs
+f10cb5728101c4318a366d5c58f1268bcd34e18e73ffa63758d833d10a0643e9  experiments/silence-dkls23/src/registration_process_tests.rs
+df85d821860ddd0ddd5aa9d743cf5d46f5d49b6e26be57cba5ed08fb09a9a43e  experiments/silence-dkls23/src/registration_tests.rs
+a2da888d4525a4f2823b3ff41c64ff54b9e94ff68ca988ddb5b109f63f523033  experiments/silence-dkls23/src/reservation_tests.rs
+1d81ec0f491ef11a2e18d621cc2ac4c067f577b7147ca6993edba9f83c4c51f7  experiments/silence-dkls23/src/wire.rs
+d3fbe5381d70ba88b2e7992a13c9dcd572d39d6654da55d030254d1c858c7a8d  experiments/silence-dkls23/src/worker.rs
+4d91c0c1e1ed47c2ddaca755255c2b44aa4e419c10d5fd9ca67fd0e28749a31b  experiments/silence-dkls23/tests/authority.rs
+8203d899c5fb3abe01179e2f2a1b93dfc9e5eae65664261d5b1cb23c3772468c  experiments/silence-dkls23/tests/d_ot_regressions.rs
+0d392463127fd1673e2c32843ef0d22259b2b4c38127b16a6fc420e3a339d0e8  experiments/silence-dkls23/tests/invariants.rs
+--- default suite
+     Running unittests src/lib.rs (target/silence-dkls23/debug/deps/pairkey_dkls23_research-811ec4956797efb6)
+test result: ok. 47 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 10.03s
+     Running unittests src/main.rs (target/silence-dkls23/debug/deps/dkls_spike-1bb06a85333732b8)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/authority.rs (target/silence-dkls23/debug/deps/authority-0ba6c3a9a2c5e452)
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 2.04s
+     Running tests/d_ot_regressions.rs (target/silence-dkls23/debug/deps/d_ot_regressions-a0467decb5c7b791)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 100.05s
+     Running tests/invariants.rs (target/silence-dkls23/debug/deps/invariants-e39a72c365f4f30d)
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+exit=0
+--- fault-enabled suite
+     Running unittests src/lib.rs (target/silence-dkls23/debug/deps/pairkey_dkls23_research-ba59235bff9fcc4a)
+test result: ok. 47 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 9.54s
+     Running unittests src/main.rs (target/silence-dkls23/debug/deps/dkls_spike-4a2de003f7b9b9a3)
+test result: ok. 30 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 327.24s
+     Running tests/authority.rs (target/silence-dkls23/debug/deps/authority-95b0da93f3f39983)
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 2.05s
+     Running tests/d_ot_regressions.rs (target/silence-dkls23/debug/deps/d_ot_regressions-50b70880ef3def7d)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 98.84s
+     Running tests/invariants.rs (target/silence-dkls23/debug/deps/invariants-8df92923ed56388e)
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+exit=0
