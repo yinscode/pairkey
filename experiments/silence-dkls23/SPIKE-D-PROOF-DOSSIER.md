@@ -101,6 +101,8 @@ PairKey commits additive points and constructs a special degree-one sharing. It 
 
 The ordinary Schnorr endorsement establishes its verification equation and identity context. It is not automatically a straight-line UC extractor. Conversely, demanding a stronger knowledge extractor just because it is present would impose an assumption the relaxed theorem deliberately avoids. Its extra transcript also needs simulation if claiming UC security.
 
+The [registration mapping draft](/Users/user/.codex/worktrees/spike-d/pairkey/experiments/silence-dkls23/REGISTRATION-MAPPING-LEMMA.md) now specifies a point-only simulator, commitment/proof programming, exact retry state, and a key-preserving normalization of the paper's polynomial distribution. Its conditional connection uses ideal zero-sharing translation and a normalized private key-handle interface. Those interface/schedule conditions need independent review; the draft does not claim the current registration is a verbatim realization of the paper's polynomial protocol.
+
 ### Local admission lemma
 
 Within an honest authoritative journal, an honest `Service::sign` can construct a package only for the exact active certificate whose digest matches the request, whose local opening matches `Root::derive_v2`, and whose agreed donor/instance matches that execution. To see this, follow `Journal::active` and certificate validation, the record-digest equality, the generation and instance exchanges, irreversible reservations and finally `Donor::package`/`Record::local`. A conflicting stored certificate or changed request fails one of those checks, unless the canonical hash/authentication assumptions fail. This establishes local admission consistency; it does not constrain a corrupt peer's private package or prove native multiplication security.
@@ -181,6 +183,21 @@ At the secp256k1 order, the exact 512-bit reduction distance is approximately `2
 
 The [2026 analysis](https://eprint.iacr.org/2026/976), section 4.4, treats the early-gadget variant corresponding to the ordering in the current code. `RVOLEReceiver::new` derives `g` from the SID and outputs `b` before receiving the correction matrix. The paper also changes the OT hybrid to **Sender Random OT** and explains an output-fixing problem for the weaker endemic OT model in section 4.5. The compiled code's theta hash includes SID and correction rows; it does not explicitly append the online OT transcript. An upstream or new argument must establish effective-output fixing through the compiled SoftSpoken realization; no practical attack against that realization follows merely from the weaker-hybrid counterexample.
 
+#### Output-fixing sublemma: proof target, not closure
+
+Claude's Update 3 and dossier review correctly identify a narrower first target. In the selected **2023/765** edition, Claim 6.7 explicitly says that `alpha_0,alpha_1` are fixed before the adversary computes `theta=RO(sid,a_tilde)`. The **2026/976** section 4.5 counterexample chooses inconsistent OT inputs after deriving that challenge. Those are distinct paper references; proving the original claim's fixing premise alone does not restore all of Theorem 6.1 or resolve the revised sampling/dimension analysis.
+
+The compiled honest helper has the expected order: `RVOLESender::process` calls `SoftSpokenOTSender::process` at `rvole.rs:256`, constructs correction rows afterward, and derives theta afterward. Its deterministic helper outputs depend on donor material, the extension SID and the receiver's round-1 matrix. The abstract attack's free post-challenge choice of OT inputs is therefore not directly implemented by this helper. This supports **“does not transfer as written”**, not a proof that every malicious implementation lacks an equivalent adaptive strategy. An arbitrary corrupt signer is not required to call the helper, and it can query the public challenge oracle before sending any correction frame.
+
+The required sublemma should establish an online simulator/extractor for each corrupt role. For every relevant candidate challenge query, the effective OT outputs/correlations used by the honest endpoint must already be fixed consistently with the accepted setup and extension prefix, or the probability of successful later equivocation must be bounded. Extraction only from the completed transcript, after seeing theta, is insufficient. Include all public-oracle queries and candidate transcripts, accepted selective-abort leakage, malicious donor-time pad selection, previous sessions and concurrent sessions. Across repeated candidates the argument must charge grinding to an explicit query budget; merely observing one honest function call before another gives no such bound.
+
+| Corrupt role in the VOLE invocation | Required correspondence |
+| --- | --- |
+| Sender | Show how the setup/PPRF binding and the honest receiver's fresh extension matrix constrain the effective output pairs before each candidate theta response. Allow donor-time deviations and selective-acceptance information; distinguish base-OT roles from VOLE roles. |
+| Receiver | Show how a chosen round-1 matrix, including padding, fixes the extension-check statement before its challenge answer. Analyze adaptive matrix grinding and consistency acceptance at the exact `S=128` check, with total query counts rather than declaring it negligible from the parameter name alone. |
+
+The sublemma must also map the compiled hash-to-field bias, challenge domains and OT output conversion to the selected ideal functionality. Fixed outputs are not automatically **Sender Random OT**, and source-level separability of donor fields does not establish their reusable distribution. This is a necessary component of L1; L1's full realization/transplantation and reuse remain open. Registration uses different programmable oracle domains and supplies no programming power over these native challenges.
+
 Theorem 4.4 / B.17 supplies this sufficient dimension condition for its early-gadget Variant III:
 
 `m >= log2(q) + 7*s + 2*log2(s+1) + 2*s*log2(e*m/s)`
@@ -235,7 +252,7 @@ Primary sources: [DKLs23](https://eprint.iacr.org/2023/765), selected local 76-p
 
 1. A complete compiled-stack setup/extension simulator or a verified realization theorem with the actual leakage and fixing order for both corrupt roles.
 2. RVOLE reconciliation at the pinned dimensions and hash/OT instantiation, yielding a concrete bound or an explicit inability to certify one.
-3. A two-party registration simulator that covers deterministic roots, immutable first disclosure, real commitments and the extra endorsement transcript.
+3. Independent review of the two-party registration simulator draft, its root/PKI and programmable-ROM hybrids, normalized private key-handle interface, immutable first disclosure and extra endorsement transcript.
 4. An adaptive known-seed zero-mask realization and a public-tweak signing reduction covering the actual child-key oracle.
 5. A composition argument with the intended sequential/concurrent failure schedule, total generation/invocation/query budgets and concrete accumulated advantage.
 
@@ -270,4 +287,4 @@ Separate two experimental questions. **Consistency:** can this admissible malici
 
 Even if an explicit algorithm had success probability `2^-12`, 4,096 independent trials would have about a **36.8%** chance of observing no success. Approximately **12,270** such trials give a 95% chance of at least one observation. One observation is not an accurate rate estimate. With zero successes, a binomial upper confidence bound applies only to the tested algorithm and trial model; it does not establish cryptographic security against every adversary. The arithmetic checker records these hypothetical calculations without attributing that rate to the paper or code.
 
-The next useful proof work is the written registration simulation and the compiled-stack output-fixing/parameter correspondence. The leaky-donor amplification, process-clone and rollback probes remain useful focused experiments, provided their honest-endpoint and authority boundaries are explicit. No inferred `2^-12` attack rate is used as an experimental prediction.
+The proposed proof order is the compiled-stack output-fixing sublemma alongside independent review of the written registration simulator, then the known-seed mask realization (L4) and public-tweak game (L5), followed by full reusable realization/transplantation (L1) and concrete reconciliation (L3). This orders the work; none of the smaller lemmas closes L1/L3 by itself. The registration draft now states the SHA256/SHA512 joint-Extract and adaptive-Expand assumptions explicitly, without claiming the identity definition is circular. The leaky-donor amplification, process-clone and rollback probes remain useful focused experiments, provided their honest-endpoint and authority boundaries are explicit. No inferred `2^-12` attack rate is used as an experimental prediction.
