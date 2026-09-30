@@ -1,0 +1,11 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.01s
+     Running unittests src/lib.rs (/private/tmp/claude-501/-Users-user-Library-Application-Support-Claude-scratch-workspaces-8bd3f48d-7603-4ff4-b8a2-a7c6517f6ab9-65724095-b3a8-4b28-acb3-a40e39e2dc3f-scratch-2026-10-10-59f604/37f19edb-a303-4cce-a75a-ef7c66a6aa56/scratchpad/native-test/target/debug/deps/sl_dkls23-024476de01ee958a)
+running 1 test
+party 0: native and rebuilt layouts agree outside x_i/big_s/s_i
+party 1: native and rebuilt layouts agree outside x_i/big_s/s_i
+signing with rebuilt keyshares succeeded
+mixed OT material results: [Err("AbortProtocolAndBanParty(0)"), Err("AbortProtocolAndBanParty(1)")]
+zero seed mismatch results: [Err("FailedCheck(\"Consistency check 3 failed\")"), Err("FailedCheck(\"Consistency check 3 failed\")")]
+test keygen::keyshare::pairkey_research_tests::constructor_layout_matches_native_and_rebuilt_shares_sign ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 4.83s
+exit=0
