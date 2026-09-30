@@ -115,3 +115,94 @@ question, at the price of persisting setup secrets per pair. Both harnesses reru
   better fit if persisted per-pair secrets are acceptable and Silence vouches for cross-wallet reuse.
 - Update O1 to O6 and add to the Silence questions: the fresh-session-id contract and any usage bound
   for setup shared across keys, the donor pattern, and the 2026/976 reconciliation.
+
+## Update 3, 2026-10-12: commits 7bc364e, c3689f2, 9ec3890, 822105f, 1bdf776; Sol's `codex/spike-d` at 2d735bd, 0f6e055, 3b065e5
+
+My commits are documentation and evidence only; no code, parameter or dependency change on
+`silence-dkls23`. Spike D code exists only on `codex/spike-d` (worktree
+`~/.codex/worktrees/spike-d/pairkey`, same experiment directory). I read your uncommitted v4 drafts
+of the contract and the questions in the working tree and did not touch them. Please check the claims
+below against the sources and dispute what is wrong.
+
+**OT material rules and refill (`OT-POOL-RULES.md`).** Rules table with status at HEAD and remediation;
+rollback and randomness notes (a strict no-restore policy is an operational control, not rollback
+resistance; repeated randomness is excluded by OsRng per setup plus hedged seeds, not by instance ids);
+refill inputs and outputs; the Spike C zero share by coin commit and reveal; cautions for one setup
+shared per pair across wallets.
+
+**Spike D: the brief and what Sol built.** The brief (`SPIKE-D-INSTRUCTIONS.md`) asked for the
+migration route with Mode 1, a RAM cache with use and age bounds, rotation by native refresh, hedged
+seeds, instance-id journals and a pairing-wide failure policy, with no donor, pool or constructor; its
+closing section explains why registration remains under migration or refresh (both take the agreed key
+and chain code as inputs; only Mode 2 removes the pre-run exchange). The user redirected Sol to the
+donor route. What exists: one native DKG donor per pair, OT and zero seeds RAM-only and shared across
+derived wallets through the unchanged research constructor (`a/2`, `-b`; package sid over record,
+generation and instance); Mode 1 commit-then-reveal registration with journals, reserved-only attempts
+retired; a Schnorr possession proof that binds identity only; an R1 guard that journals authenticated
+round-1 session ids and reconstructs the final sid; hedged seeds; instance id over wallet digest,
+record, generation, path, prehash and attempt; `Limits` of at most 100 uses and 600 s with a 3-per-60-s
+rate check (`src/d/material.rs:16-43`, `src/d_worker.rs:592`); every failure discards the donor and
+attributable failures quarantine the pairing; combined `sign::run` only (`src/d_worker.rs:480`).
+Derivation v2 binds pairing, namespace, epoch, version, role and key id (`src/d.rs:66-93`). This
+changes my Update 2 decision input: the donor route no longer persists per-pair secrets; its price is
+a native DKG per pair per boot and at most every 600 s or 100 uses.
+
+**My Spike D reviews (`CLAUDE-REVIEW-SPIKE-D.md`, `CLAUDE-REVIEW-SPIKE-D-0f6e055.md`).** No security
+defect found in either tree. Findings on the first tree: cross-wallet fence test, dedupe before the R1
+guard, journal retention, retirement notice, configuration versioning; the fence test and the bounds
+landed in 0f6e055. The second review is an obligation-to-code table for six obligations with file,
+symbol and line references, assumptions A1 to A12 and lemmas L1 to L5: L1 realization and transplant
+of the compiled OT stack with its permitted leakage, L2 registration mapping in the programmable ROM,
+L3 concrete margin against 2026/976, L4 two-party zero sharing, L5 the public-tweak signing game for
+related child keys. Native accepts tampered public-share, key-id and extra fields in a package while
+coordinate and aggregate-key tampering freeze and session tampering burns, so package integrity is
+PairKey's admission boundary, not a native check. Both suites rerun in isolation from hashed archives:
+73 and 101 tests plus doc tests at 2d735bd, 78 and 109 at 0f6e055, all exit 0.
+
+**Sol's proof dossier (3b065e5) and my corrections (`CLAUDE-REVIEW-SPIKE-D-PROOF-DOSSIER.md`).** The
+dossier corrected my concrete-security reading and I accepted every point, with an erratum applied in
+place: the 12 is only what Theorem B.17's sufficient condition certifies at `m = 512` (`s = 12` holds,
+`s = 13` fails, minimum `m` at `s = 128` is 2656), not a margin or an attack rate; my 35 dropped the
+mandatory `2s log(e m / s)` term and is withdrawn; the theorem sits in the Sender Random OT hybrid, not
+the endemic one; consistency and distribution are separate experimental targets; A7 is a realization
+assumption; field separation is not statistical independence; fresh ids do not make shared-seed
+sessions independent; quarantine bounds the expected number of successful attempts and cannot prevent
+a first one; message claims must respect prehash equivalence modulo the group order. I reran the
+dossier's `checks.py` from the commit and reproduce every figure, including the reduction distances
+2^-127.65 and 2^-258.08 and 17 hashed source anchors. My addition: the 2026/976 section 4.5 attack
+requires the corrupt VOLE sender to choose its OT outputs after the challenge; in `rvole.rs` the
+sender's extended outputs are computed at line 256 from donor-time base-OT material and the receiver's
+round-1 matrix, before the correction rows and theta at 289 to 317, and the theta transcript binds only
+the session id and the correction rows (141 to 159, 286 to 315). So the attack does not transfer as
+stated and the first lemma to write is the output-fixing premise of Claim 6.7 for the SoftSpoken
+realization, which is local to the compiled code and restores Theorem 6.1 in the paper's own hybrid.
+The leftover-hash dimension question stays separate and open. Two requirements passed to Sol: refuse a
+prehash at or above the group order at request validation and key message claims by the reduced
+digest; compile the research-fault commands out of any build that carries a security claim.
+
+**Your v4 drafts, as far as they overlap.** The `PreSign` point is confirmed: `#[derive(Clone, Copy,
+...)]` at `sign/messages.rs:141` and `&PreSign` parameters at `sign/dsg.rs:479` and `783`; I withdraw
+the Update 2 ask about the split API, and Spike D uses only the combined entry point. The rotation
+caution is agreed: Spike D's bounds are operational hygiene, not derived from the one-branch probe, and
+after the dossier I describe them as bounding expected successes. On KDF circularity: Spike D derives
+the identity from the root with salt `identity/v1` and info `role` (`src/lib.rs:77-83`) and the wallet
+contribution from the root with salt `d/root/v2` and an info that hashes the two identity public keys,
+so identities are established before any wallet and the definition is well-founded; the price is the
+joint-KDF assumption in the dossier's table, which I suggest stating as HKDF-Extract under distinct
+salts being a dual PRF of the root. Your fixed-pair root namespace alternative stands. Fresh ids as
+necessary but not sufficient is already incorporated in my corrected review.
+
+**Asks.**
+- Try to break the "does not transfer as stated" reading: a corrupt base-OT sender choosing pads
+  adaptively at donor time, later acting as the corrupt VOLE sender, against the fixed order at
+  `rvole.rs:256` versus `289-317`; and the mirror case, receiver grinding of the one-message
+  SoftSpoken challenge through its padding bits at `S = 128`.
+- Verify the line references in the obligation-to-code table and the dossier's section 6 code map
+  against the worktree, as you did for the pool review.
+- Fold L1 to L5 into O1 to O6 and the Silence questions in v4: the Sender Random OT premise of
+  Theorem B.17 and whether Silence holds a written concrete bound; the fixing-order lemma; L5 under the
+  public child-key item of O2; the prehash-equivalence requirement as a PairKey item, not a Silence one.
+- Decision record: carry Spike D as an experiment beside O-C' with the corrected trade (RAM-only donor,
+  native DKG per pair per boot and per bound) and your donor column from v4.
+- Judge the proof order I proposed to Sol: fixing-order lemma, registration simulator, known-seed
+  zero mask, public-tweak game, then the reuse lemma and the dimension reconciliation with Silence.
