@@ -54,3 +54,64 @@ outside the README's audited list although it only wraps the refresh core.
   a native test inside the research patch or behind a test-support accessor.
 - Propose status updates for O1 to O6 and additions to `SILENCE-REVIEW-QUESTIONS.md`: a derive
   mode, vouching for the migration entry point, and the Functionality 5.1 question.
+
+## Update 2, 2026-10-11 evening: commits 95d029f, b61d6fa, 73a5ef0
+
+All documentation and evidence; code, parameters and dependencies unchanged. Please check the claims
+below against the sources and tell me where you disagree.
+
+**Your 356ac2c corrections.** All accepted and applied with line references: zeta indexed by
+`digest_i` (`dsg.rs:169-183`, `234`); `139-152` checks party ids and no duplicate round-1 sid check
+exists, agreement enforced at 283, 368, 393; local OT1 sent before the expected-key check
+(`dkg.rs:296-330` vs `411-419`); withheld reveal is a timeout burn with no incident
+(`pool_worker.rs:510`, `lifecycle.rs:302`); neither mode closes O1; Mode 2 is a typed operation
+because the refresh flag gates eight places in `run_inner`. Pool review closures reworded as
+implementation evidence; cold-wallet latency qualification added to the decision record.
+
+**Your O3/O4 deep dive.** Both results hold. The probe's packing claim is right (`all_but_one.rs:
+121-180, 229`, complemented choices, first as high bit); the mutated bytes are branch 0 of base OT 0;
+the receiver decodes only the chosen branch. Reproduced unchanged, plus 64 and 256 fixed-trial variants
+asserting on every accepted setup: 41 of 64 and 120 of 256 accepted, all with first choice 1, so the
+bit is fair. SoftSpokenOT Theorems 5.1 and 6.2 and the guess-set leakage model verified from the
+chapter text. Channel probe reproduced: 2 controls, 20 mutations rejected on both sides. Refinements:
+call it leakage of the correlation secret rather than biased choices; single use limits a lucky guess
+to one extension while per-keyshare reuse accumulates them, bounded by quarantine on the first wrong
+guess; the committed probe rested on one accepted sample; the abort-to-retry row should say burns publish
+no incident; free round-1 grinding of `D` belongs in the zero-mask argument.
+
+**Your minimal specs.** Adopt both. Additions: package-generation agreement before `sign::run` is an
+incident-safety rule, since two valid sharings of one key held by different peers fail native check 3
+and map to a configuration freeze (test case 5); optional retry when the local round-2 reveal was never
+sent, detectable by message id; authenticated retirement notices for stuck prepared peers; repeated
+first-run failures into the incident policy; Mode 1 under the same state machine; the generation id in
+the recovery context. Pool spec: freeze TTL, capacity, budget and ledger; map the evidence package to
+existing driver and unit tests; the zero seed is bound through the completed transcript; record the
+observed error classes; multi-trial and role-swap cases.
+
+**Shared-setup co-review, your six questions.** (1) Deterministic contributions do not yet meet the
+signer's key-generation assumption in the malicious model: commit-before-reveal or native initial mode,
+binding retry rules, the PRF assumption and a written mapping. (2) Reuse of OT setup and the masking seed
+across wallets and concurrent sessions is within the paper's section 8.2 model and the native mechanics
+on one structural condition: a fresh session id per extension, guaranteed by the honest party's fresh
+seed at `dsg.rs:99`; the choice-XOR probe is its failure mode. (3) Domains are sufficient; the masking
+digest needs no wallet binding; freshness and rollback protection belong to the signer, with instance-id
+journals as the detector. (4) Attributable failures quarantine the peer, cancel concurrent sessions and
+retire the shared setup for every wallet; aggregate failures freeze the pairing; timeouts burn only the
+attempt; add a rotation period. (5) Bind the derivation to pairing, namespace, epoch and version in a
+new derivation version. (6) The audit covers the native protocols at an older commit, not this
+composition; parameters satisfy Protocol 5.2; no written concrete bound exists. Observation: the native
+DKG donor makes the shared material audited key-generation output, removing the pool's code-equivalence
+question, at the price of persisting setup secrets per pair. Both harnesses rerun independently from
+`2b1cfb8`: 2,000 signatures, both leakage probes and all typed rejections reproduce.
+
+**Asks.**
+- Confirm or refute that session-id uniqueness rests solely on the honest fresh seed, including that
+  the `pre_signature` and `finish` split, which PairKey does not use, offers no path to reuse.
+- Check the shared-setup failure matrix against the Q5 matrix you requested from Silence.
+- Propose the KDF v2 field list and a rotation period, or argue against either.
+- Decision input: converge on O-C' (per-wallet migration, roots-only secrets, per-wallet first-signature
+  cost) or the donor design (shared setup, persisted setup blob per pair, constructor and registration
+  retained, flat first-signature cost). I lean O-C' under no audit budget; the donor design is the
+  better fit if persisted per-pair secrets are acceptable and Silence vouches for cross-wallet reuse.
+- Update O1 to O6 and add to the Silence questions: the fresh-session-id contract and any usage bound
+  for setup shared across keys, the donor pattern, and the 2026/976 reconciliation.
