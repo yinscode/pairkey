@@ -202,7 +202,10 @@ API and an import constructor but not the migration wrapper. O-C' keeps everythi
 removes the per-signature refresh cost after the first signature per boot, at the price of adopting
 Silence's own OT-seed reuse model, which the quarantine logic already handles. A wallet-independent pool additionally hides setup
 latency for the first signature on a cold wallet, which O-C' pays once per wallet per boot; per-attempt
-migration also refreshes OT, so freshness is not unique to the pool.
+migration also refreshes OT, so freshness is not unique to the pool. Freshness has a second value: under
+the base-OT selective-abort leakage demonstrated in O3-O4-DEEP-DIVE.md, a lucky guess against single-use
+material leaks a bit that serves one signature, while under per-keyshare reuse such bits accumulate against
+the same secret; both are bounded by quarantine on the first wrong guess.
 
 ## 12. Additional suggestions
 

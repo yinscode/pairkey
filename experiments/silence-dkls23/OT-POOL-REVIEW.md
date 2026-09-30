@@ -46,6 +46,7 @@ under `.local/silence-dkls23/sources/dkls23-af5ada2a2e573c2c8eac5b01f9bbc4bf1c33
 - Pool, `src/pool_worker.rs:125-141`: `EndemicOTReceiver::new(&base_ot_sid(role, peer), &mut msg1, &mut OsRng)`; peer `msg1` decoded with a length-checked `bytemuck` read, then `EndemicOTSender::process(&base_ot_sid(peer, role), &decoded, &mut msg2, &mut OsRng)`, decode errors mapped to a peer violation.
 - Native, `keygen/dkg.rs:296-330` and `446-460`: identical calls with `get_base_ot_session_id(msg1 sender, msg1 receiver, final_session_id)` and the protocol RNG; `process` errors map to `InvalidMessage`.
 - Argument order: the native helper takes the message sender first, which is the OT receiver; the pool's `base_ot_sid(receiver, sender)` puts the OT receiver first. Same canonical order on both sides.
+- Equivalence means equal behaviour under the same adversary, not an all-honest output distribution: the selective-abort probe in [O3-O4-DEEP-DIVE.md](O3-O4-DEEP-DIVE.md), which I reran, shows an accepted setup can reveal a base choice to a malicious sender in the pool and in native DKG alike; a wrong guess is a decode error that both map to a peer violation.
 - `endemic_ot.rs:134-180` validates every received point and rejects decode failures; `h_function_2` omits the session id in both uses. Inherited, not introduced.
 
 ### 2.2 PPRF

@@ -1,0 +1,22 @@
+# Claude independent rerun of Astra probes, 2026-10-11, isolated snapshot of 73f318a, probes unchanged from f4e9a7c
+# command: cargo test --locked --offline --features research-faults (o3 as integration tests; o4 as child module src/wire/o4_setup_channel_probe.rs)
+--- o3 probe and 64-trial variant
+running 1 test
+Observed 1 accepted PPRF setup(s), all with first base choice 1; 1 typed decode rejection(s). No signing or peer retry performed.
+test malicious_reply_can_filter_an_accepted_base_choice ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.67s
+running 1 test
+test every_accepted_setup_reveals_first_base_choice has been running for over 60 seconds
+64 trials: 41 accepted (all with first base choice 1), 23 decode rejections
+test every_accepted_setup_reveals_first_base_choice ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 101.55s
+exit=0
+--- o4 probe
+running 1 test
+2 matching-context controls succeeded; 20 context/phase mutations rejected on both sides with typed Burn/Context errors. No native signing invoked.
+test wire::o4_setup_channel_probe::o4_setup_and_consumption_mutations_fail_before_native_signing ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.05s
+exit=0
+--- o3 256-trial variant
+256 trials: 120 accepted (all with first base choice 1), 136 decode rejections
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 395.39s
