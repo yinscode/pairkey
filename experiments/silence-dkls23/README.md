@@ -1,9 +1,10 @@
 # DKLS23 root-only persistence research spikes
 
-Isolated workspace on branch `silence-dkls23`. This directory is not a member of
-the PairKey production workspace. FROST, the parent Cargo.lock, Solana programs
-and architecture v0.4 are unchanged. These are local research experiments;
-none of these routes is adopted as the production ECDSA backend.
+Standalone research workspace on branch `silence-dkls23`. The October 12
+[local platform integration](../../docs/multi-suite-signing.md) imports this crate
+as a path dependency and adds DKLS23 and RedPallas to the parent workspace/lockfile.
+The Solana program ABI and architecture v0.4 are unchanged. These remain local
+research routes, without production ECDSA approval.
 
 ## Reproduce
 
@@ -203,7 +204,7 @@ package reuse.
 
 Fault injection is disabled by default. The full demo requires the explicit
 `research-faults` Cargo feature, which also gates the native migration fixture.
-A default build refuses a nonempty fault request; no product integration is added.
+A default build refuses a nonempty fault request. The later [local platform integration](../../docs/multi-suite-signing.md) wraps D with Solana COMMIT authorization; this does not establish production readiness.
 
 ## Validation and measurements
 

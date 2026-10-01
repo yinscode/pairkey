@@ -60,7 +60,7 @@ The full original Phase 0 exit still needs Task 5. Complete attestation-chain, p
 
 Custom derivation/proofs/native curve integration require independent specialist review. Root recovery, historical-material limits and governance must be implemented and reviewed before a public release; changing registry epochs cannot revoke an extracted historical signing threshold. Authenticated crypto failures set a process-local refusal flag and surface an incident; operators must retire/freeze authoritative registry state before restarting after an incident. This is not a durable automatic root-wide incident system.
 
-The original Phase 0–3 track did not include SESSION or SIMULATE. The subsequent Solana Phase 6–7 extension is recorded below; ECDSA/DKLS23, OAuth, agents, Hyperliquid and recovery remain unimplemented.
+The original Phase 0–3 track did not include SESSION or SIMULATE. The subsequent Solana Phase 6–7 extension is recorded below; ECDSA/DKLS23 was outside that track; the October 12 integration below now covers exact-COMMIT ECDSA signing. OAuth, agents, Hyperliquid and recovery remain unimplemented.
 
 ## Continuation audit: response and subscription bounds
 
@@ -135,12 +135,20 @@ The subsequent complete validator/process run passes with the rebuilt workers an
 - **Authorization boundaries:** COMMIT remains exact-byte repeatable permission; SESSION has per-operation limits. Neither provides cumulative accounting or exactly-once execution. Constrained SIMULATE is a trusted-source predicate, not a destination-state reservation.
 - **Recovery:** choose and test the recovery access structure and durability. Current FROST root escrow would span all provider namespaces. A retained complete historical signing quorum defeats registry retirement and same-address refresh.
 
-### DKLS23 remains a proposal
+### Historical October 10 DKLS23 proposal boundary
 
-No DKLS dependency, ECDSA backend, OT state store or recovery code is added. The conservative candidate remains native DKG, supported non-hardened public derivation, complete fresh signing and encrypted persistent packages scoped to each controller/recovery root. A provider root can seal those packages but cannot recreate lost interactive setup. Independent-KDF DKLS share injection has no established audited integration path.
+At the October 10 review checkpoint, no DKLS dependency, ECDSA backend, OT state store or recovery code had been added. The conservative candidate remains native DKG, supported non-hardened public derivation, complete fresh signing and encrypted persistent packages scoped to each controller/recovery root. A provider root can seal those packages but cannot recreate lost interactive setup. Independent-KDF DKLS share injection has no established audited integration path.
 
 The inspected candidate was `af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7`, not a selected dependency. Its duplicate-ID comparison permits distinct participant-index tuples with the same package ID, leading to a self-ID assertion. Resolve that static panic-path finding, validate identity/coordinate mappings, pin dependencies and review changes from the historical audit before adoption. Resolve intended-use licensing rights as well. [Pinned finding](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/sign/dsg.rs#L142), [assertion](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/src/keygen/keyshare.rs#L314), [license](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/LICENSE).
 
 Persistent OT seeds remain package/pair scoped, with fresh invocation randomness and protocol sessions. No global cross-root OT reuse or reusable arbitrary-message presignatures are approved. Relevant cryptographic failures require aborting concurrent sessions and refusing future sessions with the offending counterparty. Durable fencing must cover every process and session sharing affected OT state. The historical assessment's limited scope and partially resolved OT specification finding do not certify current HEAD or PairKey. [Assessment report](https://github.com/silence-laboratories/dkls23/blob/af5ada2a2e573c2c8eac5b01f9bbc4bf1c331ac7/docs/ToB-SilenceLaboratories_2024.04.10.pdf).
 
 Before adoption, specify authenticated manifests and encryption context, independently durable/restorable replicas, atomic package/refresh epoch activation, rollback and mixed-epoch refusal, interrupted-transition recovery and sealing-key replacement. Rewrapping does not revoke retained ciphertext or historical quorums. The 2-of-2 proposal restores complete packages through protected backups; genuine 2-of-3 requires C in initial DKG and epoch maintenance, with A+C and B+C valid signing quorums. Dormancy is a governance policy. See [v0.4 lifecycle and recovery](architecture-v0.4.md).
+
+## October 12: local multi-suite integration
+
+[Solana-authorized DKLS23 and RedPallas](multi-suite-signing.md) supersedes the historical statement that DKLS23 is proposal-only. The platform now wraps Spike D in its existing authorization/worker/SDK flow and adds FROST RedPallas. Both suites use exact COMMITs issued by account or program/CPI controllers, without changing the registry ABI. EVM native transfers execute on local Anvil; RedPallas output verifies through ordinary Orchard SpendAuth RedDSA verification. Worker restart preserves the enrolled keys. Missing/changed approvals and observed freezes refuse signing.
+
+This does not add EVM sessions, an Orchard wallet, OIDC login, TEE deployment, recovery, or production approval. The DKLS wrapper prepares a fresh donor for each request; research proof obligations remain open. The document includes API details, reproducible tests, remaining tasks, and the minimal passkey/OIDC integration plan.
+
+Validation: 41 host tests, five explicit registry runtime tests, the four multi-suite flows and the full original Ed25519/policy demo passed. Clippy with warnings denied and workspace-member formatting passed. The registry tests used existing unchanged SBF artifacts; the configured v1.56 compiler is unavailable for a fresh rebuild. See [public multi-suite evidence](multi-suite-test-evidence.json).
