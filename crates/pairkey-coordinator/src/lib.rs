@@ -1,4 +1,5 @@
 //! Untrusted routing, bounded jobs, public results. No provisioning files or keys.
+mod jobs;
 mod multi;
 use anyhow::{ensure, Context};
 use axum::{
@@ -25,6 +26,8 @@ use std::{
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(default)]
+    pub jobs_file: Option<String>,
     pub bind: String,
     pub workers: [String; 2],
     pub identities: [[u8; 32]; 2],
@@ -119,6 +122,18 @@ impl Relay {
             },
         )
         .await?;
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            let error: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+            if error["code"] == "backend_rate_limited" {
+                return Err(jobs::RetryAfter(
+                    error["retry_after_secs"]
+                        .as_u64()
+                        .unwrap_or(61)
+                        .clamp(1, 300),
+                )
+                .into());
+            }
+        }
         ensure!(
             status.is_success(),
             "worker {} rejected {path}: {}",
@@ -318,7 +333,9 @@ struct Entry {
     created: Instant,
 }
 struct Service {
-    multi: tokio::sync::Mutex<()>,
+    intent_jobs: Mutex<jobs::Store>,
+    cancels: jobs::Cancels,
+    multi: Arc<tokio::sync::Mutex<()>>,
     relay: Relay,
     jobs: Mutex<BTreeMap<String, Entry>>,
     capacity: Arc<tokio::sync::Semaphore>,
@@ -344,8 +361,23 @@ async fn propose(
 }
 async fn enqueue(
     State(s): State<S>,
-    Json(request): Json<SignRequest>,
+    Json(value): Json<Value>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if value.get("signing").is_some() {
+        let q: jobs::Submission = serde_json::from_value(value).map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error":e.to_string()})),
+            )
+        })?;
+        return jobs::enqueue(s, q.signing).await;
+    }
+    let request: SignRequest = serde_json::from_value(value).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":e.to_string()})),
+        )
+    })?;
     request
         .commit
         .authorize(&request.registration, &request.message)
@@ -397,12 +429,21 @@ async fn enqueue(
     });
     Ok(Json(json!({"job_id":id})))
 }
-async fn poll(State(s): State<S>, Path(id): Path<String>) -> Result<Json<Job>, StatusCode> {
+async fn poll(State(s): State<S>, Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    if let Some(job) = s
+        .intent_jobs
+        .lock()
+        .unwrap()
+        .get(&id)
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+    {
+        return Ok(Json(serde_json::to_value(job).unwrap()));
+    }
     s.jobs
         .lock()
         .unwrap()
         .get(&id)
-        .map(|e| Json(e.job.clone()))
+        .map(|e| Json(serde_json::to_value(&e.job).unwrap()))
         .ok_or(StatusCode::NOT_FOUND)
 }
 async fn events(
@@ -412,7 +453,14 @@ async fn events(
     Sse<impl futures_util::Stream<Item = Result<Event, std::convert::Infallible>>>,
     StatusCode,
 > {
-    if !s.jobs.lock().unwrap().contains_key(&id) {
+    if !s.jobs.lock().unwrap().contains_key(&id)
+        && s.intent_jobs
+            .lock()
+            .unwrap()
+            .get(&id)
+            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+            .is_none()
+    {
         return Err(StatusCode::NOT_FOUND);
     }
     let permit = s
@@ -420,27 +468,26 @@ async fn events(
         .clone()
         .try_acquire_owned()
         .map_err(|_| StatusCode::TOO_MANY_REQUESTS)?;
-    let stream =
-        futures_util::stream::unfold((s, id, false, permit), |(s, id, done, permit)| async move {
+    let stream = futures_util::stream::unfold(
+        (s, id, false, permit),
+        |(s, id, done, permit)| async move {
             if done {
                 return None;
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
-            let job = s
-                .jobs
-                .lock()
-                .unwrap()
-                .get(&id)
-                .map(|e| e.job.clone())
-                .unwrap_or(Job::Failed {
-                    error: "result expired".into(),
-                });
-            let done = matches!(job, Job::Complete { .. } | Job::Failed { .. });
+            let job = match poll(State(s.clone()), Path(id.clone())).await {
+                Ok(Json(job)) => job,
+                Err(_) => {
+                    json!({"status":"failed","code":"unavailable","error":"job expired or store unavailable","may_have_signed":true})
+                }
+            };
+            let done = matches!(job["status"].as_str(), Some("complete" | "failed"));
             Some((
                 Ok(Event::default().json_data(job).expect("job serialization")),
                 (s, id, done, permit),
             ))
-        });
+        },
+    );
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 pub async fn run(config: Config) -> anyhow::Result<()> {
@@ -449,7 +496,20 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         bind.ip().is_loopback(),
         "local coordinator must bind loopback"
     );
+    let context = pairkey_types::digest(
+        b"pairkey/job-store/v2",
+        &(config.workers.clone(), config.identities),
+    );
+    let intent_jobs = jobs::Store::open(
+        config
+            .jobs_file
+            .as_deref()
+            .context("jobs_file must be configured")?,
+        context,
+    )?;
     let service = Arc::new(Service {
+        intent_jobs: Mutex::new(intent_jobs),
+        cancels: Default::default(),
         multi: Default::default(),
         relay: Relay::new(config)?,
         jobs: Mutex::new(BTreeMap::new()),
@@ -467,6 +527,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         .route("/jobs", post(enqueue))
         .route("/jobs/:id", get(poll))
         .route("/jobs/:id/events", get(events))
+        .route("/jobs/:id/cancel", post(jobs::cancel))
         .layer(DefaultBodyLimit::max(16_384))
         .with_state(service);
     println!(
@@ -487,12 +548,19 @@ mod tests {
     #[tokio::test]
     async fn live_subscription_limit_is_released_when_client_body_is_dropped() {
         let relay = Relay::new(Config {
+            jobs_file: None,
             bind: "127.0.0.1:0".into(),
             workers: ["http://127.0.0.1:1".into(), "http://127.0.0.1:2".into()],
             identities: [[1; 32], [2; 32]],
         })
         .unwrap();
+        let path = std::env::temp_dir().join(format!(
+            "pairkey-subscriptions-{}",
+            Pubkey::new_from_array(pairkey_signing::dkls::fresh())
+        ));
         let s = Arc::new(Service {
+            intent_jobs: Mutex::new(jobs::Store::open(path.to_str().unwrap(), [0; 32]).unwrap()),
+            cancels: Default::default(),
             multi: Default::default(),
             relay,
             jobs: Mutex::new(BTreeMap::from([(

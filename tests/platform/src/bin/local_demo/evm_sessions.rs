@@ -267,8 +267,10 @@ pub(super) async fn run(
     )
     .await?;
     refuse_workers(configs, relay, &q).await?;
+    let mut revoked_attempt = q.clone();
+    OsRng.fill_bytes(&mut revoked_attempt.attempt.random_id);
     ensure!(
-        sdk.sign_intent(&q, identities).await.is_err(),
+        sdk.sign_intent(&revoked_attempt, identities).await.is_err(),
         "revoked EVM grant signed"
     );
     // Restore COMMIT policy for the multi-suite freeze checks that follow.

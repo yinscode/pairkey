@@ -33,3 +33,5 @@ sha2.workspace = true
 example-policy = { path = "../../programs/example-policy", features = ["no-entrypoint"] }
 
 pairkey-signing = { path = "../../crates/pairkey-signing" }
+
+axum.workspace = true

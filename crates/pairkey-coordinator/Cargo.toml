@@ -24,3 +24,5 @@ futures-util.workspace = true
 
 pairkey-signing = { path = "../pairkey-signing" }
 sl-mpc-mate = { version = "=1.0.0-beta", features = ["simple-relay"] }
+
+pairkey-core = { path = "../pairkey-core" }

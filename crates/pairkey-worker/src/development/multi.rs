@@ -3,6 +3,15 @@
 use super::*;
 use pairkey_signing::{self as signing, dkls, redpallas, wire as mw, Payload, Suite};
 use std::process::Stdio;
+#[derive(Debug)]
+struct BackendRateLimit;
+impl std::fmt::Display for BackendRateLimit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "native peer transport rate limited")
+    }
+}
+impl std::error::Error for BackendRateLimit {}
+
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, Command},
@@ -131,7 +140,7 @@ fn receipt(
 ) -> anyhow::Result<mw::Receipt> {
     a.request.intent.verify(&signature)?;
     let mut r = mw::Receipt {
-        version: 1,
+        version: mw::PROTOCOL_VERSION,
         development: true,
         hardware_backed: false,
         request: a.request.clone(),
@@ -155,6 +164,7 @@ pub(super) async fn info(
         q.account.validate()?;
         let root = dkls::Root::load(std::path::Path::new(&w.multi.root_path))?;
         let mut i = mw::Info {
+            protocol: mw::PROTOCOL_VERSION,
             request: q.clone(),
             role: role(&w),
             boot: w.channel.boot_id(),
@@ -447,12 +457,15 @@ pub(super) async fn exchange(
                     terminal = true;
                 }
                 dkls::Frame::Failure(f) => {
+                    if f.detail == "D peer transport rate limited" {
+                        return Err(BackendRateLimit.into());
+                    }
                     if matches!(
                         f.action,
                         dkls::lifecycle::Action::QuarantinePeer
                             | dkls::lifecycle::Action::FreezeConfiguration
                     ) {
-                        w.release.lock().unwrap().incident = true;
+                        w.release.lock().unwrap().record_incident()?;
                     }
                     anyhow::bail!("backend failed: {f:?}")
                 }
@@ -481,7 +494,9 @@ pub(super) async fn exchange(
     if work.is_err() {
         *w.multi.d.lock().await = None;
     }
-    work.map(Json).map_err(failure)
+    work.map(Json).map_err(|e| {
+        if e.is::<BackendRateLimit>() { (StatusCode::TOO_MANY_REQUESTS, Json(json!({"error":e.to_string(),"code":"backend_rate_limited","retry_after_secs":61}))) } else { failure(e) }
+    })
 }
 pub(super) async fn reset(State(w): State<W>) -> StatusCode {
     *w.multi.d.lock().await = None;
@@ -646,7 +661,7 @@ pub(super) async fn rresult(
         ) {
             Ok(s) => s,
             Err(e) => {
-                release.incident = true;
+                release.record_incident()?;
                 return Err(e);
             }
         };

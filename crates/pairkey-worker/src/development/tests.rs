@@ -189,7 +189,18 @@ impl Fixture {
             rpc: Rpc::new(url).unwrap(),
             trust,
             pending: Mutex::new(BTreeMap::new()),
-            release: Mutex::new(ReleaseState::default()),
+            release: Mutex::new(
+                ReleaseState::load(
+                    std::env::temp_dir()
+                        .join(format!(
+                            "pairkey-worker-test-{}",
+                            Pubkey::new_from_array(pairkey_signing::dkls::fresh())
+                        ))
+                        .to_str()
+                        .unwrap(),
+                )
+                .unwrap(),
+            ),
             freshness: Default::default(),
             started: Instant::now(),
             capacity: Arc::new(tokio::sync::Semaphore::new(16)),
@@ -312,6 +323,19 @@ async fn transcript_splice_refuses_without_incident_but_authenticated_bad_share_
     .await
     .is_err());
     assert!(f.worker.release.lock().unwrap().incident);
+    assert_eq!(
+        f.worker
+            .release
+            .lock()
+            .unwrap()
+            .incident_store
+            .as_ref()
+            .unwrap()
+            .read()
+            .unwrap()
+            .unwrap(),
+        b"incident-v1\n"
+    );
     assert!(begin(State(Arc::clone(&f.worker)), Json(f.begin.clone()))
         .await
         .is_err());
@@ -465,6 +489,7 @@ fn red_request(f: &Fixture) -> pairkey_signing::wire::Authorized {
     };
     mw::Authorized {
         request: mw::SignRequest {
+            protocol: pairkey_signing::wire::PROTOCOL_VERSION,
             registration: reg.clone(),
             attempt: f.begin.attempt.clone(),
             intent: Intent {
@@ -566,4 +591,26 @@ async fn redpallas_cancel_during_rpc_burns_nonce_and_retains_capacity_until_exit
     f.rpc.resume.notify_one();
     assert!(task.await.unwrap().is_err());
     assert_eq!(f.worker.nonce_capacity.available_permits(), 64);
+}
+
+#[test]
+fn incident_latch_survives_restart_and_unknown_state_fails_closed() {
+    let path = std::env::temp_dir().join(format!(
+        "pairkey-incident-{}",
+        Pubkey::new_from_array(pairkey_signing::dkls::fresh())
+    ));
+    let name = path.to_str().unwrap();
+    {
+        let mut release = ReleaseState::load(name).unwrap();
+        assert!(!release.incident);
+        assert!(ReleaseState::load(name).is_err());
+        release.record_incident().unwrap();
+    }
+    assert!(ReleaseState::load(name).unwrap().incident);
+    for corrupt in [b"".as_slice(), b"ready-v2\n", b"partial"] {
+        std::fs::write(&path, corrupt).unwrap();
+        assert!(ReleaseState::load(name).unwrap().incident);
+    }
+    std::fs::remove_file(&path).unwrap();
+    std::fs::remove_file(format!("{name}.lock")).unwrap();
 }

@@ -1,5 +1,6 @@
 //! COMMIT, SESSION, credential and SIMULATE authorization over an injected chain observation.
 //! RPC correctness and the observation's authenticated clock are adapter assumptions.
+pub mod local_store;
 use borsh::BorshDeserialize;
 use pair_registry::{
     namespace_address, request_address, set_address, EnclaveSet, NamespaceRecord, RequestRecord,

@@ -187,10 +187,16 @@ impl Relay {
         work
     }
     pub async fn multi_reset(&self) {
-        let _ = tokio::join!(
+        let _ = self.multi_reset_checked().await;
+    }
+    pub async fn multi_reset_checked(&self) -> anyhow::Result<()> {
+        let (a, b) = tokio::join!(
             self.empty(0, "/multi/reset", &()),
             self.empty(1, "/multi/reset", &())
         );
+        a?;
+        b?;
+        Ok(())
     }
     pub async fn multi_sign(&self, q: mw::SignRequest) -> anyhow::Result<mw::Signed> {
         q.validate()?;
@@ -307,13 +313,32 @@ pub(super) async fn key(
     State(s): State<S>,
     Json(q): Json<mw::KeyRequest>,
 ) -> Result<Json<mw::KeyResponse>, (StatusCode, Json<Value>)> {
-    let _guard = s.multi.try_lock().map_err(|_| {
+    let guard = s.multi.clone().try_lock_owned().map_err(|_| {
         (
             StatusCode::TOO_MANY_REQUESTS,
             Json(json!({"error":"multi-suite worker busy"})),
         )
     })?;
-    s.relay.multi_key(q).await.map(Json).map_err(|e| {
+    // The owner survives an HTTP disconnect and retains serialization through cleanup.
+    tokio::spawn(async move {
+        let work = async {
+            s.relay.multi_reset_checked().await?;
+            s.relay.multi_key(q).await
+        };
+        let result = tokio::time::timeout(Duration::from_secs(90), work).await;
+        s.relay.multi_reset().await;
+        drop(guard);
+        result.map_err(anyhow::Error::from).and_then(|r| r)
+    })
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error":e.to_string()})),
+        )
+    })?
+    .map(Json)
+    .map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
             Json(json!({"error":e.to_string()})),
@@ -324,16 +349,43 @@ pub(super) async fn sign(
     State(s): State<S>,
     Json(q): Json<mw::SignRequest>,
 ) -> Result<Json<mw::Signed>, (StatusCode, Json<Value>)> {
-    let _guard = s.multi.try_lock().map_err(|_| {
+    let _waiter = s.subscriptions.clone().try_acquire_owned().map_err(|_| {
         (
             StatusCode::TOO_MANY_REQUESTS,
-            Json(json!({"error":"multi-suite worker busy"})),
+            Json(json!({"error":"result waiter capacity reached"})),
         )
     })?;
-    s.relay.multi_sign(q).await.map(Json).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(json!({"error":e.to_string()})),
-        )
-    })
+    let Json(submitted) = super::jobs::enqueue(s.clone(), q).await?;
+    let id = submitted["job_id"].as_str().unwrap();
+    loop {
+        let job = s.intent_jobs.lock().unwrap().get(id).map_err(|e| {
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"error":e.to_string()})),
+            )
+        })?;
+        match job {
+            Some(pairkey_sdk::multi::IntentJob::Complete { result }) => return Ok(Json(*result)),
+            Some(pairkey_sdk::multi::IntentJob::Failed {
+                code,
+                error,
+                may_have_signed,
+                retry_after_secs,
+            }) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(
+                        json!({"error":error,"code":code,"may_have_signed":may_have_signed,"retry_after_secs":retry_after_secs}),
+                    ),
+                ))
+            }
+            None => {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(json!({"error":"job unavailable"})),
+                ))
+            }
+            _ => tokio::time::sleep(Duration::from_millis(50)).await,
+        }
+    }
 }

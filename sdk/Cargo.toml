@@ -23,3 +23,4 @@ pairkey-core = { path = "../crates/pairkey-core" }
 bincode.workspace = true
 
 pairkey-signing = { path = "../crates/pairkey-signing" }
+tokio.workspace = true

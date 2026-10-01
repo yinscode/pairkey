@@ -85,6 +85,7 @@ fn redpallas_two_party_signature_verifies_with_native_reddsa_and_binds_approval(
     };
     let commit = Commit::new(&reg, [17; 32], path.clone(), &intent.bytes().unwrap()).unwrap();
     let request = pairkey_signing::wire::SignRequest {
+        protocol: pairkey_signing::wire::PROTOCOL_VERSION,
         registration: reg.clone(),
         attempt: Attempt {
             commit,
@@ -95,6 +96,12 @@ fn redpallas_two_party_signature_verifies_with_native_reddsa_and_binds_approval(
         certificate: pairkey_signing::wire::Certificate::RedPallas(public.clone()),
     };
     request.validate().unwrap();
+    let mut old = request.clone();
+    old.protocol = 1;
+    assert!(old.validate().is_err());
+    let mut missing = serde_json::to_value(&request).unwrap();
+    missing.as_object_mut().unwrap().remove("protocol");
+    assert!(serde_json::from_value::<pairkey_signing::wire::SignRequest>(missing).is_err());
     let mut wrong = request.clone();
     wrong.intent.key.suite = Suite::Dkls23Secp256k1;
     assert!(wrong.validate().is_err());

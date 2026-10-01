@@ -36,6 +36,14 @@ for log, event, filename in [('ed25519-demo.log', 'local_demo_passed', 'ed25519-
         session_checks = ('executed_without_commit', 'revocation_refused', 'limits_refused', 'policy_version_refused', 'required_commit_enforced', 'commit_plus_session_signed', 'transaction_replay_refused')
         if len(sessions) != 2 or {x.get('authorization') for x in sessions} != {'account', 'program_cpi'} or not all(all(x.get(check) is True for check in session_checks) for x in sessions):
             raise SystemExit('Missing EVM session evidence')
+        lifecycle = evidence.get('job_lifecycle', {})
+        cases = lifecycle.get('cases', [])
+        phases = ('register', 'prepare', 'sign', 'ecdsa_result', 'red_begin', 'red_finish', 'red_result')
+        expected = {(p, a) for p in phases for a in ('cancel', 'coordinator_restart', 'worker_restart', 'policy_freeze') if a != 'policy_freeze' or not p.endswith('result')}
+        if len(cases) != len(expected) or {(x.get('phase'), x.get('action')) for x in cases} != expected or not all(all(x.get(k) is True for k in ('explicit_fresh_retry_verified', 'duplicate_submission_deduplicated', 'cached_result_no_worker_calls')) for x in cases):
+            raise SystemExit('Missing lifecycle matrix evidence')
+        if lifecycle.get('authorization') != 'program_cpi' or not all(lifecycle.get(k) is True for k in ('completed_results_survive_restart', 'queued_cancellation_refused_before_start', 'sse_observed')):
+            raise SystemExit('Missing durable job evidence')
     shutil.copyfile(path, report / filename)
 print('Public CI evidence collected')
 
@@ -44,10 +52,12 @@ def passed(log):
     if not results:
         raise SystemExit(f'Missing test results in {log}')
     return sum(map(int, results))
+if passed('native-faults.log') != 9 or passed('native-invariants.log') < 15:
+    raise SystemExit('Native lifecycle gates did not execute the expected tests')
 artifacts = ['Cargo.lock', 'target/deploy/pair_registry.so', 'target/deploy/example_controller.so', 'target/deploy/example_policy.so', 'target/debug/pairkey-worker', 'target/debug/pairkey-coordinator', 'target/debug/local_demo', 'target/silence-dkls23/release/dkls-spike']
 hashes = {}
 for filename in artifacts:
     with (root / filename).open('rb') as stream:
         hashes[filename] = hashlib.file_digest(stream, 'sha256').hexdigest()
-validation = {'platform': platform.platform(), 'tool_versions': (report / 'versions.log').read_text().splitlines(), 'completed_at_utc': datetime.now(timezone.utc).isoformat(), 'base_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(), 'uncommitted_changes': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True).strip()), 'host_tests_passed': passed('host-tests.log'), 'registry_tests_passed': passed('registry-tests.log'), 'sbf_rebuilt': True, 'local_gate_passed': True, 'sha256': hashes}
+validation = {'platform': platform.platform(), 'tool_versions': (report / 'versions.log').read_text().splitlines(), 'completed_at_utc': datetime.now(timezone.utc).isoformat(), 'base_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(), 'uncommitted_changes': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True).strip()), 'host_tests_passed': passed('host-tests.log'), 'native_lifecycle_tests_passed': passed('native-faults.log'), 'native_invariants_passed': passed('native-invariants.log'), 'registry_tests_passed': passed('registry-tests.log'), 'sbf_rebuilt': True, 'local_gate_passed': True, 'sha256': hashes}
 (report / 'validation.json').write_text(json.dumps(validation, indent=2) + '\n')

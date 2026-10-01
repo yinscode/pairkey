@@ -64,3 +64,8 @@ The host policy tests re-sign altered operations with a valid delegate key to di
 The SBF compiler emits upstream NAF-table stack diagnostics for functions that are absent from the linked program symbol tables, and the older Agave post-processor emits unknown-syscall warnings. These warnings do not substitute for runtime verification: the gate requires the freshly built programs to pass both LiteSVM tests and actual validator demos.
 
 The generated `.local/ci-report/validation.json` records the tested base commit, dirty-tree status, test counts and artifact hashes. The accompanying `multi-evidence.json` records both EVM session executions and refusals. Passing these local cases is not a cryptographic proof, a production deployment assessment, or a demonstration of independent hardware/provider trust.
+
+
+## Later lifecycle extension
+
+The same gate now also runs standalone native invariants, nine isolated donor fault tests and the 26-case program-controlled job lifecycle matrix. See [program jobs and lifecycle](program-jobs-and-lifecycle.md). The earlier counts above are the CI/session checkpoint, not the final lifecycle-extension count. Multi-suite protocol version 2 and durable job result retrieval now distinguish a cached signature from a fresh signing request after revocation.

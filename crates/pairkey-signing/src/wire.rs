@@ -1,3 +1,4 @@
+pub const PROTOCOL_VERSION: u16 = 2;
 use crate::{dkls, redpallas, Intent, Key, Suite};
 use pairkey_types::{attestation::Attestation, AccountPath, Attempt, Registration, Role};
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,7 @@ pub struct KeyRequest {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Info {
+    pub protocol: u16,
     pub request: KeyRequest,
     pub role: Role,
     pub boot: [u8; 32],
@@ -23,6 +25,7 @@ impl Info {
         let mut b = b"pairkey/backend-info/v1".to_vec();
         b.extend(
             serde_json::to_vec(&(
+                self.protocol,
                 &self.request,
                 self.role,
                 self.boot,
@@ -34,6 +37,10 @@ impl Info {
         b
     }
     pub fn verify(&self, identity: [u8; 32]) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.protocol == PROTOCOL_VERSION,
+            "unsupported signing protocol"
+        );
         ed25519_dalek::VerifyingKey::from_bytes(&identity)?.verify_strict(
             &self.message(),
             &ed25519_dalek::Signature::from_slice(&self.signature)?,
@@ -88,6 +95,7 @@ pub struct KeyResponse {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SignRequest {
+    pub protocol: u16,
     pub registration: Registration,
     pub attempt: Attempt,
     pub intent: Intent,
@@ -95,6 +103,10 @@ pub struct SignRequest {
 }
 impl SignRequest {
     pub fn validate(&self) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.protocol == PROTOCOL_VERSION,
+            "unsupported signing protocol"
+        );
         self.intent.validate(&self.registration)?;
         self.attempt
             .commit
@@ -159,7 +171,7 @@ impl Receipt {
     }
     pub fn verify(&self, identity: [u8; 32]) -> anyhow::Result<()> {
         anyhow::ensure!(
-            self.version == 1 && self.development && !self.hardware_backed,
+            self.version == PROTOCOL_VERSION && self.development && !self.hardware_backed,
             "unsupported receipt mode/version"
         );
         self.request.validate()?;

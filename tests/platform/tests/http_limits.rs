@@ -74,6 +74,7 @@ async fn content_length_and_unfinished_chunked_stream_are_bounded() {
 async fn relay_health_and_sdk_poll_use_the_streaming_limit() {
     let (url, handle) = server(false);
     let relay = Relay::new(Config {
+        jobs_file: None,
         bind: "127.0.0.1:0".into(),
         workers: [url, "http://127.0.0.1:1".into()],
         identities: [[1; 32], [2; 32]],

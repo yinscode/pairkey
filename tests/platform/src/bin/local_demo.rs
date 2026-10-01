@@ -321,6 +321,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let coordinator_url = format!("http://127.0.0.1:{}", port()?);
     let relay_config = pairkey_coordinator::Config {
+        jobs_file: Some(run.join("coordinator-jobs.json").to_string_lossy().into()),
         bind: coordinator_url.trim_start_matches("http://").into(),
         workers: endpoints.clone(),
         identities: identity_public,

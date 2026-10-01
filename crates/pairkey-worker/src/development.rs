@@ -108,14 +108,38 @@ struct ReleaseState {
     highest_slot: u64,
     controls: ControlFence,
     incident: bool,
+    incident_store: Option<pairkey_core::local_store::LocalStore>,
     policies: BTreeMap<Pubkey, (u64, u64)>,
 }
 impl ReleaseState {
-    fn protocol_error(&mut self, error: &pairkey_frost::Error) {
+    fn load(path: &str) -> anyhow::Result<Self> {
+        let store = pairkey_core::local_store::LocalStore::open(path, 1024)?;
+        let incident = match store.read()? {
+            None => {
+                store.write(b"ready-v1\n")?;
+                false
+            }
+            Some(bytes) => bytes != b"ready-v1\n",
+        };
+        Ok(Self {
+            incident,
+            incident_store: Some(store),
+            ..Default::default()
+        })
+    }
+    fn record_incident(&mut self) -> anyhow::Result<()> {
+        self.incident = true;
+        if let Some(store) = &self.incident_store {
+            store.write(b"incident-v1\n")?;
+        }
+        Ok(())
+    }
+    fn protocol_error(&mut self, error: &pairkey_frost::Error) -> anyhow::Result<()> {
         // An attempt/transcript mismatch is stale routing, not proof of cheating.
         if matches!(error, pairkey_frost::Error::Frost(_)) {
-            self.incident = true;
+            self.record_incident()?;
         }
+        Ok(())
     }
 }
 struct AuthorizedView {
@@ -569,7 +593,7 @@ async fn finish(State(w): State<W>, Json(q): Json<Finish>) -> Result<Json<Envelo
             Ok(share) => share,
             Err(e) => {
                 if let Some(protocol) = e.downcast_ref::<pairkey_frost::Error>() {
-                    release.protocol_error(protocol);
+                    release.protocol_error(protocol)?;
                 }
                 return Err(e);
             }
@@ -607,17 +631,19 @@ async fn result(
             .map_err(failure)?,
     ];
     let mut release = w.release_guard(begin, &view).map_err(failure)?;
-    let signature = aggregate(
+    let signature = match aggregate(
         &begin.registration,
         &begin.attempt,
         &begin.message,
         &rounds,
         &shares,
-    )
-    .map_err(|e| {
-        release.protocol_error(&e);
-        failure(e)
-    })?;
+    ) {
+        Ok(signature) => signature,
+        Err(e) => {
+            release.protocol_error(&e).map_err(failure)?;
+            return Err(failure(e));
+        }
+    };
     let receipt = Receipt {
         version: 1,
         development: true,
@@ -694,6 +720,8 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
         max_observation_age_secs: 3,
         max_chain_lag_secs: 30,
     };
+    let root_path = std::fs::canonicalize(&config.root_file)?;
+    let release = ReleaseState::load(&format!("{}.incident", root_path.display()))?;
     let worker = Arc::new(Worker {
         multi: multi::Multi::new(*root, config.root_file.clone(), config.dkls_binary),
         signer: Signer::new(Root::new(*root), config.role),
@@ -701,7 +729,7 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
         rpc,
         trust,
         pending: Mutex::new(BTreeMap::new()),
-        release: Mutex::new(ReleaseState::default()),
+        release: Mutex::new(release),
         freshness: Freshness::default(),
         started: Instant::now(),
         capacity: Arc::new(tokio::sync::Semaphore::new(16)),

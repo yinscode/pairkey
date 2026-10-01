@@ -100,3 +100,119 @@ async fn read_response<T: serde::de::DeserializeOwned>(response: reqwest::Respon
     );
     Ok(serde_json::from_slice(&bytes)?)
 }
+
+/// Durable transport status. A terminal failure does not prove that no signature escaped.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum IntentJob {
+    Queued,
+    Working,
+    Complete {
+        result: Box<Signed>,
+    },
+    Failed {
+        code: String,
+        error: String,
+        may_have_signed: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        retry_after_secs: Option<u64>,
+    },
+}
+impl IntentJob {
+    pub fn terminal(&self) -> bool {
+        matches!(self, Self::Complete { .. } | Self::Failed { .. })
+    }
+}
+/// The same exact submission has one job ID during the coordinator's retention window.
+pub fn intent_job_id(q: &SignRequest) -> Result<String> {
+    q.validate()?;
+    Ok(
+        solana_sdk::pubkey::Pubkey::new_from_array(pairkey_types::digest(
+            b"pairkey/intent-job/v2",
+            &serde_json::to_vec(q)?,
+        ))
+        .to_string(),
+    )
+}
+impl crate::service::Client {
+    pub async fn submit_intent(&self, q: &SignRequest) -> Result<String> {
+        let expected = intent_job_id(q)?;
+        let response = self
+            .http
+            .post(format!("{}/jobs", self.endpoint))
+            .json(&serde_json::json!({"signing": q}))
+            .send()
+            .await
+            .map_err(reqwest::Error::without_url)?;
+        let value: serde_json::Value = read_response(response).await?;
+        ensure!(value["job_id"] == expected, "job identifier mismatch");
+        Ok(expected)
+    }
+    pub async fn poll_intent(
+        &self,
+        q: &SignRequest,
+        identities: [[u8; 32]; 2],
+    ) -> Result<IntentJob> {
+        let id = intent_job_id(q)?;
+        let response = self
+            .http
+            .get(format!("{}/jobs/{id}", self.endpoint))
+            .send()
+            .await
+            .map_err(reqwest::Error::without_url)?;
+        let job: IntentJob = read_response(response).await?;
+        if let IntentJob::Complete { result } = &job {
+            verify_result(q, result, identities)?;
+        }
+        Ok(job)
+    }
+    /// Cancels coordinator delivery, not Solana authority or an already issued signature.
+    pub async fn cancel_intent(&self, q: &SignRequest) -> Result<()> {
+        let id = intent_job_id(q)?;
+        let response = self
+            .http
+            .post(format!("{}/jobs/{id}/cancel", self.endpoint))
+            .send()
+            .await
+            .map_err(reqwest::Error::without_url)?;
+        let _: serde_json::Value = read_response(response).await?;
+        Ok(())
+    }
+    pub async fn wait_intent(
+        &self,
+        q: &SignRequest,
+        identities: [[u8; 32]; 2],
+        timeout: std::time::Duration,
+    ) -> Result<Signed> {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            match tokio::time::timeout_at(deadline, self.poll_intent(q, identities)).await?? {
+                IntentJob::Complete { result } => return Ok(*result),
+                IntentJob::Failed {
+                    code,
+                    error,
+                    may_have_signed,
+                    ..
+                } => anyhow::bail!("{code}: {error}; may_have_signed={may_have_signed}"),
+                _ => (),
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "job wait timeout; poll the same job before retrying"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    }
+}
+
+/// Explicit retry changes only the signing attempt; Solana approval and delegate scope stay bound.
+pub fn fresh_attempt(q: &SignRequest, random_id: [u8; 32]) -> Result<SignRequest> {
+    ensure!(
+        random_id != q.attempt.random_id,
+        "retry requires a fresh attempt ID"
+    );
+    let mut next = q.clone();
+    next.attempt.random_id = random_id;
+    next.validate()?;
+    Ok(next)
+}

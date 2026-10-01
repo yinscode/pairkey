@@ -1,5 +1,7 @@
 #[path = "evm_sessions.rs"]
 mod evm_sessions;
+#[path = "job_lifecycle.rs"]
+mod job_lifecycle;
 use super::*;
 use pairkey_sdk::multi::{self, Intent, KeyRequest, Payload, Suite};
 use pairkey_signing::hex;
@@ -119,7 +121,13 @@ pub async fn run(
     let sdk = pairkey_sdk::service::Client::new(coordinator.into())?;
     let mut evidence = vec![];
     let mut session_evidence = vec![];
-    for cpi in [false, true] {
+    let mut job_evidence = Value::Null;
+    let controllers: &[bool] = if std::env::var_os("PAIRKEY_DEMO_PROGRAM_ONLY").is_some() {
+        &[true]
+    } else {
+        &[false, true]
+    };
+    for &cpi in controllers {
         let controller = if cpi {
             example_controller::authority(&example_controller::id(), &payer.pubkey()).0
         } else {
@@ -197,7 +205,8 @@ pub async fn run(
             let mut id = [0; 32];
             OsRng.fill_bytes(&mut id);
             let commit = Commit::new(&reg, id, account, &intent.bytes()?)?;
-            let request = multi::SignRequest {
+            let mut request = multi::SignRequest {
+                protocol: pairkey_signing::wire::PROTOCOL_VERSION,
                 registration: reg.clone(),
                 attempt: Attempt {
                     commit: commit.clone(),
@@ -212,8 +221,12 @@ pub async fn run(
                 "unapproved signing succeeded"
             );
             approve(rpc, payer, controller, cpi, &reg, commit).await?;
+            OsRng.fill_bytes(&mut request.attempt.random_id);
             let result = sdk.sign_intent(&request, identities).await?;
             multi::verify_result(&request, &result, identities)?;
+            let mut old_version = request.clone();
+            old_version.protocol = 1;
+            workers_refuse(configs, relay, &old_version).await?;
             let mut damaged = result.clone();
             damaged.receipts[0].identity_signature[0] ^= 1;
             ensure!(
@@ -306,11 +319,26 @@ pub async fn run(
                 "fresh signing repeated nonce/signature"
             );
             authorized_requests.push(retry);
-            evidence.push(json!({"authorization":if cpi{"program_cpi"}else{"account"},"suite":suite,"key":key.key,"signature":result.signature,"restart_signature":after.signature,"missing_approval_refused":true,"payload_substitution_refused":true,"destination_substitution_refused":true,"workers_refused_substitutions":true,"tampered_receipt_refused":true,"restart_preserved_key":true,"evm_executed":suite==Suite::Dkls23Secp256k1,"evm_execution":execution}));
+            evidence.push(json!({"authorization":if cpi{"program_cpi"}else{"account"},"suite":suite,"key":key.key,"signature":result.signature,"restart_signature":after.signature,"missing_approval_refused":true,"payload_substitution_refused":true,"destination_substitution_refused":true,"workers_refused_substitutions":true,"tampered_receipt_refused":true,"restart_preserved_key":true,"mixed_version_refused":true,"evm_executed":suite==Suite::Dkls23Secp256k1,"evm_execution":execution}));
             println!(
                 "{}",
                 json!({"event":"multi_suite_passed","cpi":cpi,"suite":suite})
             );
+        }
+        if cpi && std::env::var_os("PAIRKEY_DEMO_JOB_LIFECYCLE").is_some() {
+            job_evidence = job_lifecycle::run(
+                root,
+                run,
+                processes,
+                configs,
+                relay,
+                rpc,
+                payer,
+                controller,
+                identities,
+                &authorized_requests,
+            )
+            .await?;
         }
         session_evidence.push(
             evm_sessions::run(
@@ -358,7 +386,7 @@ pub async fn run(
     std::fs::write(
         run.join("multi-evidence.json"),
         serde_json::to_vec_pretty(
-            &json!({"hardware_backed":false,"development":true,"evm_chain_id":31337,"flows":evidence,"evm_sessions":session_evidence}),
+            &json!({"hardware_backed":false,"development":true,"evm_chain_id":31337,"flows":evidence,"job_lifecycle":job_evidence,"evm_sessions":session_evidence}),
         )?,
     )?;
     println!(

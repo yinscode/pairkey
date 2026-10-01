@@ -21,3 +21,5 @@ solana-sdk.workspace = true
 bincode.workspace = true
 
 pairkey-signing = { path = "../pairkey-signing" }
+
+libc = "=0.2.190"

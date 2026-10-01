@@ -27,7 +27,7 @@ The application constructs `Intent { version: 1, key, payload }`. `intent.bytes(
 
 It creates the usual `Commit` over these bytes and publishes that COMMIT, either directly or through its controller program. It then calls `Client::sign_intent(SignRequest, pinned_identities)`. Both workers independently read current finalized Solana authority using the existing core, freshness checks, policy checks and local issuance fence. Workers compute the destination signing hash themselves. The relay cannot substitute a caller-provided prehash.
 
-The new coordinator endpoints are `POST /multi/keys` and `POST /multi/sign`. They are synchronous and serialize multi-suite operations; concurrent requests receive HTTP 429. They do not yet use the Ed25519 `/jobs` queue, SSE, or on-chain response cache. Returned signatures include two identity-signed, request-bound receipts marked `development: true`, `hardware_backed: false`, with both worker boot IDs and finalized observation slots. These receipts are development identity assertions, not hardware attestation.
+The new coordinator endpoints are `POST /multi/keys` and `POST /multi/sign`. Key enrollment remains synchronous and serialized. Signing now uses the durable `/jobs` submission/status/SSE flow; `/multi/sign` waits on the same job. There is no multi-suite on-chain response cache. See [program jobs and lifecycle](program-jobs-and-lifecycle.md). Returned signatures include two identity-signed, request-bound receipts marked `development: true`, `hardware_backed: false`, with both worker boot IDs and finalized observation slots. These receipts are development identity assertions, not hardware attestation.
 
 The source example is `tests/platform/src/bin/local_demo/multi.rs`. The Rust API is in `sdk/src/multi.rs` and `crates/pairkey-signing`.
 
@@ -77,8 +77,8 @@ The initial SBF tests and demos used existing unchanged program artifacts becaus
 
 - Review the multi-suite authorization binding, custom RedPallas setup and Spike D construction independently; resolve the outstanding Silence proof obligations and licensing boundary.
 - Extend beyond the scoped EVM native-transfer sessions to contract/type-specific adapters and application replay semantics. Add Orchard transaction/randomization integration only when its exact requirements are selected.
-- Extend the synchronous API with durable/public job handling, recovery, retries/backpressure and an explicit multi-suite response-cache schema if required by applications.
-- Prove active-operation fault/restart matrices, mixed-version refusal and resource bounds beyond the covered local cases; integrate the selected native D fault harness into CI without enabling fault injection in deployment binaries.
+- The local durable job/status/SSE and explicit retry/cancellation flow is implemented. Cross-replica coordination, root recovery and any multi-suite on-chain response-cache schema remain separate work.
+- Extend the 26-case process matrix and selected native D CI fault harness as deployment requirements evolve; local process tests do not cover storage rollback, machine clones or arbitrary power failures.
 - Finish real TEE provisioning/attestation, protected entropy, rollback/fork controls, trusted bootstrap/time, independent provider state sources and root recovery. Local restarts do not establish these properties.
 - Finish application access as outlined below.
 
