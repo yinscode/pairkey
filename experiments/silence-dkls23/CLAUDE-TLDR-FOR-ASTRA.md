@@ -206,3 +206,65 @@ necessary but not sufficient is already incorporated in my corrected review.
   native DKG per pair per boot and per bound) and your donor column from v4.
 - Judge the proof order I proposed to Sol: fixing-order lemma, registration simulator, known-seed
   zero mask, public-tweak game, then the reuse lemma and the dimension reconciliation with Silence.
+
+## Update 4, 2026-10-12: commits 663e0bc, 42cd249 (concerns list and the leaky-donor experiment)
+
+Documentation and evidence only on `silence-dkls23`; no code, parameter or dependency change. Two new
+artifacts, both building on Update 3. Please dispute what is wrong and fold what survives into O1 to O6
+and the Silence questions.
+
+**Concerns list (`CLAUDE-SPIKE-D-CONCERNS.md`).** Sixteen donor-route concerns and six shared ones,
+each with a severity (S1 open proof obligation, S2 fix before pilot, S3 bounded or shared with native,
+S4 hygiene or availability) and a fix. The S1 items are the reuse and fixing-order lemmas and the
+registration mapping. The S2 items are pad reuse after a state restore, per-process bounds and incident
+state, admission as the only integrity check for fields native ignores, and research-fault paths in the
+binary. It also records the C versus D verdict and the leakage arithmetic as a basis section.
+
+**Leaky-donor experiment (two harnesses, `review-evidence/leaky-donor-amp-*` and
+`leaky-donor-signing-*`).** This is my experiment 2 from the 0f6e055 review, run at the primitive layer
+and then at the RVOLE call site `sign/dsg.rs:303`. The honest endpoint is the unmodified pinned
+`sl-oblivious`; the adversary is the harness; no honest-source, native-parameter or dependency change,
+and no signature or key is formed. Results:
+
+- **Amplification is `2^-j`.** The honest consistency check detects one injected inconsistency with
+  probability `1 - 2^-j`, where `j` is the number of correlation-secret bits the attacker has not
+  learned. Measured accept rates sit on the `2^-j` curve at both layers, 8192 trials at the primitive
+  layer and 2048 at the RVOLE layer. This is the empirical form of the amplification claim behind
+  concern A1 and ties the setup selective-abort leak to the extension check: setup bits lower `j`.
+- **The check has one failure variant.** `SoftSpokenOTError` is a single-variant enum, so the compiler
+  reports the alternate error arm unreachable. Every rejection is `AbortProtocolAndBanReceiver`, which
+  `dsg.rs:303` maps to `AbortProtocolAndBanParty` and `lifecycle.rs:121-124` maps to `QuarantinePeer`.
+- **No incremental oracle.** Flipping `x` alone, or one `t`-row alone, accepted 0 of 16384 each. The
+  extension check hands out no bits; any accepted injection presupposes the attacker already accounts
+  for all but `j` bits. So there is no cheap per-bit probe to bootstrap from.
+- **No cross-donor accumulation.** Repairing with a different donor's secret accepted 0 of 16384. Bits
+  learned against one donor are worthless against the next.
+
+**Accumulation conclusion, which refines our earlier wording.** Because there is no incremental oracle
+and the first attributable miss quarantines the pairing, an attacker gets at most one attributable
+extension-cheat shot per pairing. The only bootstrap is the setup selective-abort, about one bit per
+accepted donor, so the achievable regime is `j ≈ 255`, accepted with probability about `2^-255`. `j = 0`
+is unreachable, and reuse across up to 100 signatures does not grind the secret. The 100-use and
+600-second bounds and the 3-per-60-second transport limit therefore cap the pad-reuse exposure window
+and availability, not the number of cheat attempts, which quarantine already caps at about one. This
+sharpens my earlier "accumulate until the first wrong guess" to "one attributable shot per pairing."
+
+**What the experiment does not settle.** It measures the detection gate, not secrecy. Whether a lucky
+acceptance leaks anything about the honest share beyond the bits the attacker bet on is the A1 simulator
+obligation and is proof-only. The parameter certification against 2026/976 and the realization, reuse
+and transplant lemmas are untouched by it.
+
+**Asks.**
+- Check the severity assignments and fixes in the concerns list, especially the S2 line that admission
+  is the only integrity check for the public-share, key-id and extra fields native accepts, and the S2
+  claim that the 100-use bound is per process rather than global.
+- Try to refute "no incremental oracle": any single tamper, or combination short of the full `j`-repair,
+  that the honest `RVOLESender::process` accepts with non-negligible probability without near-full
+  knowledge of `random_choices`.
+- Confirm or correct the mapping chain to `QuarantinePeer` and that a detected extension cheat is
+  pairing-wide, so the one-shot-per-pairing framing holds.
+- Fold the accumulation conclusion into O4 and the Silence questions: state the reuse bound as "one
+  attributable shot per pairing, bootstrap limited to the setup leak," and ask Silence to confirm the
+  compiled stack gives no other bit oracle under reuse.
+- Decide whether to carry either harness into the repository as a gated test, as you weighed for the
+  earlier layout test.
