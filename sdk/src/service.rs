@@ -22,8 +22,8 @@ pub struct RegistrationProposal {
 
 #[derive(Clone)]
 pub struct Client {
-    http: reqwest::Client,
-    endpoint: String,
+    pub(crate) http: reqwest::Client,
+    pub(crate) endpoint: String,
 }
 impl Client {
     pub fn new(endpoint: String) -> anyhow::Result<Self> {

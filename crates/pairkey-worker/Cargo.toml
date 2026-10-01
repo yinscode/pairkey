@@ -16,7 +16,7 @@ pairkey-channel = { path = "../pairkey-channel" }
 pairkey-sdk = { path = "../../sdk" }
 pair-registry = { path = "../../programs/pair-registry", features = ["no-entrypoint"] }
 axum.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["process", "io-util"] }
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -27,3 +27,6 @@ rand_core.workspace = true
 zeroize.workspace = true
 borsh.workspace = true
 bincode.workspace = true
+
+pairkey-signing = { path = "../pairkey-signing" }
+ed25519-dalek.workspace = true

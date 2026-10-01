@@ -1,4 +1,6 @@
 //! Disposable validator and separate service processes; test funding only.
+#[path = "local_demo/multi.rs"]
+mod multi;
 use anyhow::{ensure, Context};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use pairkey_coordinator::{Job, Relay, SignRequest, SignedResult};
@@ -307,7 +309,7 @@ async fn main() -> anyhow::Result<()> {
         std::fs::write(
             &config,
             serde_json::to_vec_pretty(
-                &json!({"role":if i==0 {Role::A}else{Role::B},"bind":endpoints[i].trim_start_matches("http://"),"root_file":root_path,"identity_file":identity_path,"peer_identity":identity_public[1-i],"rpc_url":format!("http://127.0.0.1:{rpc_port}"),"provider_domain":format!("local-domain-{i}"),"network":genesis,"set_governor":payer.pubkey().to_bytes(),"set_id":vec![5u8;32]}),
+                &json!({"dkls_binary":root.join("target/silence-dkls23/release/dkls-spike"),"role":if i==0 {Role::A}else{Role::B},"bind":endpoints[i].trim_start_matches("http://"),"root_file":root_path,"identity_file":identity_path,"peer_identity":identity_public[1-i],"rpc_url":format!("http://127.0.0.1:{rpc_port}"),"provider_domain":format!("local-domain-{i}"),"network":genesis,"set_governor":payer.pubkey().to_bytes(),"set_id":vec![5u8;32]}),
             )?,
         )?;
         processes.0.push(Some(spawn(
@@ -351,6 +353,21 @@ async fn main() -> anyhow::Result<()> {
             "coordinator startup timeout"
         );
         tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    if std::env::var_os("PAIRKEY_DEMO_MULTI_ONLY").is_some() {
+        return multi::run(
+            &root,
+            &run,
+            &mut processes,
+            &configs,
+            &rpc,
+            &payer,
+            &coordinator_url,
+            &relay,
+            genesis,
+            identity_public,
+        )
+        .await;
     }
     let mut latency = Vec::new();
     let mut transfer_results = Vec::new();

@@ -1,4 +1,5 @@
 //! Untrusted routing, bounded jobs, public results. No provisioning files or keys.
+mod multi;
 use anyhow::{ensure, Context};
 use axum::{
     extract::{DefaultBodyLimit, Path, State},
@@ -109,9 +110,15 @@ impl Relay {
             .await
             .map_err(reqwest::Error::without_url)?;
         let status = response.status();
-        let bytes =
-            pairkey_sdk::http::bounded_body(response, pairkey_sdk::http::MAX_SERVICE_RESPONSE)
-                .await?;
+        let bytes = pairkey_sdk::http::bounded_body(
+            response,
+            if path.starts_with("/multi/") {
+                12 * 1024 * 1024
+            } else {
+                pairkey_sdk::http::MAX_SERVICE_RESPONSE
+            },
+        )
+        .await?;
         ensure!(
             status.is_success(),
             "worker {} rejected {path}: {}",
@@ -311,6 +318,7 @@ struct Entry {
     created: Instant,
 }
 struct Service {
+    multi: tokio::sync::Mutex<()>,
     relay: Relay,
     jobs: Mutex<BTreeMap<String, Entry>>,
     capacity: Arc<tokio::sync::Semaphore>,
@@ -442,6 +450,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         "local coordinator must bind loopback"
     );
     let service = Arc::new(Service {
+        multi: Default::default(),
         relay: Relay::new(config)?,
         jobs: Mutex::new(BTreeMap::new()),
         capacity: Arc::new(tokio::sync::Semaphore::new(64)),
@@ -452,6 +461,8 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
             "/health",
             get(|| async { Json(json!({"development":true,"ready":true})) }),
         )
+        .route("/multi/keys", post(multi::key))
+        .route("/multi/sign", post(multi::sign))
         .route("/registrations", post(propose))
         .route("/jobs", post(enqueue))
         .route("/jobs/:id", get(poll))
@@ -482,6 +493,7 @@ mod tests {
         })
         .unwrap();
         let s = Arc::new(Service {
+            multi: Default::default(),
             relay,
             jobs: Mutex::new(BTreeMap::from([(
                 "job".into(),

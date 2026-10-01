@@ -32,12 +32,15 @@ use std::{
 };
 use zeroize::Zeroizing;
 
+mod multi;
 #[cfg(test)]
 mod tests;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(default)]
+    pub dkls_binary: Option<String>,
     pub role: Role,
     pub bind: String,
     pub root_file: String,
@@ -120,6 +123,7 @@ struct AuthorizedView {
     minimum_slot: u64,
 }
 struct Worker {
+    multi: multi::Multi,
     signer: Signer,
     channel: Channel,
     rpc: Rpc,
@@ -177,6 +181,7 @@ impl Worker {
         let _release = self.release.lock().unwrap();
         let mut map = self.pending.lock().unwrap();
         map.retain(|_, p| p.created.elapsed() < ATTEMPT_TTL);
+        self.multi.prune();
     }
     fn claim(self: &Arc<Self>, id: [u8; 32]) -> anyhow::Result<InFlight> {
         let mut pending = self.pending.lock().unwrap();
@@ -685,6 +690,7 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
         max_chain_lag_secs: 30,
     };
     let worker = Arc::new(Worker {
+        multi: multi::Multi::new(*root, config.root_file.clone(), config.dkls_binary),
         signer: Signer::new(Root::new(*root), config.role),
         channel,
         rpc,
@@ -696,6 +702,17 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
         capacity: Arc::new(tokio::sync::Semaphore::new(16)),
         nonce_capacity: Arc::new(tokio::sync::Semaphore::new(64)),
     });
+    let multi_router = Router::new()
+        .route("/multi/info", post(multi::info))
+        .route("/multi/d/open", post(multi::open))
+        .route("/multi/d/enroll", post(multi::enroll))
+        .route("/multi/d/start", post(multi::start))
+        .route("/multi/d/exchange", post(multi::exchange))
+        .route("/multi/reset", post(multi::reset))
+        .route("/multi/r/begin", post(multi::rbegin))
+        .route("/multi/r/finish", post(multi::rfinish))
+        .route("/multi/r/result", post(multi::rresult))
+        .layer(DefaultBodyLimit::max(12 * 1024 * 1024));
     let router = Router::new()
         .route("/health", get(health))
         .route("/attest", post(attest))
@@ -706,12 +723,14 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
         .route("/result", post(result))
         .route("/abort", post(abort))
         .layer(DefaultBodyLimit::max(16_384))
+        .merge(multi_router)
         .layer(axum::middleware::from_fn_with_state(worker.clone(), limit))
         .with_state(worker.clone());
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             worker.prune();
+            worker.multi.expire().await;
         }
     });
     println!(

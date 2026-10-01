@@ -6,7 +6,7 @@ rust-version = "1.88"
 publish = false
 license-file = "LICENSE.silence"
 
-# Deliberately separate from the production workspace and lockfile.
+# Standalone research workspace/lockfile. The local platform also imports this crate as a path dependency.
 [workspace]
 
 [features]

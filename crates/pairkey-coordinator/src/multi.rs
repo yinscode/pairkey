@@ -1,0 +1,339 @@
+//! Multi-suite orchestration. The relay has no roots or signing authority.
+use super::*;
+use futures_util::{FutureExt, SinkExt, StreamExt};
+use pairkey_signing::{self as signing, dkls, wire as mw, Suite};
+use sl_mpc_mate::coord::SimpleMessageRelay;
+fn fresh() -> [u8; 32] {
+    let mut x = [0; 32];
+    OsRng.fill_bytes(&mut x);
+    x
+}
+impl Relay {
+    async fn empty<T: Serialize + ?Sized>(
+        &self,
+        i: usize,
+        path: &str,
+        q: &T,
+    ) -> anyhow::Result<()> {
+        let response = self
+            .client
+            .post(format!("{}{}", self.config.workers[i], path))
+            .json(q)
+            .send()
+            .await
+            .map_err(reqwest::Error::without_url)?;
+        let status = response.status();
+        let bytes = pairkey_sdk::http::bounded_body(response, 12 * 1024 * 1024).await?;
+        ensure!(
+            status.is_success(),
+            "worker rejected {path}: {}",
+            String::from_utf8_lossy(&bytes)
+        );
+        Ok(())
+    }
+    pub async fn multi_info(&self, q: &mw::KeyRequest) -> anyhow::Result<[mw::Info; 2]> {
+        let (a, b) = tokio::join!(
+            self.post::<_, mw::Info>(0, "/multi/info", q),
+            self.post::<_, mw::Info>(1, "/multi/info", q)
+        );
+        let infos = [a?, b?];
+        for (i, p) in infos.iter().enumerate() {
+            p.verify(self.config.identities[i])?;
+            ensure!(
+                p.role.index() == i
+                    && p.request.registration == q.registration
+                    && p.request.account == q.account
+                    && p.request.suite == q.suite,
+                "backend info context"
+            );
+        }
+        Ok(infos)
+    }
+    async fn d_open(&self, infos: &[mw::Info; 2]) -> anyhow::Result<()> {
+        let opens = [
+            mw::Open {
+                peer: infos[1].clone(),
+            },
+            mw::Open {
+                peer: infos[0].clone(),
+            },
+        ];
+        let (a, b) = tokio::join!(
+            self.post::<_, dkls::pool::Boot>(0, "/multi/d/open", &opens[0]),
+            self.post::<_, dkls::pool::Boot>(1, "/multi/d/open", &opens[1])
+        );
+        let boots = [a?, b?];
+        for (i, b) in boots.iter().enumerate() {
+            b.validate()?;
+            ensure!(
+                b.role as usize == i && b.identity == infos[i].dkls_identity,
+                "donor boot identity"
+            );
+        }
+        let (a, b) = tokio::join!(
+            self.empty(0, "/multi/d/enroll", &boots),
+            self.empty(1, "/multi/d/enroll", &boots)
+        );
+        a?;
+        b?;
+        Ok(())
+    }
+    async fn d_command(
+        &self,
+        commands: [mw::DStart; 2],
+    ) -> anyhow::Result<([Option<dkls::d::Reply>; 2], [Option<mw::Receipt>; 2])> {
+        let id = commands[0].id;
+        ensure!(commands[1].id == id, "operation ids");
+        let (a, b) = tokio::join!(
+            self.empty(0, "/multi/d/start", &commands[0]),
+            self.empty(1, "/multi/d/start", &commands[1])
+        );
+        a?;
+        b?;
+        let broker = SimpleMessageRelay::new();
+        let mut relays = [broker.connect(), broker.connect()];
+        let mut input: [Vec<dkls::Frame>; 2] = [vec![], vec![]];
+        let mut done = [false; 2];
+        let mut replies = [None, None];
+        let mut receipts = [None, None];
+        let deadline = Instant::now() + Duration::from_secs(40);
+        while !done.iter().all(|x| *x) {
+            ensure!(Instant::now() < deadline, "multi signing timeout");
+            for i in 0..2 {
+                while input[i].len() < 4 {
+                    match relays[i].next().now_or_never() {
+                        Some(Some(b)) => input[i].push(dkls::Frame::Relay(b)),
+                        _ => break,
+                    }
+                }
+            }
+            for i in 0..2 {
+                if done[i] {
+                    continue;
+                }
+                let q = mw::Exchange {
+                    id,
+                    frames: std::mem::take(&mut input[i]),
+                };
+                let out: mw::DOutput = self.post(i, "/multi/d/exchange", &q).await?;
+                if let Some(r) = out.receipt {
+                    r.verify(self.config.identities[i])?;
+                    receipts[i] = Some(r);
+                    done[i] = true;
+                }
+                for frame in out.frames {
+                    match frame {
+                        dkls::Frame::Relay(bytes) => relays[i]
+                            .send(bytes)
+                            .await
+                            .map_err(|_| anyhow::anyhow!("native relay closed"))?,
+                        dkls::Frame::Setup(bytes) => input[1 - i].push(dkls::Frame::Setup(bytes)),
+                        dkls::Frame::DReply(r) => {
+                            replies[i] = Some(r);
+                            done[i] = true;
+                        }
+                        dkls::Frame::Ready(_) => {}
+                        _ => anyhow::bail!("unexpected backend output"),
+                    }
+                }
+                ensure!(
+                    input[0].len() <= 16 && input[1].len() <= 16,
+                    "relay queue bound"
+                );
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        Ok((replies, receipts))
+    }
+    pub async fn multi_key(&self, q: mw::KeyRequest) -> anyhow::Result<mw::KeyResponse> {
+        let work = async {
+            let infos = self.multi_info(&q).await?;
+            let certificate = match q.suite {
+                Suite::FrostRedPallas => mw::Certificate::RedPallas(signing::redpallas::Public {
+                    proofs: [
+                        infos[0].redpallas.clone().context("proof A")?,
+                        infos[1].redpallas.clone().context("proof B")?,
+                    ],
+                }),
+                Suite::Dkls23Secp256k1 => {
+                    self.d_open(&infos).await?;
+                    let id = fresh();
+                    let commands = std::array::from_fn(|_| mw::DStart {
+                        id,
+                        operation: mw::DOperation::Register(Box::new(q.clone())),
+                    });
+                    let (replies, _) = self.d_command(commands).await?;
+                    let certs = replies
+                        .into_iter()
+                        .map(|r| match r {
+                            Some(dkls::d::Reply::Registered(c)) => Ok(*c),
+                            _ => anyhow::bail!("registration reply"),
+                        })
+                        .collect::<anyhow::Result<Vec<_>>>()?;
+                    ensure!(certs[0] == certs[1], "registration disagreement");
+                    mw::Certificate::Dkls(Box::new(certs[0].clone()))
+                }
+            };
+            Ok::<_, anyhow::Error>(mw::KeyResponse {
+                key: certificate.key(&q)?,
+                certificate,
+                infos,
+            })
+        }
+        .await;
+        if work.is_err() {
+            self.multi_reset().await;
+        }
+        work
+    }
+    pub async fn multi_reset(&self) {
+        let _ = tokio::join!(
+            self.empty(0, "/multi/reset", &()),
+            self.empty(1, "/multi/reset", &())
+        );
+    }
+    pub async fn multi_sign(&self, q: mw::SignRequest) -> anyhow::Result<mw::Signed> {
+        q.validate()?;
+        let work = async {
+            // Reopen/re-register after worker replacement; public identity must remain identical.
+            let key = self
+                .multi_key(mw::KeyRequest {
+                    registration: q.registration.clone(),
+                    account: q.intent.key.account.clone(),
+                    suite: q.intent.key.suite,
+                })
+                .await?;
+            ensure!(key.key == q.intent.key, "registered key changed");
+            let peers = self.peers().await?;
+            let auths = std::array::from_fn::<_, 2, _>(|i| mw::Authorized {
+                request: q.clone(),
+                peer: peers[1 - i].clone(),
+            });
+            let receipts = match q.intent.key.suite {
+                Suite::Dkls23Secp256k1 => {
+                    // Fresh donor per platform request for now. Native D still enforces its lifetime limits.
+                    let id = fresh();
+                    let (replies, _) = self
+                        .d_command(std::array::from_fn(|_| mw::DStart {
+                            id,
+                            operation: mw::DOperation::Prepare,
+                        }))
+                        .await?;
+                    let gens = replies
+                        .into_iter()
+                        .map(|r| match r {
+                            Some(dkls::d::Reply::Donor { generation, .. }) => Ok(generation),
+                            _ => anyhow::bail!("donor reply"),
+                        })
+                        .collect::<anyhow::Result<Vec<_>>>()?;
+                    ensure!(gens[0] == gens[1], "donor disagreement");
+                    let (_, receipts) = self
+                        .d_command(std::array::from_fn(|i| mw::DStart {
+                            id: q.attempt.digest(),
+                            operation: mw::DOperation::Sign {
+                                authorized: Box::new(auths[i].clone()),
+                                generation: gens[0],
+                            },
+                        }))
+                        .await?;
+                    receipts
+                        .map(|r| r.context("missing signing receipt"))
+                        .into_iter()
+                        .collect::<anyhow::Result<Vec<_>>>()?
+                        .try_into()
+                        .map_err(|_| anyhow::anyhow!("receipt count"))?
+                }
+                Suite::FrostRedPallas => {
+                    let begins = [
+                        mw::RBegin {
+                            authorized: auths[0].clone(),
+                        },
+                        mw::RBegin {
+                            authorized: auths[1].clone(),
+                        },
+                    ];
+                    let (a, b) = tokio::join!(
+                        self.post::<_, Envelope>(0, "/multi/r/begin", &begins[0]),
+                        self.post::<_, Envelope>(1, "/multi/r/begin", &begins[1])
+                    );
+                    let rounds = [a?, b?];
+                    let finishes = std::array::from_fn::<_, 2, _>(
+                        |i| json!({"authorized":auths[i],"rounds":rounds}),
+                    );
+                    let (a, b) = tokio::join!(
+                        self.post::<_, Envelope>(0, "/multi/r/finish", &finishes[0]),
+                        self.post::<_, Envelope>(1, "/multi/r/finish", &finishes[1])
+                    );
+                    let shares = [a?, b?];
+                    let results = [
+                        json!({"finish":finishes[0],"shares":shares}),
+                        json!({"finish":finishes[1],"shares":shares}),
+                    ];
+                    let (a, b) = tokio::join!(
+                        self.post::<_, mw::Receipt>(0, "/multi/r/result", &results[0]),
+                        self.post::<_, mw::Receipt>(1, "/multi/r/result", &results[1])
+                    );
+                    [a?, b?]
+                }
+            };
+            for (i, r) in receipts.iter().enumerate() {
+                r.verify(self.config.identities[i])?;
+                ensure!(
+                    r.role.index() == i
+                        && r.boot == peers[i].evidence.boot_id
+                        && r.peer_boot == peers[1 - i].evidence.boot_id
+                        && r.request.attempt.digest() == q.attempt.digest()
+                        && r.request.intent == q.intent,
+                    "receipt binding"
+                );
+            }
+            ensure!(
+                receipts[0].signature == receipts[1].signature,
+                "signature disagreement"
+            );
+            Ok::<_, anyhow::Error>(mw::Signed {
+                signature: receipts[0].signature.clone(),
+                receipts,
+            })
+        }
+        .await;
+        if work.is_err() {
+            self.multi_reset().await;
+        }
+        work
+    }
+}
+pub(super) async fn key(
+    State(s): State<S>,
+    Json(q): Json<mw::KeyRequest>,
+) -> Result<Json<mw::KeyResponse>, (StatusCode, Json<Value>)> {
+    let _guard = s.multi.try_lock().map_err(|_| {
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({"error":"multi-suite worker busy"})),
+        )
+    })?;
+    s.relay.multi_key(q).await.map(Json).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":e.to_string()})),
+        )
+    })
+}
+pub(super) async fn sign(
+    State(s): State<S>,
+    Json(q): Json<mw::SignRequest>,
+) -> Result<Json<mw::Signed>, (StatusCode, Json<Value>)> {
+    let _guard = s.multi.try_lock().map_err(|_| {
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({"error":"multi-suite worker busy"})),
+        )
+    })?;
+    s.relay.multi_sign(q).await.map(Json).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":e.to_string()})),
+        )
+    })
+}

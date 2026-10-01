@@ -43,6 +43,9 @@ impl Drop for Fixture {
 }
 impl Fixture {
     async fn new() -> Self {
+        Self::new_with(false).await
+    }
+    async fn new_with(red: bool) -> Self {
         let a_identity = Channel::development(Role::A, [31; 32], [0; 32]).identity();
         let peer = Channel::development(Role::B, [32; 32], a_identity);
         let channel = Channel::development(Role::A, [31; 32], peer.identity());
@@ -64,7 +67,29 @@ impl Fixture {
             &peer_signer.proof(&ns, &mut OsRng).unwrap(),
         )
         .unwrap();
-        let message = b"approved original bytes".to_vec();
+        let message = if red {
+            let path = AccountPath {
+                destination: [8; 32],
+                path: vec![1],
+            };
+            let public = pairkey_signing::redpallas::Public {
+                proofs: [
+                    pairkey_signing::redpallas::proof(&[11; 32], &reg, &path, Role::A).unwrap(),
+                    pairkey_signing::redpallas::proof(&[22; 32], &reg, &path, Role::B).unwrap(),
+                ],
+            };
+            pairkey_signing::Intent {
+                version: 1,
+                key: public.key(&reg, &path).unwrap(),
+                payload: pairkey_signing::Payload::RedPallas {
+                    message: b"worker test".to_vec(),
+                },
+            }
+            .bytes()
+            .unwrap()
+        } else {
+            b"approved original bytes".to_vec()
+        };
         let commit = Commit::new(
             &reg,
             [7; 32],
@@ -158,6 +183,7 @@ impl Fixture {
             peer: peer.attest(channel.boot_id()),
         };
         let worker = Arc::new(Worker {
+            multi: multi::Multi::new([11; 32], String::new(), None),
             signer,
             channel,
             rpc: Rpc::new(url).unwrap(),
@@ -425,4 +451,119 @@ async fn local_issuance_and_negative_observation_have_a_single_order() {
         done_rx.recv().unwrap();
     });
     assert!(f.worker.release_guard(&f.begin, &view).is_err());
+}
+
+fn red_request(f: &Fixture) -> pairkey_signing::wire::Authorized {
+    use pairkey_signing::{redpallas, wire as mw, Intent, Payload};
+    let reg = &f.begin.registration;
+    let path = &f.begin.attempt.commit.account;
+    let public = redpallas::Public {
+        proofs: [
+            redpallas::proof(&[11; 32], reg, path, Role::A).unwrap(),
+            redpallas::proof(&[22; 32], reg, path, Role::B).unwrap(),
+        ],
+    };
+    mw::Authorized {
+        request: mw::SignRequest {
+            registration: reg.clone(),
+            attempt: f.begin.attempt.clone(),
+            intent: Intent {
+                version: 1,
+                key: public.key(reg, path).unwrap(),
+                payload: Payload::RedPallas {
+                    message: b"worker test".to_vec(),
+                },
+            },
+            certificate: mw::Certificate::RedPallas(public),
+        },
+        peer: f.begin.peer.clone(),
+    }
+}
+async fn red_rounds(f: &Fixture) -> multi::RedFinish {
+    use pairkey_signing::{redpallas, wire as mw};
+    let a = red_request(f);
+    let own = multi::rbegin(
+        State(f.worker.clone()),
+        Json(mw::RBegin {
+            authorized: a.clone(),
+        }),
+    )
+    .await
+    .unwrap()
+    .0;
+    let mw::Certificate::RedPallas(public) = &a.request.certificate else {
+        panic!()
+    };
+    let (round, _owned) = redpallas::Pending::begin(
+        &[22; 32],
+        &a.request.registration,
+        &a.request.intent.key.account,
+        public,
+        Role::B,
+        b"worker test",
+    )
+    .unwrap();
+    let peer = f
+        .peer
+        .seal(&f.own_attestation(), a.request.attempt.digest(), 11, &round)
+        .unwrap();
+    multi::RedFinish {
+        authorized: a,
+        rounds: [own, peer],
+    }
+}
+#[tokio::test]
+async fn redpallas_duplicate_finish_and_stale_rounds_burn_without_false_incident() {
+    let f = Fixture::new_with(true).await;
+    let first = red_rounds(&f).await;
+    let _ = multi::rfinish(State(f.worker.clone()), Json(first.clone()))
+        .await
+        .unwrap();
+    assert!(multi::rfinish(State(f.worker.clone()), Json(first.clone()))
+        .await
+        .is_err());
+    let second = red_rounds(&f).await;
+    let mut stale = second.clone();
+    stale.rounds[0] = first.rounds[0].clone();
+    assert!(multi::rfinish(State(f.worker.clone()), Json(stale))
+        .await
+        .is_err());
+    assert!(!f.worker.release.lock().unwrap().incident);
+    assert!(multi::rfinish(State(f.worker.clone()), Json(second))
+        .await
+        .is_err());
+    let third = red_rounds(&f).await;
+    let _ = multi::rfinish(State(f.worker.clone()), Json(third))
+        .await
+        .unwrap();
+}
+#[tokio::test]
+async fn redpallas_cancel_during_rpc_burns_nonce_and_retains_capacity_until_exit() {
+    let f = Fixture::new_with(true).await;
+    let rounds = red_rounds(&f).await;
+    f.rpc.paused.store(true, Ordering::SeqCst);
+    let w = f.worker.clone();
+    let first = rounds.clone();
+    let task = tokio::spawn(async move { multi::rfinish(State(w), Json(first)).await });
+    f.rpc.entered.notified().await;
+    assert!(
+        multi::rfinish(State(f.worker.clone()), Json(rounds.clone()))
+            .await
+            .is_err()
+    );
+    f.rpc.paused.store(false, Ordering::SeqCst);
+    assert!(multi::rbegin(
+        State(f.worker.clone()),
+        Json(pairkey_signing::wire::RBegin {
+            authorized: rounds.authorized
+        })
+    )
+    .await
+    .is_err());
+    assert_eq!(f.worker.nonce_capacity.available_permits(), 63);
+    multi::reset(State(f.worker.clone())).await;
+    assert_eq!(f.worker.nonce_capacity.available_permits(), 63);
+    f.rpc.resume.notify_one();
+    assert!(task.await.unwrap().is_err());
+    assert_eq!(f.worker.nonce_capacity.available_permits(), 64);
 }
