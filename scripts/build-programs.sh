@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-pairkey_sbf_rustc="${PAIRKEY_SBF_RUSTC:-$HOME/.cache/solana/v1.56/platform-tools/rust/bin/rustc}"
-if [[ ! -x "$pairkey_sbf_rustc" ]]; then
-  echo "Install SBF platform tools v1.56 first, or set PAIRKEY_SBF_RUSTC to their rustc path."
-  exit 1
+if [[ -z "${PAIRKEY_SBF_RUSTC:-}" && -f .local/ci-tools/env.sh ]]; then
+  source .local/ci-tools/env.sh
 fi
-RUSTC="$pairkey_sbf_rustc" cargo build-sbf --manifest-path programs/pair-registry/Cargo.toml --tools-version v1.56 --no-rustup-override --sbf-out-dir target/deploy -- --locked --target-dir target/sbf-v1.56
-RUSTC="$pairkey_sbf_rustc" cargo build-sbf --manifest-path programs/example-controller/Cargo.toml --tools-version v1.56 --no-rustup-override --sbf-out-dir target/deploy -- --locked --target-dir target/sbf-v1.56
-
-RUSTC="$pairkey_sbf_rustc" cargo build-sbf --manifest-path programs/example-policy/Cargo.toml --tools-version v1.56 --no-rustup-override --sbf-out-dir target/deploy -- --locked --target-dir target/sbf-v1.56
+: "${PAIRKEY_SBF_RUSTC:?Run python3 scripts/install-ci-tools.py and source .local/ci-tools/env.sh first}"
+: "${PAIRKEY_SBF_SDK:?Set the matching repository-local SBF SDK}"
+[[ -x "$PAIRKEY_SBF_RUSTC" && -x "$PAIRKEY_SBF_SDK/dependencies/platform-tools/llvm/bin/clang" ]]
+for pairkey_program in pair-registry example-controller example-policy; do
+  RUSTC="$PAIRKEY_SBF_RUSTC" cargo build-sbf \
+    --manifest-path "programs/$pairkey_program/Cargo.toml" \
+    --sbf-sdk "$PAIRKEY_SBF_SDK" --tools-version v1.56 \
+    --skip-tools-install --no-rustup-override --sbf-out-dir target/deploy \
+    -- --locked --target-dir target/sbf-v1.56
+ done

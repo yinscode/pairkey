@@ -7,14 +7,14 @@ PairKey now has a local worker/coordinator/SDK route for DKLS23 secp256k1 ECDSA 
 | Suite | Authorization | Signed output | Destination evidence |
 | --- | --- | --- | --- |
 | FROST Ed25519 | Existing COMMIT, constrained SESSION and SIMULATE | Ed25519 signature over the approved Solana message | Existing validator transfer and policy suites |
-| DKLS23 secp256k1 | Exact COMMIT, account or program/CPI | Low-S recoverable ECDSA signature; canonical EIP-155 transaction | Native transfers executed on local Anvil |
+| DKLS23 secp256k1 | COMMIT or scoped EVM SESSION, account or program/CPI | Low-S recoverable ECDSA signature; canonical EIP-155 transaction | Native transfers executed on local Anvil |
 | FROST RedPallas | Exact COMMIT, account or program/CPI | 64-byte RedPallas signature | Independently verified with ordinary `reddsa::VerificationKey<orchard::SpendAuth>` |
 
 The RedPallas route signs messages of 1–512 bytes. It does not build Orchard transactions, supply transaction randomizers, generate spend proofs, or implement Zcash wallet scanning. Signature compatibility alone is not an Orchard wallet integration.
 
 ## Approval and enrollment
 
-The existing Ed25519 registration remains the **authorization namespace**. No Solana program ABI or existing Ed25519 address changes are needed. The registry's `RequestRecord.derived_key` is still the Ed25519 namespace-derived key; it must not be presented as the ECDSA or RedPallas destination key.
+The existing Ed25519 registration remains the **authorization namespace**. The original COMMIT routes needed no Solana program ABI or existing Ed25519 address changes. The later EVM session extension appends registry instructions and adds separate session PDAs while preserving existing encodings; it requires rebuilt programs. The registry's `RequestRecord.derived_key` is still the Ed25519 namespace-derived key; it must not be presented as the ECDSA or RedPallas destination key.
 
 An application calls `Client::signing_key(KeyRequest, pinned_identities)` to enroll a backend key for a specific namespace, account path and suite. Both workers authenticate their public enrollment data using their existing platform identities. The SDK verifies both signatures, context and the backend certificate before returning the key. DKLS certificates additionally bind the native D identities. RedPallas certificates contain proofs of possession for both root-derived public shares.
 
@@ -45,13 +45,15 @@ New backend paths currently require worker enrollment. A returned public key/cer
 
 **EVM scope:** the adapter supports canonical legacy EIP-155 native transfers, fixed gas limit 21,000, nonzero recipient, no calldata, `u64` nonce/value/gas price and bounded chain ID. It is checked against the [published EIP-155 vector](https://eips.ethereum.org/EIPS/eip-155). It does not implement ERC-20 calls, contract calls, EIP-1559, EIP-712 or Hyperliquid. Chain ID is bound both in the account destination and the transaction prehash. Solana authorizes the operation; workers sign off chain and a relayer submits the resulting transaction to the destination chain.
 
-**Policy composition:** the new routes require COMMIT and reject SESSION until a destination-specific session adapter exists. Existing access-proof requirements still apply. Existing Solana-only SIMULATE policies cannot evaluate these intent bytes and fail closed; they are not silently skipped. Approval can authorize signing the same bytes again. EVM nonce rules prevent duplicate execution of the demonstrated transfer; raw RedPallas messages have no built-in application replay protection.
+**Policy composition:** DKLS23 native transfers now support scoped EVM SESSION and COMMIT+SESSION through a separate grant schema; see [CI and EVM sessions](ci-and-evm-sessions.md). RedPallas still requires COMMIT. Existing access-proof requirements still apply. Existing Solana-only SIMULATE policies cannot evaluate these intent bytes and fail closed; they are not silently skipped. Approval can authorize signing the same bytes again. EVM nonce rules prevent duplicate execution of the demonstrated transfer; raw RedPallas messages have no built-in application replay protection.
 
 ## Reproduce
 
 The platform now resolves the pinned local DKLS source, so bootstrap it before running root workspace Cargo commands on a fresh checkout. Build the platform's sidecar without `research-faults`:
 
 ```sh
+python3 scripts/install-ci-tools.py
+source .local/ci-tools/env.sh
 bash experiments/silence-dkls23/bootstrap.sh build --release --locked
 cargo fetch --locked
 bash scripts/build-programs.sh
@@ -65,16 +67,16 @@ The multi-suite demo additionally needs Anvil on PATH. Use `cargo fmt` (workspac
 
 The multi-suite demo runs account and program/CPI approvals for both suites, independently verifies signatures/receipts, executes both EVM transfers, rejects EVM replay and wrong-chain verification, restarts both actual platform workers and checks stable keys plus fresh signatures, then freezes each namespace and checks refusal for both suites. It also bypasses SDK/coordinator request validation to check that each worker rejects altered payload/destination intents under the original COMMIT. Unit tests cover the EIP-155 vector, RedPallas proof/key/domain checks, consumed/stale nonce refusal, and cancellation during authorization RPC while retaining capacity. This evidence is a bounded test result, not a security proof.
 
-## Validation for this change
+## Initial multi-suite validation
 
 [Public test evidence](multi-suite-test-evidence.json) records all four account/program × DKLS23/RedPallas flows, both executed EVM transaction hashes, direct worker substitution refusal, receipt tampering refusal, stable-key restarts and freeze refusal. The final locked/offline host suite passed 41 tests; the five explicit registry runtime tests also passed. The complete original Ed25519 transfer/restart/policy demo passed, as did Clippy with warnings denied, workspace-member formatting, default-feature worker compilation and the checksum-validated native sidecar build without fault features.
 
-The SBF tests and demos used existing unchanged program artifacts. A fresh SBF build could not run because the configured v1.56 compiler is absent on this machine. Artifact hashes and this limitation are recorded in the evidence. A temporary mixed native/platform build was refused by the DKLS configuration check; rebuilding both at the same configuration restored operation.
+The initial SBF tests and demos used existing unchanged program artifacts because the configured v1.56 compiler was absent. The later [CI/session work](ci-and-evm-sessions.md) installs the pinned compiler and rebuilds the programs. Artifact hashes and this limitation are recorded in the evidence. A temporary mixed native/platform build was refused by the DKLS configuration check; rebuilding both at the same configuration restored operation.
 
 ## Remaining work
 
 - Review the multi-suite authorization binding, custom RedPallas setup and Spike D construction independently; resolve the outstanding Silence proof obligations and licensing boundary.
-- Add scoped EVM sessions, contract/type-specific adapters and application replay semantics. Add Orchard transaction/randomization integration only when its exact requirements are selected.
+- Extend beyond the scoped EVM native-transfer sessions to contract/type-specific adapters and application replay semantics. Add Orchard transaction/randomization integration only when its exact requirements are selected.
 - Extend the synchronous API with durable/public job handling, recovery, retries/backpressure and an explicit multi-suite response-cache schema if required by applications.
 - Prove active-operation fault/restart matrices, mixed-version refusal and resource bounds beyond the covered local cases; integrate the selected native D fault harness into CI without enabling fault injection in deployment binaries.
 - Finish real TEE provisioning/attestation, protected entropy, rollback/fork controls, trusted bootstrap/time, independent provider state sources and root recovery. Local restarts do not establish these properties.
@@ -90,4 +92,4 @@ The least work is to reuse the existing worker credential proofs and Solana cont
 
 For the smallest first OIDC increment, require one existing controller approval per session. That avoids adding broker authority to the on-chain controller. If login must grant access automatically, a narrowly scoped broker/controller delegation is additional work and a real trust decision: an OIDC token alone does not control a Solana namespace. Bound grant expiry by the login/session policy, implement revocation, and never treat the ephemeral key as a bearer token.
 
-Existing Solana transfer sessions can use this approach first. EVM/RedPallas COMMITs can use an enrolled access credential now, but session-only use of the new routes needs a new destination policy adapter. The smallest next adapter is the already constrained EVM native transfer: chain, sender/key, recipient, amount, gas/fee caps and expiry. Arbitrary RedPallas messages should keep exact COMMIT approval until an application-specific operation and replay policy is defined. Cumulative budgets still require durable accounting and are outside the minimal integration.
+Existing Solana transfer sessions can use this approach first. EVM/RedPallas COMMITs can use an enrolled access credential now, and scoped native EVM transfer sessions now bind chain, sender/key, recipient, amount, gas/fee caps and expiry. RedPallas session-only use still needs a new destination policy adapter. Arbitrary RedPallas messages should keep exact COMMIT approval until an application-specific operation and replay policy is defined. Cumulative budgets still require durable accounting and are outside the minimal integration.

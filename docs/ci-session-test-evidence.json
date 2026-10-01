@@ -1,0 +1,135 @@
+{
+  "description": "Local CI gate and scoped EVM native-transfer sessions; public summary of the generated CI reports.",
+  "validation": {
+    "platform": "Darwin-25.2.0-arm64-arm-64bit-Mach-O",
+    "tool_versions": [
+      "rustc 1.88.0 (6b00bc388 2025-06-23)",
+      "solana-cli 3.0.14 (src:f516a892; feat:3604001754, client:Agave)",
+      "anvil Version: 1.3.1-v1.3.1",
+      "Commit SHA: 08d3a4ad4d78b62bcb897350803bf96fc2cf6cc9",
+      "Build Timestamp: 2025-08-12T07:40:48.462796000Z (1754984448)",
+      "Build Profile: maxperf",
+      "rustc 1.89.0-dev (e57530ef2 2026-08-14)"
+    ],
+    "completed_at_utc": "2026-10-12T07:06:52.359254+00:00",
+    "base_commit": "c4fcc00cb697e3f526dd2a70ecbde69d5c2e1a56",
+    "uncommitted_changes": true,
+    "host_tests_passed": 45,
+    "registry_tests_passed": 6,
+    "sbf_rebuilt": true,
+    "local_gate_passed": true,
+    "sha256": {
+      "Cargo.lock": "30b4b78440048b5a9f5c2ba0481a890b1d7e42f4064cd080f38cc0eb2f84aeec",
+      "target/deploy/pair_registry.so": "3f72f1733053dde37ff63631d353d4d64fbea9c325eb921ba9bea25ed1146b32",
+      "target/deploy/example_controller.so": "808f0388f147b416611b5a4f87ff0d870b997775e76fe3d273de7fb1b9acae8d",
+      "target/deploy/example_policy.so": "e77baaeb662e428c70b9231170bbe5e1d37d49223ad7881697523e1d1158f6bc",
+      "target/debug/pairkey-worker": "8149842c81556e779ea623fa8db2c32087ec2d7db411c7b7807100e090ff1a4c",
+      "target/debug/pairkey-coordinator": "2018c3f567301cf162d25ca12fd3a1397cd4413d638fc0f4c072d8307fa83e37",
+      "target/debug/local_demo": "14d8212af0cd28dc7f754efeb8b80c635e934e438a781fd68dd7eb460e6b98e6",
+      "target/silence-dkls23/release/dkls-spike": "f16a8f43e9723077ce66a940df0f03b96d42637c1c1015bd0a2d9fced7be808c"
+    }
+  },
+  "github_hosted_run": false,
+  "hardware_backed": false,
+  "ed25519_policy_demo_passed": true,
+  "multi_suite_flows": [
+    {
+      "authorization": "account",
+      "suite": "Dkls23Secp256k1",
+      "missing_approval_refused": true,
+      "destination_substitution_refused": true,
+      "payload_substitution_refused": true,
+      "workers_refused_substitutions": true,
+      "tampered_receipt_refused": true,
+      "restart_preserved_key": true,
+      "freeze_refused": true,
+      "evm_executed": true,
+      "evm_execution": {
+        "recipient_balance": "0x12d687",
+        "replay_refused": true,
+        "status": "0x1",
+        "transaction_hash": "0x50adedd968803c22f4d92c575b100a13aeb1ec950b95621aa662d8f5e4e00936",
+        "wrong_chain_refused": true
+      }
+    },
+    {
+      "authorization": "account",
+      "suite": "FrostRedPallas",
+      "missing_approval_refused": true,
+      "destination_substitution_refused": true,
+      "payload_substitution_refused": true,
+      "workers_refused_substitutions": true,
+      "tampered_receipt_refused": true,
+      "restart_preserved_key": true,
+      "freeze_refused": true,
+      "evm_executed": false,
+      "evm_execution": null
+    },
+    {
+      "authorization": "program_cpi",
+      "suite": "Dkls23Secp256k1",
+      "missing_approval_refused": true,
+      "destination_substitution_refused": true,
+      "payload_substitution_refused": true,
+      "workers_refused_substitutions": true,
+      "tampered_receipt_refused": true,
+      "restart_preserved_key": true,
+      "freeze_refused": true,
+      "evm_executed": true,
+      "evm_execution": {
+        "recipient_balance": "0x12d687",
+        "replay_refused": true,
+        "status": "0x1",
+        "transaction_hash": "0x394f33f77fd98cec894026e19908796738a4ca34ff6f529a8993925ec15db0f1",
+        "wrong_chain_refused": true
+      }
+    },
+    {
+      "authorization": "program_cpi",
+      "suite": "FrostRedPallas",
+      "missing_approval_refused": true,
+      "destination_substitution_refused": true,
+      "payload_substitution_refused": true,
+      "workers_refused_substitutions": true,
+      "tampered_receipt_refused": true,
+      "restart_preserved_key": true,
+      "freeze_refused": true,
+      "evm_executed": false,
+      "evm_execution": null
+    }
+  ],
+  "evm_sessions": [
+    {
+      "authorization": "account",
+      "commit_plus_session_signed": true,
+      "executed_without_commit": true,
+      "limits_refused": true,
+      "policy_version_refused": true,
+      "required_commit_enforced": true,
+      "revocation_refused": true,
+      "transaction_hash": "0x265eddd568bfccc43cb36c428f09db22e060dbcc9d09826b5598a2a4206a3083",
+      "transaction_replay_refused": true
+    },
+    {
+      "authorization": "program_cpi",
+      "commit_plus_session_signed": true,
+      "executed_without_commit": true,
+      "limits_refused": true,
+      "policy_version_refused": true,
+      "required_commit_enforced": true,
+      "revocation_refused": true,
+      "transaction_hash": "0x97949361f7bbb2356dcc2a60a8f375c3296a0dfb313fe43a76fc98f313097380",
+      "transaction_replay_refused": true
+    }
+  ],
+  "full_public_report_sha256": {
+    "ed25519-evidence.json": "2c29a29eb2145539707ba0fcee64598077fe5221eaa0d79a8b2d32f07040b2e7",
+    "multi-evidence.json": "7dbb64d903595134c4f7f899c7e19271dac3ebbe7fd6dfc8271643d959b09332"
+  },
+  "limits": [
+    "Local macOS arm64 validation; GitHub-hosted Linux execution is pending.",
+    "EVM sessions authorize legacy native transfers, with per-operation limits and no cumulative budget.",
+    "Revocation and expiry stop future issuance after observation; existing signatures remain executable.",
+    "Development workers and custom DKLS23 research construction; no production approval."
+  ]
+}

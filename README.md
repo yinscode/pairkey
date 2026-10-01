@@ -8,9 +8,11 @@ This is a local development implementation. No Phala/Oyster accounts are needed 
 
 ## Run
 
-Prerequisites: Rust 1.88.0, Agave CLI/test-validator 3.0.15, and SBF platform tools v1.56 (Rust 1.89.0). Cargo.lock pins dependencies. The program script uses the downloaded compiler directly and isolated target artifacts rather than changing shared rustup aliases.
+Prerequisite: Rust 1.88.0 with rustfmt and Clippy, Python 3.12+, and curl. The checksum-pinned installer supplies Agave 3.0.14, Anvil 1.3.1 and SBF platform tools v1.56 (Rust 1.89.0) under ignored `.local/ci-tools`. Cargo.lock pins dependencies. Shared rustup aliases are unchanged. See [CI and EVM sessions](docs/ci-and-evm-sessions.md).
 
 ```sh
+python3 scripts/install-ci-tools.py
+source .local/ci-tools/env.sh
 bash experiments/silence-dkls23/bootstrap.sh build --release --locked
 cargo fetch --locked
 bash scripts/build-programs.sh
@@ -43,7 +45,7 @@ See [implementation evidence and remaining gates](docs/implementation-status.md)
 
 The controller calls `set_policy` and `grant_session` on Solana, directly or through the example controller CPI. Grants bind one derived account/path, authorization-network destination, delegate credential, recipient, per-operation lamport limit, policy version, and a validity interval of at most 24 hours. `revoke_session` is permanent; issuing a replacement uses a new ID. Policy versions advance by exactly one and invalidate old grants/proofs. Records are public; signer key packages remain memory-only.
 
-The first destination adapter accepts only a canonical legacy Solana message containing one System Program transfer, paid and signed by the derived account. Extra instructions, lookup tables, additional signers, a different recipient, an excessive amount, an incorrect destination, and arbitrary digests are refused. This narrow adapter is intentional. EVM sessions await a destination-specific policy adapter; nonce-advance instructions and other Solana operations require separate adapters.
+The first destination adapter accepts only a canonical legacy Solana message containing one System Program transfer, paid and signed by the derived account. Extra instructions, lookup tables, additional signers, a different recipient, an excessive amount, an incorrect destination, and arbitrary digests are refused. This narrow adapter is intentional. Scoped EVM native-transfer sessions are available through the multi-suite API; nonce-advance instructions and other Solana operations require separate adapters.
 
 Use `policy::solana_destination(network)` for the path destination. Construct a `Commit` as the exact-operation descriptor even for a session; it does not need to be published on chain unless registered policy requires COMMIT. Set `Authorization.policy_version` and `session_id`, compute `policy::session_challenge`, and attach a service-key signature or ES256 passkey assertion. A separately enrolled `Policy.access` credential, when configured, also requires `policy::access_challenge`. Submit through `Client::submit_authorized`; polling, SSE and receipt verification use the existing flow. Service credentials are Ed25519 proof-of-possession keys, not bearer API tokens.
 
@@ -67,7 +69,7 @@ The local demo includes service SESSION, service SESSION+SIMULATE, passkey SESSI
 PAIRKEY_DEMO_POLICY_ONLY=1 target/debug/local_demo
 ```
 
-Attempt transcript domain v2 binds the complete public authorization envelope to MPC channels and receipts. RoundTwo additionally requires `transcript_digest = digest("pairkey/frost-commitment-transcript/v1", (attempt_digest, A_commitment_bytes, B_commitment_bytes))`, using the canonical framed Borsh digest helper. A fresh commitment pair distinguishes retries even if a caller repeats its external attempt ID; duplicates while pending or in flight are refused. Missing transcript digests are rejected. Namespace/account derivation stays v1, so existing account addresses are preserved. Old and new worker binaries must not be mixed during this local wire-format update; abort outstanding attempts and restart both workers together. The October 12 [multi-suite integration](docs/multi-suite-signing.md) adds a separate exact-COMMIT route for Spike D and RedPallas; its construction review remains open.
+Attempt transcript domain v2 binds the complete public authorization envelope to MPC channels and receipts. RoundTwo additionally requires `transcript_digest = digest("pairkey/frost-commitment-transcript/v1", (attempt_digest, A_commitment_bytes, B_commitment_bytes))`, using the canonical framed Borsh digest helper. A fresh commitment pair distinguishes retries even if a caller repeats its external attempt ID; duplicates while pending or in flight are refused. Missing transcript digests are rejected. Namespace/account derivation stays v1, so existing account addresses are preserved. Old and new worker binaries must not be mixed during this local wire-format update; abort outstanding attempts and restart both workers together. The October 12 [multi-suite integration](docs/multi-suite-signing.md) adds separate routes for Spike D (COMMIT or scoped EVM SESSION) and RedPallas (COMMIT); its construction review remains open.
 
 ## DKLS23 and RedPallas local demo
 
@@ -78,3 +80,7 @@ PAIRKEY_DEMO_MULTI_ONLY=1 target/debug/local_demo
 ```
 
 This exercises account and program/CPI approvals for both suites, EVM native-transfer execution, worker replacement, approval substitution refusal and namespace freezes. Results are written to `.local/<run-id>/multi-evidence.json`. New backend key enrollment requires workers; existing Ed25519 offline derivation is unchanged. See the [scope, API, tests and remaining work](docs/multi-suite-signing.md).
+
+## CI
+
+After installing the pinned tools, run `bash scripts/ci.sh`. GitHub Actions runs the same gate on pushes and pull requests: source bootstrap, formatting, Clippy, host tests, fresh SBF builds, explicit registry tests, and both complete process demos. Only selected public evidence and gate logs are collected in `.local/ci-report/`; roots, identity seeds and validator ledgers are excluded.
