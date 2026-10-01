@@ -8,7 +8,9 @@ use curve25519_dalek::{
     traits::IsIdentity,
 };
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256, Sha512};
+#[cfg(not(target_os = "solana"))]
+use sha2::Sha256;
+use sha2::{Digest, Sha512};
 
 pub const VERSION: u16 = 1;
 pub const MAX_PATH: usize = 8;
@@ -200,21 +202,37 @@ pub fn point(bytes: [u8; 32]) -> Result<EdwardsPoint, Error> {
     Ok(p)
 }
 
+// Identical framing on host and SBF. On-chain software SHA-256 exceeded the
+// simulation compute budget for large passkey policies; use the native syscall.
+fn hash_parts(parts: &[&[u8]]) -> [u8; 32] {
+    #[cfg(target_os = "solana")]
+    {
+        solana_sha256_hasher::hashv(parts).to_bytes()
+    }
+    #[cfg(not(target_os = "solana"))]
+    {
+        let mut h = Sha256::new();
+        for part in parts {
+            h.update(part);
+        }
+        h.finalize().into()
+    }
+}
 pub fn digest<T: BorshSerialize>(label: &[u8], value: &T) -> [u8; 32] {
     let bytes = borsh::to_vec(value).expect("bounded in-memory serialization");
-    let mut h = Sha256::new();
-    h.update((label.len() as u32).to_le_bytes());
-    h.update(label);
-    h.update((bytes.len() as u32).to_le_bytes());
-    h.update(bytes);
-    h.finalize().into()
+    hash_parts(&[
+        &(label.len() as u32).to_le_bytes(),
+        label,
+        &(bytes.len() as u32).to_le_bytes(),
+        &bytes,
+    ])
 }
 pub fn message_hash(message: &[u8]) -> [u8; 32] {
-    let mut h = Sha256::new();
-    h.update(b"pairkey/exact-message/v1");
-    h.update((message.len() as u32).to_le_bytes());
-    h.update(message);
-    h.finalize().into()
+    hash_parts(&[
+        b"pairkey/exact-message/v1",
+        &(message.len() as u32).to_le_bytes(),
+        message,
+    ])
 }
 pub fn tweak(reg: &Registration, path: &AccountPath) -> Result<Scalar, Error> {
     reg.validate()?;

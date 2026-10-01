@@ -2811,6 +2811,7 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "solana-curve25519",
+ "solana-sha256-hasher",
  "thiserror 2.0.17",
 ]
 

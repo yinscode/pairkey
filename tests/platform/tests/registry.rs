@@ -548,4 +548,54 @@ fn simulation_requires_real_enrolled_identity_proof_exact_state_and_no_preparato
         .try_sign(&[&f.payer], f.svm.latest_blockhash())
         .unwrap();
     assert!(f.svm.simulate_transaction(invalid).is_err());
+    // Exercise maximum permitted access-credential strings and both identities
+    // under the ordinary two-instruction simulation budget, with headroom.
+    let mut large = policy.clone();
+    large.version = 2;
+    let passkey = p256::ecdsa::SigningKey::from_slice(&[70; 32]).unwrap();
+    large.access = Some(Credential::Passkey {
+        public_key: passkey
+            .verifying_key()
+            .to_encoded_point(false)
+            .as_bytes()
+            .to_vec(),
+        rp_id: "a".repeat(128),
+        origin: format!("https://{}", "a".repeat(248)),
+    });
+    f.send(vec![pairkey_sdk::set_policy(
+        controller,
+        controller,
+        &reg,
+        large.clone(),
+    )])
+    .unwrap();
+    let mut large_input = input;
+    large_input.policy_digest = large.digest();
+    large_input.state_digest = simulation_state(
+        &f.svm.get_account(&set).unwrap().data,
+        &f.svm.get_account(&ns).unwrap().data,
+        &f.svm.get_account(&policy_address).unwrap().data,
+    );
+    for identity in &f.identities {
+        let challenge = simulation_message(&large_input);
+        let mut tx = pairkey_sdk::simulation_transaction(
+            example_policy::id(),
+            controller,
+            &reg,
+            identity.pubkey().to_bytes(),
+            identity
+                .sign_message(&challenge)
+                .as_ref()
+                .try_into()
+                .unwrap(),
+            large_input.clone(),
+        );
+        tx.try_sign(&[&f.payer], f.svm.latest_blockhash()).unwrap();
+        let result = f.svm.simulate_transaction(tx).unwrap();
+        assert!(
+            result.meta.compute_units_consumed < 100_000,
+            "simulation needs headroom: {}",
+            result.meta.compute_units_consumed
+        );
+    }
 }
