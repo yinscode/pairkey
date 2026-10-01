@@ -248,11 +248,9 @@ impl Worker {
             pair_registry::request_address(&program, &namespace, &begin.attempt.commit.request_id)
                 .0;
         let policy_address = pair_registry::policy_address(&program, &namespace).0;
-        let session_address = begin
-            .attempt
-            .authorization
-            .session_id
-            .map(|id| pair_registry::session_address(&program, &namespace, &id).0);
+        let session_address = begin.attempt.authorization.session_id.map(|id| {
+            pairkey_core::session_address_for_message(&program, &namespace, &id, &begin.message)
+        });
         let mut addresses = vec![self.trust.enclave_set, namespace, request, policy_address];
         if let Some(session) = session_address {
             addresses.push(session);
@@ -514,6 +512,13 @@ async fn ack(State(w): State<W>, Json(q): Json<Ack>) -> Result<Json<Vec<u8>>, Fa
     )))
 }
 async fn begin(State(w): State<W>, Json(q): Json<Begin>) -> Result<Json<Envelope>, Failure> {
+    if q.attempt.authorization.session_id.is_some()
+        && q.message.starts_with(pairkey_signing::INTENT_PREFIX)
+    {
+        return Err(failure(
+            "multi-suite sessions require the matching signing endpoint",
+        ));
+    }
     w.prune();
     w.channel.authenticate_peer(&q.peer).map_err(failure)?;
     let view = w.observe(&q).await.map_err(failure)?;

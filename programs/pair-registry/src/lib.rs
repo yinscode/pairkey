@@ -18,7 +18,10 @@ use solana_program::{
 };
 
 mod policy;
-pub use policy::{policy_address, session_address, PolicyRecord, SessionRecord};
+pub use policy::{
+    evm_session_address, policy_address, session_address, EvmSessionRecord, PolicyRecord,
+    SessionRecord,
+};
 
 solana_program::declare_id!("Fg6PaFpoGXkYsidMpWxTWqkZ6W2BeZ7FEfcYkgMQHGDL");
 #[cfg(not(feature = "no-entrypoint"))]
@@ -80,6 +83,13 @@ pub enum RegistryInstruction {
         grant: pairkey_types::policy::SessionGrant,
     },
     RevokeSession {
+        session_id: [u8; 32],
+    },
+    // Append only: preserve all existing instruction discriminants and records.
+    GrantEvmSession {
+        grant: pairkey_types::policy::EvmSessionGrant,
+    },
+    RevokeEvmSession {
         session_id: [u8; 32],
     },
 }
@@ -238,7 +248,9 @@ pub fn process_instruction(
     match ix {
         ix @ (RegistryInstruction::SetPolicy { .. }
         | RegistryInstruction::GrantSession { .. }
-        | RegistryInstruction::RevokeSession { .. }) => policy::process(program, accounts, ix),
+        | RegistryInstruction::RevokeSession { .. }
+        | RegistryInstruction::GrantEvmSession { .. }
+        | RegistryInstruction::RevokeEvmSession { .. }) => policy::process(program, accounts, ix),
         RegistryInstruction::CreateSet {
             set_id,
             identities,

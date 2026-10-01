@@ -1,4 +1,4 @@
-//! Local multi-suite API. Explicit COMMIT approval precedes every signing request.
+//! Local multi-suite API. Registry policy authorizes each exact intent via COMMIT or scoped EVM SESSION.
 use anyhow::{ensure, Result};
 pub use pairkey_signing::{evm, wire::*, Intent, Key, Payload, Suite};
 impl crate::service::Client {

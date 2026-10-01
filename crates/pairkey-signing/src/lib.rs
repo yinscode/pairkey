@@ -64,9 +64,20 @@ pub enum Payload {
         message: Vec<u8>,
     },
 }
+pub const INTENT_PREFIX: &[u8] = b"pairkey/signing-intent/v1\0";
 impl Intent {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        ensure!(
+            bytes.len() <= pairkey_types::MAX_MESSAGE,
+            "intent too large"
+        );
+        let payload = bytes
+            .strip_prefix(INTENT_PREFIX)
+            .ok_or_else(|| anyhow::anyhow!("intent prefix"))?;
+        Ok(borsh::from_slice(payload)?)
+    }
     pub fn bytes(&self) -> Result<Vec<u8>> {
-        let mut b = b"pairkey/signing-intent/v1\0".to_vec();
+        let mut b = INTENT_PREFIX.to_vec();
         b.extend(borsh::to_vec(self)?);
         ensure!(b.len() <= pairkey_types::MAX_MESSAGE, "intent too large");
         Ok(b)

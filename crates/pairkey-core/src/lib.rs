@@ -51,8 +51,8 @@ pub mod access;
 pub mod operation;
 mod policy;
 pub use policy::{
-    code_hash, immutable_loader, simulation_input, ExecutableObservation, Freshness,
-    SimulationObservation,
+    code_hash, immutable_loader, session_address_for_message, simulation_input,
+    ExecutableObservation, Freshness, SimulationObservation,
 };
 
 pub struct Observation {

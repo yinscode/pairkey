@@ -599,3 +599,125 @@ fn simulation_requires_real_enrolled_identity_proof_exact_state_and_no_preparato
         );
     }
 }
+
+#[test]
+#[ignore = "requires SBF programs"]
+fn account_and_cpi_evm_grants_preserve_scope_and_revocation() {
+    use pair_registry::{EvmSessionRecord, PolicyRecord};
+    use pairkey_types::policy::*;
+    let mut f = Fixture::new();
+    for (id, cpi) in [(71, false), (72, true)] {
+        let controller = if cpi {
+            example_controller::authority(&example_controller::id(), &f.payer.pubkey()).0
+        } else {
+            f.payer.pubkey()
+        };
+        let reg = f.registration(controller, id, cpi);
+        let payer = f.payer.pubkey();
+        let wrap = |ix| {
+            if cpi {
+                pairkey_sdk::through_controller(payer, ix)
+            } else {
+                ix
+            }
+        };
+        let policy = Policy {
+            version: 1,
+            allow_session: true,
+            require_commit: false,
+            require_session: true,
+            access: None,
+            simulation: None,
+        };
+        f.send(vec![wrap(pairkey_sdk::set_policy(
+            f.payer.pubkey(),
+            controller,
+            &reg,
+            policy.clone(),
+        ))])
+        .unwrap();
+        let ns = pair_registry::namespace_address(&pair_registry::id(), &reg).0;
+        let policy_address = pair_registry::policy_address(&pair_registry::id(), &ns).0;
+        let record: PolicyRecord =
+            borsh::from_slice(&f.svm.get_account(&policy_address).unwrap().data).unwrap();
+        assert_eq!(record.policy, policy);
+        let now = f
+            .svm
+            .get_sysvar::<solana_sdk::clock::Clock>()
+            .unix_timestamp;
+        let grant = EvmSessionGrant {
+            session_id: [id; 32],
+            policy_version: 1,
+            account: AccountPath {
+                destination: evm_destination(31337),
+                path: vec![0],
+            },
+            credential: Credential::Service {
+                public_key: f.identities[0].pubkey().to_bytes(),
+            },
+            not_before: now,
+            expires_at: now + 60,
+            key_digest: [21; 32],
+            chain_id: 31337,
+            recipient: [42; 20],
+            max_value_wei: 100,
+            max_gas_price_wei: 10,
+            max_fee_wei: 210000,
+            cumulative_budget: None,
+        };
+        let grant_ix = wrap(pairkey_sdk::grant_evm_session(
+            f.payer.pubkey(),
+            controller,
+            &reg,
+            grant.clone(),
+        ));
+        f.send(vec![grant_ix.clone()]).unwrap();
+        assert!(f.send(vec![grant_ix]).is_err());
+        let session_address =
+            pair_registry::evm_session_address(&pair_registry::id(), &ns, &grant.session_id).0;
+        let record: EvmSessionRecord =
+            borsh::from_slice(&f.svm.get_account(&session_address).unwrap().data).unwrap();
+        assert_eq!(record.grant, grant);
+        assert!(!record.revoked);
+        f.send(vec![wrap(pairkey_sdk::revoke_evm_session(
+            controller,
+            &reg,
+            grant.session_id,
+        ))])
+        .unwrap();
+        let record: EvmSessionRecord =
+            borsh::from_slice(&f.svm.get_account(&session_address).unwrap().data).unwrap();
+        assert!(record.revoked);
+        let mut budget = grant.clone();
+        budget.session_id = [id + 2; 32];
+        budget.cumulative_budget = Some(100);
+        assert!(f
+            .send(vec![wrap(pairkey_sdk::grant_evm_session(
+                f.payer.pubkey(),
+                controller,
+                &reg,
+                budget
+            ))])
+            .is_err());
+        let mut changed = policy.clone();
+        changed.version = 2;
+        changed.access = Some(Credential::Service {
+            public_key: f.identities[1].pubkey().to_bytes(),
+        });
+        f.send(vec![wrap(pairkey_sdk::set_policy(
+            f.payer.pubkey(),
+            controller,
+            &reg,
+            changed,
+        ))])
+        .unwrap();
+        assert!(f
+            .send(vec![wrap(pairkey_sdk::set_policy(
+                f.payer.pubkey(),
+                controller,
+                &reg,
+                policy
+            ))])
+            .is_err());
+    }
+}

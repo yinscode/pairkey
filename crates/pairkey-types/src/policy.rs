@@ -195,3 +195,62 @@ pub fn simulation_state(set: &[u8], namespace: &[u8], policy: &[u8]) -> [u8; 32]
 pub fn solana_destination(network: [u8; 32]) -> [u8; 32] {
     digest(b"pairkey/solana-destination/v1", &network)
 }
+
+/// Separate EVM schema; all monetary bounds are wei and apply per operation.
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvmSessionGrant {
+    pub session_id: [u8; 32],
+    pub policy_version: u64,
+    pub account: AccountPath,
+    /// Pins the complete versioned backend Key, including suite and registration.
+    pub key_digest: [u8; 32],
+    pub credential: Credential,
+    pub not_before: i64,
+    pub expires_at: i64,
+    pub chain_id: u64,
+    pub recipient: [u8; 20],
+    pub max_value_wei: u64,
+    pub max_gas_price_wei: u64,
+    pub max_fee_wei: u64,
+    /// Durable cumulative accounting is not implemented.
+    pub cumulative_budget: Option<u64>,
+}
+impl EvmSessionGrant {
+    pub fn validate(&self) -> Result<(), Error> {
+        self.account.validate()?;
+        self.credential.validate()?;
+        if self.policy_version == 0
+            || self.key_digest == [0; 32]
+            || self.chain_id == 0
+            || self.chain_id > (u64::MAX - 36) / 2
+            || self.account.destination != evm_destination(self.chain_id)
+            || self.expires_at <= self.not_before
+            || self.expires_at.saturating_sub(self.not_before) > 86400
+            || self.recipient == [0; 20]
+            || self.max_value_wei == 0
+            || self.max_gas_price_wei == 0
+            || self.max_fee_wei == 0
+            || self.cumulative_budget.is_some()
+        {
+            return Err(Error::Bounds);
+        }
+        Ok(())
+    }
+    pub fn digest(&self) -> [u8; 32] {
+        digest(b"pairkey/evm-session/v1", self)
+    }
+}
+pub fn evm_destination(chain_id: u64) -> [u8; 32] {
+    digest(b"pairkey/evm-destination/v1", &chain_id)
+}
+pub fn evm_session_challenge(
+    auth: &Authorization,
+    commit: &Commit,
+    grant: &EvmSessionGrant,
+) -> [u8; 32] {
+    digest(
+        b"pairkey/evm-session-request/v1",
+        &(commit, auth.policy_version, auth.session_id, grant.digest()),
+    )
+}

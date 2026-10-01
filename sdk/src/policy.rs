@@ -1,6 +1,6 @@
 //! Build operation-bound proofs. Enrollment/revocation require the actual controller.
 use ed25519_dalek::Signer;
-pub use pairkey_types::policy::solana_destination;
+pub use pairkey_types::policy::{evm_destination, evm_session_challenge, solana_destination};
 use pairkey_types::{
     policy::{AccessProof, Authorization, SessionGrant},
     Commit,

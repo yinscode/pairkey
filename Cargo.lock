@@ -2672,6 +2672,7 @@ dependencies = [
  "ed25519-dalek 2.2.0",
  "p256",
  "pair-registry",
+ "pairkey-signing",
  "pairkey-types",
  "serde",
  "serde_json",

@@ -16,7 +16,7 @@ pub struct Transfer {
     pub value: u64,
 }
 pub fn destination(chain_id: u64) -> [u8; 32] {
-    pairkey_types::digest(b"pairkey/evm-destination/v1", &chain_id)
+    pairkey_types::policy::evm_destination(chain_id)
 }
 impl Transfer {
     pub fn validate(&self) -> Result<()> {
@@ -79,6 +79,39 @@ pub fn verify(public: &[u8], tx: &Transfer, bytes: &[u8]) -> Result<()> {
     ensure!(
         VerifyingKey::recover_from_prehash(&h, &sig, RecoveryId::try_from(bytes[64])?)? == vk,
         "recovery mismatch"
+    );
+    Ok(())
+}
+
+/// Evaluate a controller-enrolled scope against a canonical, fully bound intent.
+pub fn authorize_session(
+    reg: &pairkey_types::Registration,
+    grant: &pairkey_types::policy::EvmSessionGrant,
+    message: &[u8],
+) -> Result<()> {
+    grant.validate()?;
+    let intent = crate::Intent::from_bytes(message)?;
+    intent.validate(reg)?;
+    ensure!(
+        intent.key.suite == crate::Suite::Dkls23Secp256k1
+            && intent.key.digest() == grant.key_digest
+            && intent.key.account == grant.account,
+        "EVM session key/path mismatch"
+    );
+    let crate::Payload::EvmTransfer(tx) = intent.payload else {
+        anyhow::bail!("EVM session payload");
+    };
+    let fee = tx
+        .gas_price
+        .checked_mul(tx.gas_limit)
+        .ok_or_else(|| anyhow::anyhow!("EVM fee overflow"))?;
+    ensure!(
+        tx.chain_id == grant.chain_id
+            && tx.to == grant.recipient
+            && tx.value <= grant.max_value_wei
+            && tx.gas_price <= grant.max_gas_price_wei
+            && fee <= grant.max_fee_wei,
+        "EVM session scope exceeded"
     );
     Ok(())
 }

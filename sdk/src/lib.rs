@@ -130,7 +130,9 @@ pub fn through_controller(owner: Pubkey, registry_ix: Instruction) -> Instructio
     let registry_instruction = borsh::from_slice::<RegistryInstruction>(&registry_ix.data).unwrap();
     let start = if matches!(
         registry_instruction,
-        RegistryInstruction::Freeze { .. } | RegistryInstruction::RevokeSession { .. }
+        RegistryInstruction::Freeze { .. }
+            | RegistryInstruction::RevokeSession { .. }
+            | RegistryInstruction::RevokeEvmSession { .. }
     ) {
         assert_eq!(registry_ix.accounts[0].pubkey, authority);
         1
@@ -269,6 +271,56 @@ pub fn revoke_session(controller: Pubkey, reg: &Registration, session_id: [u8; 3
             ),
         ],
         RegistryInstruction::RevokeSession { session_id },
+    )
+}
+
+pub fn grant_evm_session(
+    payer: Pubkey,
+    controller: Pubkey,
+    reg: &Registration,
+    grant: pairkey_types::policy::EvmSessionGrant,
+) -> Instruction {
+    let ns = namespace_address(&pair_registry::id(), reg).0;
+    instruction(
+        pair_registry::id(),
+        vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new_readonly(controller, true),
+            AccountMeta::new_readonly(ns, false),
+            AccountMeta::new_readonly(
+                pair_registry::policy_address(&pair_registry::id(), &ns).0,
+                false,
+            ),
+            AccountMeta::new_readonly(
+                set_address(&pair_registry::id(), &reg.namespace.enclave_set).0,
+                false,
+            ),
+            AccountMeta::new(
+                pair_registry::evm_session_address(&pair_registry::id(), &ns, &grant.session_id).0,
+                false,
+            ),
+            AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+        ],
+        RegistryInstruction::GrantEvmSession { grant },
+    )
+}
+pub fn revoke_evm_session(
+    controller: Pubkey,
+    reg: &Registration,
+    session_id: [u8; 32],
+) -> Instruction {
+    let ns = namespace_address(&pair_registry::id(), reg).0;
+    instruction(
+        pair_registry::id(),
+        vec![
+            AccountMeta::new_readonly(controller, true),
+            AccountMeta::new_readonly(ns, false),
+            AccountMeta::new(
+                pair_registry::evm_session_address(&pair_registry::id(), &ns, &session_id).0,
+                false,
+            ),
+        ],
+        RegistryInstruction::RevokeEvmSession { session_id },
     )
 }
 

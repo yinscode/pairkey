@@ -103,10 +103,11 @@ impl SignRequest {
             self.attempt.commit.account == self.intent.key.account,
             "account path mismatch"
         );
-        // New destination session adapters must be explicit; old Solana-only sessions cannot authorize these bytes.
+        // Only the EVM adapter accepts sessions; RedPallas still requires exact COMMIT.
         anyhow::ensure!(
-            self.attempt.authorization.session_id.is_none(),
-            "multi-suite SESSION adapter not installed; COMMIT required"
+            self.attempt.authorization.session_id.is_none()
+                || self.intent.key.suite == Suite::Dkls23Secp256k1,
+            "RedPallas requires COMMIT"
         );
         let key = self.certificate.key(&KeyRequest {
             registration: self.registration.clone(),

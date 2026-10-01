@@ -12,6 +12,15 @@ pub struct SessionRecord {
     pub grant: SessionGrant,
     pub revoked: bool,
 }
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
+pub struct EvmSessionRecord {
+    pub namespace_address: [u8; 32],
+    pub grant: pairkey_types::policy::EvmSessionGrant,
+    pub revoked: bool,
+}
+pub fn evm_session_address(program: &Pubkey, namespace: &Pubkey, id: &[u8; 32]) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"evm-session", namespace.as_ref(), id], program)
+}
 pub fn policy_address(program: &Pubkey, namespace: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"policy", namespace.as_ref()], program)
 }
@@ -139,6 +148,68 @@ pub(super) fn process(
             controlled_namespace(program, controller, ns_info)?;
             address(target, session_address(program, ns_info.key, &session_id).0)?;
             let mut record: SessionRecord = read(target, program)?;
+            if record.namespace_address != ns_info.key.to_bytes()
+                || record.grant.session_id != session_id
+            {
+                return Err(bad());
+            }
+            record.revoked = true;
+            write(target, &record)
+        }
+        RegistryInstruction::GrantEvmSession { grant } => {
+            let payer = next_account_info(&mut iter)?;
+            let controller = next_account_info(&mut iter)?;
+            let ns_info = next_account_info(&mut iter)?;
+            let policy_info = next_account_info(&mut iter)?;
+            let set_info = next_account_info(&mut iter)?;
+            let target = next_account_info(&mut iter)?;
+            let system = next_account_info(&mut iter)?;
+            let ns = controlled_namespace(program, controller, ns_info)?;
+            address(policy_info, policy_address(program, ns_info.key).0)?;
+            let policy: PolicyRecord = read(policy_info, program)?;
+            address(
+                set_info,
+                set_address(program, &ns.registration.namespace.enclave_set).0,
+            )?;
+            let set: EnclaveSet = read(set_info, program)?;
+            grant.validate().map_err(|_| bad())?;
+            if ns.frozen
+                || set.retired
+                || policy.namespace_address != ns_info.key.to_bytes()
+                || !policy.policy.allow_session
+                || grant.policy_version != policy.policy.version
+                || grant.expires_at <= solana_program::clock::Clock::get()?.unix_timestamp
+            {
+                return Err(bad());
+            }
+            derive_public(&ns.registration, &grant.account).map_err(|_| bad())?;
+            let (pda, bump) = evm_session_address(program, ns_info.key, &grant.session_id);
+            address(target, pda)?;
+            let id = grant.session_id;
+            let record = EvmSessionRecord {
+                namespace_address: ns_info.key.to_bytes(),
+                grant,
+                revoked: false,
+            };
+            create(
+                payer,
+                target,
+                system,
+                program,
+                &[b"evm-session", ns_info.key.as_ref(), &id, &[bump]],
+                &record,
+            )
+        }
+        RegistryInstruction::RevokeEvmSession { session_id } => {
+            let controller = next_account_info(&mut iter)?;
+            let ns_info = next_account_info(&mut iter)?;
+            let target = next_account_info(&mut iter)?;
+            controlled_namespace(program, controller, ns_info)?;
+            address(
+                target,
+                evm_session_address(program, ns_info.key, &session_id).0,
+            )?;
+            let mut record: EvmSessionRecord = read(target, program)?;
             if record.namespace_address != ns_info.key.to_bytes()
                 || record.grant.session_id != session_id
             {

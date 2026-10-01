@@ -54,8 +54,11 @@ pub fn process_instruction(
         RegistryInstruction::Register { .. }
         | RegistryInstruction::Commit { .. }
         | RegistryInstruction::SetPolicy { .. }
-        | RegistryInstruction::GrantSession { .. } => {}
-        RegistryInstruction::Freeze { .. } | RegistryInstruction::RevokeSession { .. } => {
+        | RegistryInstruction::GrantSession { .. }
+        | RegistryInstruction::GrantEvmSession { .. } => {}
+        RegistryInstruction::Freeze { .. }
+        | RegistryInstruction::RevokeSession { .. }
+        | RegistryInstruction::RevokeEvmSession { .. } => {
             metas = vec![AccountMeta::new_readonly(pda, true)];
         }
         _ => return Err(ProgramError::InvalidInstructionData),

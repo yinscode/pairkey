@@ -158,6 +158,65 @@ pub fn simulation_input(
         lamports: transfer.lamports,
     }))
 }
+/// Choose a typed session PDA. Canonical intent/key/scope validation follows in authorize_policy.
+pub fn session_address_for_message(
+    registry: &Pubkey,
+    namespace: &Pubkey,
+    id: &[u8; 32],
+    message: &[u8],
+) -> Pubkey {
+    if message.starts_with(pairkey_signing::INTENT_PREFIX) {
+        pair_registry::evm_session_address(registry, namespace, id).0
+    } else {
+        session_address(registry, namespace, id).0
+    }
+}
+#[allow(clippy::too_many_arguments)]
+fn authorize_evm_session(
+    trust: &Trust,
+    o: &Observation,
+    at: &Attempt,
+    message: &[u8],
+    now: i64,
+    ns: &NamespaceRecord,
+    version: u64,
+    id: [u8; 32],
+) -> Result<(), Error> {
+    let info = o.session.as_ref().ok_or(Error::Authorization)?;
+    let record: pair_registry::EvmSessionRecord = decode(info, &trust.registry)?;
+    let g = &record.grant;
+    g.validate().map_err(|_| Error::Authorization)?;
+    if info.address
+        != pair_registry::evm_session_address(&trust.registry, &o.namespace.address, &id).0
+        || record.namespace_address != o.namespace.address.to_bytes()
+        || g.session_id != id
+        || g.policy_version != version
+        || g.account != at.commit.account
+    {
+        return Err(Error::Authorization);
+    }
+    access::verify(
+        &g.credential,
+        at.authorization
+            .session_proof
+            .as_ref()
+            .ok_or(Error::Authorization)?,
+        pairkey_types::policy::evm_session_challenge(&at.authorization, &at.commit, g),
+    )?;
+    pairkey_signing::evm::authorize_session(&ns.registration, g, message)
+        .map_err(|_| Error::Authorization)?;
+    if now < g.not_before
+        || o.block_time < g.not_before
+        || now >= g.expires_at
+        || o.block_time >= g.expires_at
+    {
+        return Err(Error::State);
+    }
+    if record.revoked {
+        return Err(Error::Inactive);
+    }
+    Ok(())
+}
 pub(super) fn authorize_policy(
     trust: &Trust,
     o: &Observation,
@@ -197,38 +256,43 @@ pub(super) fn authorize_policy(
         if !p.allow_session {
             return Err(Error::Authorization);
         }
-        let info = o.session.as_ref().ok_or(Error::Authorization)?;
-        let record: SessionRecord = decode(info, &trust.registry)?;
-        let g = &record.grant;
-        g.validate().map_err(|_| Error::Authorization)?;
-        if info.address != session_address(&trust.registry, &o.namespace.address, &id).0
-            || record.namespace_address != o.namespace.address.to_bytes()
-            || g.session_id != id
-            || g.policy_version != p.version
-            || g.account != attempt.commit.account
-        {
-            return Err(Error::Authorization);
-        }
-        let proof = auth.session_proof.as_ref().ok_or(Error::Authorization)?;
-        access::verify(
-            &g.credential,
-            proof,
-            auth.challenge(&attempt.commit, Some(g), b"pairkey/session-request/v1"),
-        )?;
-        let transfer = operation::parse(&ns.registration, &g.account, message)?;
-        if transfer.recipient != g.recipient || transfer.lamports > g.max_lamports_per_operation {
-            return Err(Error::Authorization);
-        }
-        // Expiry is conservative against either local time or finalized chain time.
-        if now < g.not_before
-            || o.block_time < g.not_before
-            || now >= g.expires_at
-            || o.block_time >= g.expires_at
-        {
-            return Err(Error::State);
-        }
-        if record.revoked {
-            return Err(Error::Inactive);
+        if message.starts_with(pairkey_signing::INTENT_PREFIX) {
+            authorize_evm_session(trust, o, attempt, message, now, ns, p.version, id)?;
+        } else {
+            let info = o.session.as_ref().ok_or(Error::Authorization)?;
+            let record: SessionRecord = decode(info, &trust.registry)?;
+            let g = &record.grant;
+            g.validate().map_err(|_| Error::Authorization)?;
+            if info.address != session_address(&trust.registry, &o.namespace.address, &id).0
+                || record.namespace_address != o.namespace.address.to_bytes()
+                || g.session_id != id
+                || g.policy_version != p.version
+                || g.account != attempt.commit.account
+            {
+                return Err(Error::Authorization);
+            }
+            let proof = auth.session_proof.as_ref().ok_or(Error::Authorization)?;
+            access::verify(
+                &g.credential,
+                proof,
+                auth.challenge(&attempt.commit, Some(g), b"pairkey/session-request/v1"),
+            )?;
+            let transfer = operation::parse(&ns.registration, &g.account, message)?;
+            if transfer.recipient != g.recipient || transfer.lamports > g.max_lamports_per_operation
+            {
+                return Err(Error::Authorization);
+            }
+            // Expiry is conservative against either local time or finalized chain time.
+            if now < g.not_before
+                || o.block_time < g.not_before
+                || now >= g.expires_at
+                || o.block_time >= g.expires_at
+            {
+                return Err(Error::State);
+            }
+            if record.revoked {
+                return Err(Error::Inactive);
+            }
         }
     } else if auth.session_proof.is_some() || o.session.is_some() {
         return Err(Error::Authorization);

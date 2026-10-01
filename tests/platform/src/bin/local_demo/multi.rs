@@ -1,3 +1,5 @@
+#[path = "evm_sessions.rs"]
+mod evm_sessions;
 use super::*;
 use pairkey_sdk::multi::{self, Intent, KeyRequest, Payload, Suite};
 use pairkey_signing::hex;
@@ -116,6 +118,7 @@ pub async fn run(
     }
     let sdk = pairkey_sdk::service::Client::new(coordinator.into())?;
     let mut evidence = vec![];
+    let mut session_evidence = vec![];
     for cpi in [false, true] {
         let controller = if cpi {
             example_controller::authority(&example_controller::id(), &payer.pubkey()).0
@@ -309,6 +312,24 @@ pub async fn run(
                 json!({"event":"multi_suite_passed","cpi":cpi,"suite":suite})
             );
         }
+        session_evidence.push(
+            evm_sessions::run(
+                rpc,
+                &evm,
+                payer,
+                controller,
+                cpi,
+                &sdk,
+                relay,
+                configs,
+                identities,
+                &authorized_requests[0],
+            )
+            .await?,
+        );
+        for request in &mut authorized_requests {
+            request.attempt.authorization.policy_version = 3;
+        }
         let freeze = pairkey_sdk::freeze(controller, &reg, true);
         send(
             rpc,
@@ -337,7 +358,7 @@ pub async fn run(
     std::fs::write(
         run.join("multi-evidence.json"),
         serde_json::to_vec_pretty(
-            &json!({"hardware_backed":false,"development":true,"evm_chain_id":31337,"flows":evidence}),
+            &json!({"hardware_backed":false,"development":true,"evm_chain_id":31337,"flows":evidence,"evm_sessions":session_evidence}),
         )?,
     )?;
     println!(
