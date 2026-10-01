@@ -1,0 +1,51 @@
+# Claude leaky-donor amplification at the RVOLE signing call site, 2026-10-12
+# sign/dsg.rs:303 calls RVOLESender::process; its first step is the SoftSpokenOT
+# consistency check. Honest endpoint = unmodified pinned sl-oblivious (rvole.rs
+# sha256 4052a0ddd30d8c2446fccb7865bc8c5ea2d3a60f1c21449d7a06fd6b6fa224c1). Adversary = harness running the honest RVOLEReceiver then
+# tampering its Round1Output with bits it claims to know. No honest-library,
+# native-parameter or dependency change. No signature or key is formed: the gate
+# runs before any share is used and the scalars a do not affect it.
+# harness src/main.rs sha256: a62b29d8cc816a74755050386efd0726ab32c422f5b34e6e2aba4219c34b6c69
+# binary sha256:              e6a8955abd17510109c98d349a53792c7496d79f6c4cfcc3527fa515ef637b52
+# command: leaky-donor-signing-probe 2048
+
+control: honest RVOLE round-1 accepted at the sign call site
+A. RVOLE-layer amplification, 2048 trials/cohort
+   j    accepted   rate       2^-j        exp.bits/attempt (j*rate)
+   0    2048       1.000000   1.000000    0.0000
+   1    1044       0.509766   0.500000    0.5098
+   2    488        0.238281   0.250000    0.4766
+   3    240        0.117188   0.125000    0.3516
+   4    133        0.064941   0.062500    0.2598
+   6    37         0.018066   0.015625    0.1084
+   8    11         0.005371   0.003906    0.0430
+B. no incremental oracle over 16384 trials each:
+   flip x, repair nothing (j=256): 0 accepted
+   flip one t-row only:            0 accepted
+C. cross-donor repair (another donor's secret) over 16384: 0 accepted
+DONE
+
+# Findings (read with leaky-donor-amp-claude.output.txt, the primitive layer)
+# 1. The amplification appears unchanged at the exact call site signing uses:
+#    accept = 2^-j for j unknown correlation-secret bits. The gate's single
+#    failure variant (AbortProtocolAndBanReceiver) is what dsg.rs:303 maps to
+#    SignError::AbortProtocolAndBanParty, which lifecycle.rs:121-124 maps to
+#    QuarantinePeer. So a detected extension cheat quarantines the pairing.
+# 2. No incremental oracle. Flipping x alone, or one t-row alone, accepted 0 of
+#    16384 each. There is no cheap per-bit probe: any accepted injection requires
+#    the attacker to already account for all but j bits of the secret, which is
+#    the j-probe of part A. The extension check does not hand out bits.
+# 3. Expected bits confirmed per surviving attempt is j*2^-j, peaking near 0.5 at
+#    j in {1,2}. But a j-probe presupposes 256-j known bits, and the only
+#    bootstrap is the setup selective-abort (about one bit per accepted donor,
+#    one-shot, itself quarantine-risking). From that one bit the only available
+#    probe is j~=255, accepted with probability about 2^-255.
+# 4. No cross-donor accumulation (part C, 0 of 16384): bits learned against one
+#    donor are worthless against the next.
+#
+# Accumulation conclusion: j stays about 255-256 over a donor's whole life; j=0
+# is unreachable. Reuse across up to 100 signatures does not let an attacker
+# grind the secret, because (2) there is no incremental oracle and (1) the first
+# attributable miss quarantines the pairing. The 100-use and 600-second bounds
+# therefore cap the pad-reuse window and availability, not the number of cheat
+# attempts, which quarantine already caps at about one per pairing.

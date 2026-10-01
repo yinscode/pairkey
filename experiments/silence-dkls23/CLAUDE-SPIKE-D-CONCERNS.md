@@ -114,3 +114,54 @@ Findings, backing concern A1 and the arithmetic in section C:
    discard-on-failure with a fresh donor, and it is why the 100-use bound caps blast radius rather
    than bit accumulation: accumulation against one secret is already self-limiting at about one
    expected bit before the first detected, terminal miss.
+
+## E. Signing-layer amplification, accumulation and donor-burn, 2026-10-12
+
+Follow-on to section D, at the exact RVOLE call site signing uses. `sign/dsg.rs:303` calls
+`RVOLESender::process`, whose first step is the same consistency check. Honest endpoint is the
+unmodified pinned `sl-oblivious`; the adversary is the harness. Evidence:
+[review-evidence/leaky-donor-signing-claude.output.txt](review-evidence/leaky-donor-signing-claude.output.txt),
+harness [review-evidence/leaky-donor-signing-probe.rs](review-evidence/leaky-donor-signing-probe.rs).
+
+| Unknown bits `j` | Accepted of 2048 | Rate | `2^-j` | Bits/attempt `j·2^-j` |
+|---|---|---|---|---|
+| 1 | 1044 | 0.5098 | 0.5000 | 0.510 |
+| 2 | 488 | 0.2383 | 0.2500 | 0.477 |
+| 4 | 133 | 0.0649 | 0.0625 | 0.260 |
+| 8 | 11 | 0.0054 | 0.0039 | 0.043 |
+
+Two facts beyond section D:
+
+1. **No incremental oracle.** Flipping `x` alone, or one `t`-row alone, accepted 0 of 16384 each. The
+   extension check hands out no bits: any accepted injection presupposes the attacker already accounts
+   for all but `j` bits of the secret. There is no cheap per-bit probe to bootstrap from.
+2. **A detected miss is attributable and quarantines the pairing.** The gate's single failure variant
+   maps through `dsg.rs:303` to `AbortProtocolAndBanParty` and through `lifecycle.rs:121-124` to
+   `QuarantinePeer`, which is pairing-wide.
+
+**Accumulation conclusion.** `j` stays near 255 to 256 for a donor's whole life and `j = 0` is
+unreachable. The only bit source is the setup selective-abort, about one bit per accepted donor,
+one-shot and itself quarantine-risking. From that one bit the only available extension probe is
+`j ≈ 255`, accepted with probability about `2^-255`. Reuse across up to 100 signatures does not help,
+because there is no incremental oracle and the first attributable miss quarantines the pairing. This
+refines the earlier "accumulate until the first wrong guess" to its precise form: at most one
+attributable extension-cheat shot per pairing, at a knowledge level the attacker cannot improve.
+
+**Donor-burn arithmetic.** Because a miss quarantines the pairing, each cheat shot costs one fresh
+pairing, which costs a new authenticated enrollment. For a `~50%` chance of one accepted shot at a
+given knowledge level, the attacker needs about `0.69·2^j` fresh pairings:
+
+| Known bits | `j` | Fresh pairings for ~50% |
+|---|---|---|
+| 248 (counterfactual) | 8 | about 177 |
+| 240 (counterfactual) | 16 | about 45,000 |
+| 1 (achievable from setup) | 255 | about `2^254` |
+
+The 100-use and 600-second bounds and the 3-per-60-second transport limit do not gate this. Quarantine
+already caps attributable attempts at about one per pairing; the bounds cap the pad-reuse exposure
+window and availability instead. The counterfactual rows assume knowledge the attacker has no path to
+acquire, and are shown only to bound the favorable regime.
+
+**Caveat, unchanged.** This measures the detection gate, not secrecy. Whether a surviving lucky
+acceptance leaks anything about the honest share beyond the bits the attacker bet on is the simulator
+question in A1 and is not settled by any test.
