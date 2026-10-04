@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="See the rules in action. PairKey developer documentation: Interactive demo.">
+<title>Interactive demo — PairKey docs</title><link rel="icon" href="../mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css"><script src="../docs.js" defer></script></head>
+<body><a class="skip" href="#main">Skip to content</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg" width="30" height="30" alt="">PairKey</a>
+<nav aria-label="Main navigation"><a href="../index.html#demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
+<a class="button small" href="../docs/quickstart.html">Run locally ↗</a></header>
+<div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
+<a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/demo.html" aria-current="page">Interactive demo</a>
+<a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
+<a href="../docs/signing.html">Signing integrations</a>
+<a href="../docs/api.html">SDK &amp; API reference</a>
+<a href="../docs/security.html">Security &amp; status</a></nav></aside>
+<main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / INTERACTIVE DEMO</p>
+<h1>See the rules in action.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#walkthrough">Try an allowed payment</a><a href="#refusals">Explore three refusal cases</a><a href="#semantics">What the controls mean</a><a href="#simulation">A simulation, not a signing service</a><a href="#real">Run the real implementation</a></nav>
+<p class="lead">Watch a Solana-controlled permission decide whether two signers can authorize an EVM payment.</p><a class="button" href="../index.html#demo">Open the interactive demo ↗</a>
+<h2 id="walkthrough">Try an allowed payment</h2><ol><li>Keep the default grant: 0.01 ETH per transfer to Treasury, expiring in 10 minutes.</li><li>Select <strong>Grant session</strong>. The simulated program publishes permission.</li><li>Request the default 0.005 ETH transfer to Treasury.</li><li>Watch both signer panels check the session, expiration, recipient, and amount.</li><li>Read the illustrative receipt. It represents the combined-signature and destination-submission stages; it is not a real transaction.</li></ol>
+<h2 id="refusals">Explore three refusal cases</h2><ul><li><strong>Too much:</strong> select <em>Try too much</em>, then request the transfer. Both signers refuse the amount.</li><li><strong>Wrong recipient:</strong> select <em>Wrong recipient</em>, then request the transfer. The destination address does not match the grant.</li><li><strong>Revoked or expired:</strong> revoke the grant or select <em>Expire now</em>, then request again. The session no longer authorizes signing.</li></ul><p>Revoke during the checking animation to see the final authorization check refuse issuance. Reset to clear the demonstration, or grant a new session to try different rules.</p>
+<h2 id="semantics">What the controls mean</h2><p>Editing the rule form does not modify the active grant until you select <em>Grant session</em>. Request fields define an individual operation. A fresh grant replaces the simulated session; it is not a production session-ID management API.</p><p>The countdown uses your browser clock. Revocation is observed immediately in the simulation; real signers act after observing finalized Solana state. The last successful receipt remains visible after revocation because already issued signatures cannot be recalled.</p>
+<h2 id="simulation">A simulation, not a signing service</h2><p>This demo runs entirely in the browser. It creates no private keys, performs no threshold signing, connects to no TEE or chain, and sends no funds. Its fixed animation durations are for explanation, not latency measurements. The four checks illustrate a subset of production authorization requirements.</p><p>ETH input uses exact integer wei arithmetic, so a request one wei above its cap is refused. Negative values, scientific notation, and more than 18 decimal places are invalid. The displayed addresses are fixed demonstration fixtures.</p>
+<h2 id="real">Run the real implementation</h2><p>The <a href="../docs/quickstart.html">local quickstart</a> runs real protocol binaries and local Solana/EVM execution. For the walkthrough’s complete backend lifecycle contract, continue to <a href="../docs/api.html#jobs">jobs and retries</a>.</p>
+
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/quickstart.html"><span>Previous</span><strong>Quickstart ↗</strong></a><a href="../docs/architecture.html"><span>Next</span><strong>Architecture ↗</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg" width="26" height="26" alt="">PairKey</a><p>Programmable keys. Governed on Solana.</p><a href="../docs/security.html">Security &amp; status ↗</a></footer></body></html>
