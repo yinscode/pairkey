@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Get started with PairKey’s local Solana-controlled signing protocol, supported signature schemes, scoped sessions, and development status.">
+<title>Developer guide — PairKey</title>
+<link rel="icon" href="mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav wrap">
+<a class="brand" href="index.html">
+<img src="mark.svg" width="30" height="30" alt="">PairKey</a>
+<nav aria-label="Main navigation">
+<a href="index.html#protocol">Protocol</a>
+<a href="index.html#compare">Compare</a>
+<a href="docs.html" aria-current="page">Docs</a>
+</nav>
+<a class="button small" href="#quickstart">Run locally ↗</a>
+</header>
+<div class="wrap docs-layout">
+<nav class="docs-nav" aria-label="Documentation">
+<a href="#overview">Overview</a>
+<a href="#quickstart">Quickstart</a>
+<a href="#integration">Program integration</a>
+<a href="#sessions">Sessions &amp; fees</a>
+<a href="#jobs">Jobs &amp; retries</a>
+<a href="#status">Support &amp; status</a>
+<a href="#sources">Architecture sources</a>
+</nav>
+<main id="main" class="docs-content">
+<p class="eyebrow">PAIRKEY / DEVELOPER GUIDE</p>
+<h1 id="overview">Build with<br>programmable keys.</h1>
+<p>PairKey connects Solana program authority to two-party signing. A controller program approves an operation or grants a scoped session. Both signers independently check finalized authorization and jointly produce a signature for your application.</p>
+<div class="docs-note">
+<p>
+<strong>Local developer preview.</strong> The target architecture uses two independent TEE signers. Current demos run separate local processes with mock attestation. They do not establish hardware protection or production readiness. Use local test assets only.</p>
+</div>
+<h2 id="quickstart">Run the local program demo</h2>
+<p>From the PairKey repository root, use Rust 1.88.0 with rustfmt and Clippy, Python 3.12+, and curl. The installer supplies the pinned Solana, Anvil, and SBF tools locally.</p>
+<pre>
+<code>python3 scripts/install-ci-tools.py
+source .local/ci-tools/env.sh
+bash experiments/silence-dkls23/bootstrap.sh build --release --locked
+cargo fetch --locked
+bash scripts/build-programs.sh
+cargo build --workspace --features pairkey-worker/dev-simulation --locked
+bash scripts/demo-program-jobs.sh</code>
+</pre>
+<p>The demo starts local services, exercises program-authorized signing and EVM sessions, and runs restart, cancellation, and freeze cases. Expect several minutes, including deliberate rate-limit waits. A complete validation gate is available through <code>bash scripts/ci.sh</code>.</p>
+<p>Public evidence is written beneath <code>.local/</code>. That directory also contains private development roots and identity material; only selected public reports are suitable for sharing.</p>
+<h2 id="integration">Connect your controller program</h2>
+<ol>
+<li>
+<strong>Register a namespace.</strong> Make your controller program’s PDA the authority and enroll the signer identities.</li>
+<li>
+<strong>Enroll the signing key.</strong> For DKLS23 or RedPallas, use <code>Client::signing_key</code> and verify both pinned identities and the returned certificate.</li>
+<li>
+<strong>Approve the operation.</strong> Construct a canonical intent and COMMIT. Your controller publishes the exact approval through registry CPI, then the application waits for finalization.</li>
+<li>
+<strong>Request a signature.</strong> Call <code>Client::submit_intent</code>, then <code>poll_intent</code> or <code>wait_intent</code>. The SDK verifies signatures and both identity receipts against your request.</li>
+<li>
+<strong>Execute separately.</strong> Submit the signed transaction to its destination. The coordinator does not broadcast it for you.</li>
+</ol>
+<p>A runnable Rust client lives in <code>sdk/examples/program_jobs.rs</code>. It takes a JSON configuration for endpoints, identity pins, a key request, payload, and fresh attempt ID; it assumes an already registered program-controlled namespace.</p>
+<h2 id="sessions">Authorize a session</h2>
+<p>For supported Solana and EVM native transfers, a session grants bounded permission to a delegate. The grant binds the signing account, destination, recipient, per-operation limit, policy version, and expiration. EVM grants additionally bound gas price and total fees.</p>
+<p>Eligible session-only requests do not need a new Solana authorization transaction for each signature. <strong>Zero per-signature Solana transaction fees</strong> means precisely that: grant creation, revocation, destination execution, and infrastructure still have costs. Production service pricing has not been established.</p>
+<p>Both signers still check fresh control state. A policy requiring COMMIT+SESSION needs an exact on-chain approval as well. RedPallas currently requires COMMIT. Total spending budgets, EVM contract calls, and EVM simulation are not implemented.</p>
+<p>Solidity integration is planned. Solana remains the sole authorization control plane; an EVM contract cannot currently replace the Solana controller.</p>
+<h2 id="jobs">Handle results, retries, and cancellation</h2>
+<p>DKLS23 and RedPallas requests use <code>POST /jobs</code> with a <code>signing</code> envelope. Poll <code>GET /jobs/:id</code>, subscribe at <code>GET /jobs/:id/events</code>, or request cancellation through <code>POST /jobs/:id/cancel</code>.</p>
+<ul>
+<li>Resubmitting the exact request recovers its retained job ID and any completed result. This does not trigger another signing operation while that result remains retained.</li>
+<li>After a coordinator restart, interrupted jobs fail with <code>may_have_signed: true</code>. They never automatically resume.</li>
+<li>A fresh attempt is an explicit application decision. Reconcile destination execution before retrying; a new signing attempt does not create a new transaction nonce.</li>
+<li>Cancellation cannot retract already produced output. Neither can a later session revocation.</li>
+<li>These durable result guarantees apply to the multi-suite job envelope. The legacy Ed25519 result cache remains memory-only.</li>
+</ul>
+<p>The repository guide <code>docs/program-jobs-and-lifecycle.md</code> specifies retention, admission bounds, rate-limit handling, persisted incident latches, and restart semantics.</p>
+<h2 id="status">What is available?</h2>
+<ul>
+<li>
+<strong>Solana:</strong> FROST Ed25519 signing, local transfers, program authorization, constrained sessions and simulation.</li>
+<li>
+<strong>EVM:</strong> DKLS23 ECDSA, local legacy EIP-155 native transfers, and scoped native-transfer sessions. Contract calls, ERC-20, and EIP-1559 adapters are not implemented.</li>
+<li>
+<strong>Zcash:</strong> FROST RedPallas signatures verified through Orchard SpendAuth verification. Transaction assembly, proofs, wallet operations, and end-to-end execution are not implemented.</li>
+<li>
+<strong>NEAR:</strong> Its Ed25519 signature family is compatible with an implemented scheme. A NEAR transaction adapter and end-to-end integration remain planned.</li>
+<li>
+<strong>Credentials:</strong> Service-key and local passkey assertion verification exist. Complete passkey onboarding and OIDC with ephemeral keys remain future work.</li>
+</ul>
+<p>Production gates include independent TEE/provider validation, protected entropy, rollback resistance, independent cryptographic review, and root recovery. Local tests do not establish these properties.</p>
+<p>“The full private key never exists” describes intended protocol execution: participants create and use separate shares without assembling a full key. It is not a guarantee against extraction of a complete threshold of shares. Thresholds and TEEs have distinct assumptions.</p>
+<p>The architecture targets lower authorization overhead through sessions. There is no published apples-to-apples benchmark establishing lower end-to-end cost or latency than NEAR Chain Signatures or Turnkey.</p>
+<h2 id="sources">Read the architecture</h2>
+<p>In the repository, start with <code>docs/program-jobs-and-lifecycle.md</code>, <code>docs/multi-suite-signing.md</code>, and <code>docs/implementation-status.md</code>. Earlier architecture proposals must be read together with the latest implementation evidence.</p>
+<p>The comparison on the landing page uses the standard request flow in <a href="https://docs.near.org/chain-abstraction/chain-signatures">NEAR’s Chain Signatures documentation</a> and the signing and policy model in <a href="https://whitepaper.turnkey.com/architecture">Turnkey’s architecture whitepaper</a>. NEAR supports multichain outputs; it is not limited to signing NEAR transactions. Turnkey uses multiple enclave services; it is not accurately described as a single-TEE system.</p>
+<a class="button" href="index.html">Back to PairKey ↗</a>
+</main>
+</div>
+<footer class="wrap footer">
+<a class="brand" href="index.html">
+<img src="mark.svg" width="26" height="26" alt="">PairKey</a>
+<p>Programmable keys. Governed on Solana.</p>
+<a href="#status">Development status ↑</a>
+</footer>
+</body>
+</html>
