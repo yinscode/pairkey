@@ -11,7 +11,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-solana_program::declare_id!("9xQeWvG816bUx9EPfEZhGkGFdKsPZkiSvRfNbm9V2C4Z");
+include!(concat!(env!("OUT_DIR"), "/program_id.rs"));
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 pub const AUTHORITY_SEED: &[u8] = b"controller";

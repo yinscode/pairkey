@@ -7,6 +7,7 @@ pub use pairkey_dkls23_research as dkls;
 use pairkey_types::{AccountPath, Registration};
 use serde::{Deserialize, Serialize};
 pub mod evm;
+pub mod evm_message;
 pub mod redpallas;
 
 #[derive(
@@ -63,6 +64,8 @@ pub enum Payload {
     RedPallas {
         message: Vec<u8>,
     },
+    /// Appended to preserve existing Borsh payload discriminants.
+    EvmMessage(evm_message::Message),
 }
 pub const INTENT_PREFIX: &[u8] = b"pairkey/signing-intent/v1\0";
 impl Intent {
@@ -93,6 +96,13 @@ impl Intent {
                     "EVM destination/chain mismatch"
                 );
             }
+            (Suite::Dkls23Secp256k1, Payload::EvmMessage(message)) => {
+                message.validate()?;
+                ensure!(
+                    self.key.account.destination == evm::destination(message.chain_id),
+                    "EVM message destination mismatch"
+                );
+            }
             (Suite::FrostRedPallas, Payload::RedPallas { message }) => {
                 ensure!(
                     !message.is_empty() && message.len() <= 512,
@@ -107,6 +117,7 @@ impl Intent {
     pub fn verify(&self, signature: &[u8]) -> Result<()> {
         match &self.payload {
             Payload::EvmTransfer(tx) => evm::verify(&self.key.public_key, tx, signature),
+            Payload::EvmMessage(message) => message.verify(&self.key.public_key, signature),
             Payload::RedPallas { message } => {
                 redpallas::verify(&self.key.public_key, message, signature)
             }

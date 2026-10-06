@@ -292,3 +292,14 @@ fn evm_intents_require_exact_canonical_encoding_and_proofs_bind_nonce_and_grant(
     f.install();
     assert!(f.check(1000).is_err());
 }
+
+#[test]
+fn transfer_session_cannot_authorize_message_signing() {
+    let mut f = Fixture::new();
+    f.intent.payload = Payload::EvmMessage(pairkey_signing::evm_message::Message {
+        chain_id: 31337,
+        message: b"hello".to_vec(),
+    });
+    f.sign();
+    assert!(f.check(1000).is_err());
+}

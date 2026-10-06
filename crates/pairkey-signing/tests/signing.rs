@@ -123,3 +123,116 @@ fn redpallas_two_party_signature_verifies_with_native_reddsa_and_binds_approval(
     bad.proofs[0].response[0] ^= 1;
     assert!(bad.key(&reg, &path).is_err());
 }
+
+#[test]
+fn arbitrum_estimated_gas_signature_binds_network_nonce_and_fee() {
+    let tx = evm::Transfer {
+        chain_id: 421_614,
+        nonce: 8,
+        gas_price: 10_000_000,
+        gas_limit: 120_000,
+        to: [3; 20],
+        value: 500,
+    };
+    let key = k256::ecdsa::SigningKey::from_bytes(&[0x47; 32].into()).unwrap();
+    let (sig, recovery) = key
+        .sign_prehash_recoverable(&tx.prehash().unwrap())
+        .unwrap();
+    let mut bytes = sig.to_bytes().to_vec();
+    bytes.push(recovery.to_byte());
+    let public = key.verifying_key().to_encoded_point(true);
+    let encoded = tx.signed_bytes(public.as_bytes(), &bytes).unwrap();
+    let rlp = rlp::Rlp::new(&encoded);
+    assert_eq!(rlp.val_at::<u64>(2).unwrap(), 120_000);
+    assert_eq!(
+        rlp.val_at::<u64>(6).unwrap(),
+        421_614 * 2 + 35 + recovery.to_byte() as u64
+    );
+    for field in 0..3 {
+        let mut changed = tx.clone();
+        match field {
+            0 => changed.gas_limit += 1,
+            1 => changed.nonce += 1,
+            _ => changed.gas_price += 1,
+        }
+        assert!(changed.signed_bytes(public.as_bytes(), &bytes).is_err());
+    }
+}
+
+#[test]
+fn base_sepolia_native_transfer_cannot_replay_on_arbitrum_or_base_mainnet() {
+    let mut tx = evm::Transfer {
+        chain_id: 84_532,
+        nonce: 0,
+        gas_price: 10_000_000,
+        gas_limit: 21_000,
+        to: [4; 20],
+        value: 5_000_000_000_000,
+    };
+    let key = k256::ecdsa::SigningKey::from_bytes(&[0x48; 32].into()).unwrap();
+    let (s, r) = key
+        .sign_prehash_recoverable(&tx.prehash().unwrap())
+        .unwrap();
+    let mut sig = s.to_bytes().to_vec();
+    sig.push(r.to_byte());
+    let public = key.verifying_key().to_encoded_point(true);
+    assert!(tx.signed_bytes(public.as_bytes(), &sig).is_ok());
+    for other in [421_614, 8453] {
+        tx.chain_id = other;
+        assert!(tx.signed_bytes(public.as_bytes(), &sig).is_err());
+        assert_ne!(evm::destination(84_532), evm::destination(other));
+    }
+    tx.chain_id = 84_532;
+    tx.gas_limit = 25_200;
+    assert!(tx.validate().is_err());
+}
+
+#[test]
+fn evm_message_intent_binds_destination_and_exact_approval() {
+    let reg = reg();
+    let account = AccountPath {
+        destination: evm::destination(84532),
+        path: vec![7, 4],
+    };
+    let secret = k256::ecdsa::SigningKey::from_bytes(&[0x46; 32].into()).unwrap();
+    let mut intent = Intent {
+        version: 1,
+        key: pairkey_signing::Key {
+            version: 1,
+            suite: Suite::Dkls23Secp256k1,
+            namespace: reg.digest(),
+            account: account.clone(),
+            public_key: secret
+                .verifying_key()
+                .to_encoded_point(true)
+                .as_bytes()
+                .to_vec(),
+            registration: [0; 32],
+        },
+        payload: Payload::EvmMessage(pairkey_signing::evm_message::Message {
+            chain_id: 84532,
+            message: b"approved message".to_vec(),
+        }),
+    };
+    intent.validate(&reg).unwrap();
+    let approved = intent.bytes().unwrap();
+    let commit = Commit::new(&reg, [17; 32], account, &approved).unwrap();
+    assert_eq!(Intent::from_bytes(&approved).unwrap(), intent);
+    if let Payload::EvmMessage(m) = &mut intent.payload {
+        m.message.push(b'!');
+    }
+    assert_ne!(
+        Commit::new(
+            &reg,
+            [17; 32],
+            intent.key.account.clone(),
+            &intent.bytes().unwrap()
+        )
+        .unwrap(),
+        commit
+    );
+    if let Payload::EvmMessage(m) = &mut intent.payload {
+        m.chain_id = 1;
+    }
+    assert!(intent.validate(&reg).is_err());
+}

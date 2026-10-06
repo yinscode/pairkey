@@ -23,7 +23,7 @@ pub use policy::{
     SessionRecord,
 };
 
-solana_program::declare_id!("Fg6PaFpoGXkYsidMpWxTWqkZ6W2BeZ7FEfcYkgMQHGDL");
+include!(concat!(env!("OUT_DIR"), "/program_id.rs"));
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 

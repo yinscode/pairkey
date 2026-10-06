@@ -237,6 +237,7 @@ pub async fn run(
             match &mut wrong.intent.payload {
                 Payload::EvmTransfer(t) => t.value += 1,
                 Payload::RedPallas { message } => message.push(0),
+                Payload::EvmMessage(m) => m.message.push(0),
             };
             ensure!(
                 sdk.sign_intent(&wrong, identities).await.is_err(),

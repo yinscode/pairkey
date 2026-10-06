@@ -23,7 +23,11 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let mut svm = LiteSVM::new();
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/deploy");
+        let root = std::env::var_os("PAIRKEY_PROGRAM_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/deploy")
+            });
         svm.add_program_from_file(pair_registry::id(), root.join("pair_registry.so"))
             .unwrap();
         svm.add_program_from_file(example_controller::id(), root.join("example_controller.so"))

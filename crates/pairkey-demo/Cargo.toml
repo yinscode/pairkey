@@ -1,0 +1,28 @@
+[package]
+name = "pairkey-demo"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+solana-sdk.workspace = true
+rand_core.workspace = true
+ed25519-dalek.workspace = true
+bincode.workspace = true
+borsh.workspace = true
+base64.workspace = true
+reqwest.workspace = true
+pairkey-sdk = { path = "../../sdk" }
+pairkey-types = { path = "../pairkey-types" }
+pairkey-core = { path = "../pairkey-core" }
+pairkey-signing = { path = "../pairkey-signing" }
+pairkey-coordinator = { path = "../pairkey-coordinator" }
+pair-registry = { path = "../../programs/pair-registry", features = ["no-entrypoint"] }
+example-controller = { path = "../../programs/example-controller", features = ["no-entrypoint"] }
+sha3 = "=0.10.8"

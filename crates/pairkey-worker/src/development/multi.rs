@@ -380,15 +380,17 @@ pub(super) async fn start(
                         == signing::wallet(&r.registration, &r.intent.key.account, identities),
                     "DKLS identity/domain mismatch"
                 );
-                let Payload::EvmTransfer(tx) = &r.intent.payload else {
-                    anyhow::bail!("ECDSA payload")
+                let prehash = match &r.intent.payload {
+                    Payload::EvmTransfer(tx) => tx.prehash()?,
+                    Payload::EvmMessage(message) => message.prehash()?,
+                    _ => anyhow::bail!("ECDSA payload"),
                 };
                 dkls::d::Command::Sign(dkls::d::Request {
                     wallet: c.record.wallet.clone(),
                     record: c.record.digest(),
                     generation,
                     path: "m".into(),
-                    prehash: tx.prehash()?,
+                    prehash,
                     attempt: q.id,
                     fault: None,
                 })
