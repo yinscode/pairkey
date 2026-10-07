@@ -1,6 +1,6 @@
 # PairKey website
 
-Static landing page, interactive browser simulation, and nine developer documentation pages. All assets are local; no analytics, external fonts, dependencies, or backend. Serve only this directory:
+Static landing page, a backend-connected demo at `/demo`, and ten developer documentation pages. All assets are local; no analytics or external fonts. For static landing page and docs preview only, serve this directory:
 
 ```sh
 python3 -m http.server 4173 --bind 127.0.0.1 --directory website
@@ -24,9 +24,9 @@ This initial version is saved in the PairKey repository for local review; no hos
 
 ## Demo
 
-`demo.js` owns the ephemeral browser walkthrough. `demo-policy.mjs` evaluates grant existence, revocation, expiry, recipient, and per-operation limits with exact integer wei arithmetic. The signer panels, signature outcome, and receipts are explicitly simulated. No wallet connection, backend, transaction, telemetry, storage, or real cryptographic operation is involved.
+`/demo` uses the live Rust backend. `demo.html` contains authority and chain selectors, exact-message approval, and a branching diagram matching the hero: Solana program/account → independent signer A and B → combined signature → fresh verification. No destination broadcast occurs. `/testnet.html` redirects to `/demo`. The homepage contains no interactive simulation.
 
-The demo supports editable grants and requests, amount/recipient refusal presets, expiration, revocation during checking, and reset. A final issuance check observes revocation or expiry during the animation. Reset invalidates pending animation work. Changing the rule form does not modify the active grant until it is submitted. Prior illustrative receipts remain visible after revocation.
+`testnet.js` submits idempotent requests, polls the persisted operation, and exposes recent operation history. `message-demo.mjs` projects verified backend evidence into visual states. Signer cards become verified only when the SDK has verified the corresponding receipts; no individual round timings are invented. Unknown outcomes stay unknown. The final signature and both signer receipts are inspectable in the audit trail. `demo-policy.mjs` provides exact integer wei parsing.
 
 ## Documentation
 
@@ -36,16 +36,22 @@ Edit `content/*.html`, then regenerate the checked-in static pages:
 python3 website/build-docs.py
 ```
 
-The generator writes `docs.html` (Overview), eight pages in `docs/`, and a copy of the public Rust client in `examples/`. Sidebar navigation, page contents, titles, and previous/next links share one template. There are no client-side routing or runtime build requirements. `docs.js` preserves legacy links such as `docs.html#quickstart`.
+The generator writes `docs.html` (Overview), nine pages in `docs/`, and a copy of the public Rust client in `examples/`. Sidebar navigation, page contents, titles, and previous/next links share one template. There are no client-side routing or runtime build requirements. `docs.js` preserves legacy links such as `docs.html#quickstart`.
 
-Pages: Overview, Quickstart, Interactive demo, Architecture, Solana program integration, Scoped sessions, Signing integrations, SDK & API reference, and Security & status.
+Pages: Overview, Quickstart, Interactive demo, Live testnet setup, Architecture, Solana program integration, Scoped sessions, Signing integrations, SDK & API reference, and Security & status.
 
 ## Verify
 
 ```sh
 python3 website/check-site.py
-node --test website/demo-policy.test.mjs
-node --check website/demo.js
+node --test website/demo-policy.test.mjs website/demo-flow.test.mjs website/message-demo.test.mjs
+node --check website/testnet.js
 ```
 
-The site checker verifies generated output, local links, fragment targets, assets, form labels, and one main heading per public page. Policy tests cover valid requests, exact-cap and one-wei-over boundaries, malformed amounts, recipient substitution, missing/revoked/expired authority, issuance rechecks, and per-operation semantics. Browser QA should cover successful and refused flows, in-flight revocation, reset, legacy docs redirects, and narrow/wide layouts.
+The site checker verifies generated output, local links, fragment targets, assets, form labels, and one main heading per public page. Policy tests cover valid requests, exact-cap and one-wei-over boundaries, malformed amounts, recipient substitution, missing/revoked/expired authority, issuance rechecks, and per-operation semantics. Flow tests cover pending signing, preflight refusals, verified signer roles, assembly, broadcast acceptance, zero-block preconfirmations, reverted receipts, and unknown outcomes. Browser QA covers history selection, real signing, refusals, and narrow/wide layouts.
+
+## Live testnet backend
+
+`demo.html` and `testnet.js` use the loopback Rust service in `crates/pairkey-demo`. Build, fund, deploy and start it with `scripts/demo-testnet.sh` as described in `docs/testnet.html`; open `http://127.0.0.1:4180/demo`. This runs actual FROST Ed25519, DKLS23 secp256k1, and FROST RedPallas signing with finalized Solana devnet approvals and two development signer processes. Only the legacy transfer API broadcasts Base Sepolia transactions. It does not claim hardware-backed TEE execution. `GET /api/status` reports setup and funding state. The service provides no public hosting or arbitrary transaction API.
+
+Check `node --check website/testnet.js` and `cargo test -p pairkey-demo -p pairkey-signing --locked` in addition to the website checks. Public-testnet execution needs funded dedicated addresses and deployed programs; a successful build alone does not establish a live transfer.

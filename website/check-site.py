@@ -18,7 +18,7 @@ class Page(HTMLParser):
             if key in a:self.links.append(a[key])
 subprocess.run([sys.executable,str(ROOT/'build-docs.py'),'--check'],check=True)
 pages={}
-for path in [ROOT/'index.html',ROOT/'docs.html',*sorted((ROOT/'docs').glob('*.html'))]:
+for path in [ROOT/'index.html',ROOT/'demo.html',ROOT/'docs.html',*sorted((ROOT/'docs').glob('*.html'))]:
     page=Page();page.feed(path.read_text());pages[path.resolve()]=page
     assert len(page.ids)==len(set(page.ids)),f'Duplicate ID: {path}'
     assert page.headings==1,f'Expected one h1: {path}'
@@ -27,7 +27,9 @@ for path,page in pages.items():
     for link in page.links:
         u=urlsplit(link)
         if u.scheme or u.netloc:continue
-        target=(path.parent/unquote(u.path)).resolve() if u.path else path
+        site_path = unquote(u.path)
+        route = {'/': 'index.html', '/demo': 'demo.html', '/demo/': 'demo.html', '/testnet.html': 'demo.html'}
+        target = (ROOT/route[site_path]).resolve() if site_path in route else ((ROOT/site_path.lstrip('/')).resolve() if site_path.startswith('/') else (path.parent/site_path).resolve() if site_path else path)
         assert target.is_relative_to(ROOT),f'Link escapes website: {path}: {link}'
         assert target.is_file(),f'Missing asset: {path}: {link}'
         if u.fragment:assert target in pages and u.fragment in pages[target].ids,f'Missing fragment: {path}: {link}'

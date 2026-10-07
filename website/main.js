@@ -1,3 +1,5 @@
+// Preserve bookmarks to the former homepage demo section.
+if (location.hash === '#demo') location.replace('/demo');
 const tabs = [...document.querySelectorAll('[data-tab]')];
 function selectTab(tab) {
   for (const item of tabs) {

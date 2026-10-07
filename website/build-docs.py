@@ -10,6 +10,7 @@ PAGES = [
     ('overview', 'Overview', 'Build with programmable keys.'),
     ('quickstart', 'Quickstart', 'Your first local signing flow.'),
     ('demo', 'Interactive demo', 'See the rules in action.'),
+    ('testnet', 'Live testnet setup', 'From Solana authority to Base execution.'),
     ('architecture', 'Architecture', 'One authority. Two signers.'),
     ('integration', 'Solana program integration', 'Make your program the authority.'),
     ('sessions', 'Scoped sessions', 'Delegate within your rules.'),
@@ -30,7 +31,7 @@ def render(index):
     for anchor, target in ALIASES.items():
         body = body.replace(f'docs.html#{anchor}', f'{url(target)}#{anchor}')
     # Content links are repository-site-root relative; resolve them for each output page.
-    body = re.sub(r'href="(?!https?://|#)([^"]+)"', lambda m: f'href="{prefix}{m[1]}"', body)
+    body = re.sub(r'href="(?!https?://|#|/)([^"]+)"', lambda m: f'href="{prefix}{m[1]}"', body)
     links = '\n'.join(f'<a href="{prefix}{url(key)}"' + (' aria-current="page"' if key == slug else '') + f'>{html.escape(name)}</a>' for key,name,_ in PAGES)
     headings = re.findall(r'<h2 id="([^"]+)">(.*?)</h2>', body)
     toc = ''.join(f'<a href="#{anchor}">{re.sub("<[^>]+>", "", heading)}</a>' for anchor,heading in headings)
@@ -47,7 +48,7 @@ def render(index):
 <link rel="stylesheet" href="{prefix}style.css"><script src="{prefix}docs.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
 <header class="nav wrap"><a class="brand" href="{prefix}index.html"><img src="{prefix}mark.svg" width="30" height="30" alt="">PairKey</a>
-<nav aria-label="Main navigation"><a href="{prefix}index.html#demo">Demo</a><a href="{prefix}index.html#protocol">Protocol</a><a href="{prefix}docs.html" aria-current="true">Docs</a></nav>
+<nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="{prefix}index.html#protocol">Protocol</a><a href="{prefix}docs.html" aria-current="true">Docs</a></nav>
 <a class="button small" href="{prefix}docs/quickstart.html">Run locally ↗</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation">{links}</nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="{prefix}docs.html">DOCS</a> / {html.escape(label.upper())}</p>

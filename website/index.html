@@ -8,7 +8,6 @@
 <title>PairKey — The programmable key protocol</title>
 <link rel="icon" href="mark.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
-<script type="module" src="demo.js"></script>
 <script src="main.js" defer>
 </script>
 </head>
@@ -18,7 +17,7 @@
 <a class="brand" href="index.html" aria-label="PairKey home">
 <img src="mark.svg" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation">
-<a href="#demo">Demo</a>
+<a href="/demo">Demo</a>
 <a href="#protocol">Protocol</a>
 <a href="#compare">Compare</a>
 <a href="docs.html">Docs <span aria-hidden="true">↗</span>
@@ -40,7 +39,7 @@
 <div class="actions">
 <a class="button" href="docs/quickstart.html">Explore the protocol <span aria-hidden="true">↗</span>
 </a>
-<a class="text-link" href="#demo">Try it yourself <span aria-hidden="true">↓</span>
+<a class="text-link" href="/demo">Try it yourself <span aria-hidden="true">↗</span>
 </a>
 </div>
 <p class="caption">Developer preview · <a href="docs/security.html">Explore the architecture &amp; availability ↗</a></p>
@@ -120,26 +119,7 @@
 <span>Ed25519</span>
 </div>
 </section>
-<section id="demo" class="section wrap live-demo" aria-labelledby="demo-heading">
-<div class="demo-heading"><div><p class="eyebrow">EXPERIENCE PROGRAMMABLE KEYS</p><h2 id="demo-heading">Set the rules.<br>See what gets signed.</h2></div><div><span class="pill">INTERACTIVE SIMULATION</span><p>Authorize an EVM payment from a Solana program. Change a rule. Watch both signers respond.</p><a class="text-link" href="docs/demo.html">How this demo works ↗</a></div></div>
-<p class="demo-context">Runs entirely in your browser. No wallet, real keys, TEE connection, chain transaction, or funds. The timing is illustrative.</p>
-<noscript><p class="docs-note">Enable JavaScript to try the simulation, or <a href="docs/demo.html">read the walkthrough</a>.</p></noscript>
-<div class="demo-controls">
-<form id="demo-rules" class="demo-card"><p class="eyebrow">01 / YOUR SOLANA PROGRAM</p><h3>Grant a permission</h3>
-<label for="demo-limit">Maximum ETH per transfer</label><input id="demo-limit" name="limit" inputmode="decimal" value="0.01" required maxlength="26" autocomplete="off">
-<label for="demo-recipient-rule">Allowed recipient</label><select id="demo-recipient-rule"><option value="treasury">Treasury · 0x1111…1111</option><option value="alternate">Operations · 0x2222…2222</option></select>
-<label for="demo-duration">Permission expires after</label><select id="demo-duration"><option value="10">10 minutes</option><option value="1">1 minute</option><option value="30">30 minutes</option></select>
-<p id="demo-rule-error" class="field-error" role="alert"></p><button id="demo-grant" class="button" type="submit">Grant session <span aria-hidden="true">↗</span></button><p class="demo-help">Changing these fields takes effect when you grant a new session. Limits are per transfer.</p></form>
-<form id="demo-request" class="demo-card"><p class="eyebrow">02 / YOUR APPLICATION</p><h3>Request a transfer</h3>
-<label for="demo-amount">Amount in ETH</label><input id="demo-amount" name="amount" inputmode="decimal" value="0.005" required maxlength="26" autocomplete="off">
-<label for="demo-recipient">Send to</label><select id="demo-recipient"><option value="treasury">Treasury · 0x1111…1111</option><option value="alternate">Operations · 0x2222…2222</option></select>
-<div class="demo-presets"><button id="demo-too-much" type="button">Try too much ↗</button><button id="demo-wrong-recipient" type="button">Wrong recipient ↗</button></div><button id="demo-submit" type="submit" class="button" disabled>Request transfer <span aria-hidden="true">↗</span></button><p class="demo-help">EVM native transfer · illustration uses DKLS23 ECDSA.</p></form>
-</div>
-<div class="demo-session"><div><span id="demo-session-state" class="session-badge">Not granted</span><p id="demo-session-detail"></p></div><div class="demo-session-actions"><button type="button" id="demo-revoke" disabled>Revoke session</button><button type="button" id="demo-expire" disabled>Expire now</button><button type="button" id="demo-reset">Reset</button></div></div>
-<div class="demo-signers" aria-label="Simulated signer decisions"><article id="demo-signer-a"><p class="eyebrow">03 / SIGNER A · SIMULATED TEE</p><h4>Ready to check</h4><ul></ul></article><article id="demo-signer-b"><p class="eyebrow">03 / SIGNER B · SIMULATED TEE</p><h4>Ready to check</h4><ul></ul></article></div>
-<div id="demo-result" class="demo-result" data-state="idle"><p class="eyebrow">04 / RESULT</p><h3 id="demo-result-title">Your program sets the rules</h3><p id="demo-result-detail">Grant a session, then request a transfer. Change the amount, change the recipient, or revoke permission to see the difference.</p><p id="demo-receipt" hidden></p></div>
-<p id="demo-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p><div class="demo-bottom"><span>Two authorization checks. One signing decision.</span><a class="text-link" href="docs/quickstart.html">Run the real local demo ↗</a></div>
-</section>
+
 <section id="protocol" class="section protocol wrap">
 <div class="section-heading">
 <p class="eyebrow">01 / THE PROTOCOL</p>
