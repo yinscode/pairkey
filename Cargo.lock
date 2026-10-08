@@ -2625,12 +2625,15 @@ dependencies = [
 name = "pair-registry"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "bincode",
  "borsh 1.5.7",
  "litesvm",
  "pairkey-frost",
  "pairkey-types",
  "rand_core 0.6.4",
+ "serde",
+ "serde_json",
  "solana-program",
  "solana-sdk",
 ]
@@ -2811,6 +2814,7 @@ dependencies = [
  "borsh 1.5.7",
  "ed25519-dalek 2.2.0",
  "example-controller",
+ "p256",
  "pair-registry",
  "pairkey-channel",
  "pairkey-core",

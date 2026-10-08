@@ -17,6 +17,7 @@ use solana_program::{
     },
 };
 
+pub mod approval;
 mod policy;
 pub use policy::{
     evm_session_address, policy_address, session_address, EvmSessionRecord, PolicyRecord,
@@ -91,6 +92,10 @@ pub enum RegistryInstruction {
     },
     RevokeEvmSession {
         session_id: [u8; 32],
+    },
+    SetRules {
+        update: pairkey_types::approval::PolicyUpdate,
+        proof: pairkey_types::approval::PolicyProof,
     },
 }
 pub fn set_address(program: &Pubkey, id: &[u8; 32]) -> (Pubkey, u8) {
@@ -246,6 +251,9 @@ pub fn process_instruction(
     let ix = RegistryInstruction::try_from_slice(data).map_err(|_| bad())?;
     let mut iter = accounts.iter();
     match ix {
+        RegistryInstruction::SetRules { update, proof } => {
+            approval::set_rules(program, accounts, update, proof)
+        }
         ix @ (RegistryInstruction::SetPolicy { .. }
         | RegistryInstruction::GrantSession { .. }
         | RegistryInstruction::RevokeSession { .. }

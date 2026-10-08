@@ -1,6 +1,6 @@
 //! Registration-free identity approvals. Legacy authorization encodings are unchanged.
 //! These types describe per-request authentication, not delegated sessions.
-use crate::{digest, message_hash, Commit, Error, Registration, MAX_MESSAGE, MAX_PATH};
+use crate::{digest, message_hash, Commit, Error, Namespace, Registration, MAX_MESSAGE, MAX_PATH};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +15,7 @@ pub enum Identity {
         public_key: [u8; 32],
     },
     Passkey {
+        /// Canonical compressed SEC1 P-256 point, also used by Solana's precompile.
         public_key: Vec<u8>,
         rp_id: String,
         origin: String,
@@ -33,12 +34,15 @@ impl Identity {
                 public_key,
                 rp_id,
                 origin,
-            } => crate::policy::Credential::Passkey {
-                public_key: public_key.clone(),
-                rp_id: rp_id.clone(),
-                origin: origin.clone(),
+            } if public_key.len() == 33
+                && matches!(public_key[0], 2 | 3)
+                && !rp_id.is_empty()
+                && rp_id.len() <= 128
+                && origin.starts_with("https://")
+                && origin.len() <= 256 =>
+            {
+                Ok(())
             }
-            .validate(),
             Self::Oidc {
                 issuer,
                 audience,
@@ -249,6 +253,52 @@ pub enum Proof {
 pub struct Approval {
     pub request: Request,
     pub proof: Proof,
+}
+
+/// Owner-authorized replacement of one persistent policy. Revisions start at one;
+/// there is no delete instruction that could silently restore the absent default.
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PolicyUpdate {
+    pub namespace: Namespace,
+    pub identity: Identity,
+    pub rules: Rules,
+    pub issued_at: i64,
+    pub expires_at: i64,
+}
+impl PolicyUpdate {
+    pub fn validate(&self, now: i64) -> Result<(), Error> {
+        self.namespace.validate()?;
+        self.identity.validate()?;
+        self.rules.validate()?;
+        interval(self.issued_at, self.expires_at, now, MAX_APPROVAL_LIFETIME)?;
+        if self.rules.revision == 0
+            || self.namespace.derivation_authority != self.identity.authority()
+        {
+            return Err(Error::Metadata);
+        }
+        Ok(())
+    }
+    pub fn challenge(&self) -> [u8; 32] {
+        digest(b"pairkey/policy-update/v1", self)
+    }
+    pub fn attestation_message(&self) -> Vec<u8> {
+        let mut message = b"pairkey/oidc-policy-update/v1".to_vec();
+        message.extend_from_slice(&self.challenge());
+        message
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum PolicyProof {
+    Wallet,
+    /// The signature itself is verified by the preceding native P-256 instruction.
+    Passkey {
+        authenticator_data: Vec<u8>,
+        client_data_json: Vec<u8>,
+    },
+    /// Both enrolled signer identities must attest the exact update, not a sign request.
+    OidcAttested,
 }
 
 fn interval(issued_at: i64, expires_at: i64, now: i64, maximum: i64) -> Result<(), Error> {

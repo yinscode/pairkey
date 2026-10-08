@@ -66,4 +66,14 @@ all private runtime state. Do not run the migrated local testnet worker state.
   pass with `cargo test -p pairkey-core -p pairkey-types --locked --offline`.
   These primitives are not yet connected to signer release or hosted endpoints.
   OIDC proof verification remains disabled until stage 3.
-- Stages 2–6 pending.
+- Stage 2 complete: optional `rules` PDAs, account-signed updates, native P-256
+  passkey updates and dual-identity attested OIDC updates. Passkey identities use
+  canonical compressed SEC1 keys; legacy credential encodings remain unchanged.
+  Same-size policy edits preserve the rent deposit, and no deletion fallback exists.
+  Four new SBF tests and six existing registry SBF tests pass. The 27 relevant host
+  tests pass (HTTP loopback tests require running outside the filesystem sandbox).
+  CI runs the new SBF tests after building programs. The SBF toolchain still emits
+  its existing dalek stack/syscall diagnostics; these exercised program paths pass
+  in LiteSVM. This is not evidence that every unused compiled path is safe.
+- Stages 3–6 pending. The new policies are not yet enforced by running signers or
+  exposed through the hosted UI; do not deploy the gateway separately as a feature.

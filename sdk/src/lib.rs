@@ -1,4 +1,5 @@
 //! Public derivation and Solana request helpers; no provider-root access.
+pub mod approval;
 pub mod hosted;
 pub mod http;
 pub mod policy;

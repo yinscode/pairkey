@@ -24,3 +24,4 @@ bincode.workspace = true
 
 pairkey-signing = { path = "../crates/pairkey-signing" }
 tokio.workspace = true
+p256 = { version = "=0.13.2", features = ["ecdsa"] }

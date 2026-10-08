@@ -81,23 +81,23 @@ fn account_binds_every_request_field_and_preserves_authority() {
         reg.namespace.derivation_authority,
         SigningKey::from_bytes(&[42; 32]).verifying_key().to_bytes()
     );
-    let changes: Vec<Box<dyn Fn(&mut Request)>> = vec![
-        Box::new(|r| r.version += 1),
-        Box::new(|r| r.commit.request_id[0] ^= 1),
-        Box::new(|r| r.commit.account.destination[0] ^= 1),
-        Box::new(|r| r.commit.account.path.push(3)),
-        Box::new(|r| r.commit.message_hash[0] ^= 1),
-        Box::new(|r| r.commit.message_len += 1),
-        Box::new(|r| r.commit.registration_digest[0] ^= 1),
-        Box::new(|r| r.policy_revision += 1),
-        Box::new(|r| r.policy_digest[0] ^= 1),
-        Box::new(|r| r.issued_at -= 1),
-        Box::new(|r| r.expires_at += 1),
-        Box::new(|r| {
+    let changes: Vec<fn(&mut Request)> = vec![
+        |r| r.version += 1,
+        |r| r.commit.request_id[0] ^= 1,
+        |r| r.commit.account.destination[0] ^= 1,
+        |r| r.commit.account.path.push(3),
+        |r| r.commit.message_hash[0] ^= 1,
+        |r| r.commit.message_len += 1,
+        |r| r.commit.registration_digest[0] ^= 1,
+        |r| r.policy_revision += 1,
+        |r| r.policy_digest[0] ^= 1,
+        |r| r.issued_at -= 1,
+        |r| r.expires_at += 1,
+        |r| {
             r.identity = Identity::Account {
                 public_key: [2; 32],
             }
-        }),
+        },
     ];
     for change in changes {
         let mut b = a.clone();
@@ -178,7 +178,7 @@ fn passkey() -> (Registration, Approval, p256::ecdsa::SigningKey) {
         Identity::Passkey {
             public_key: key
                 .verifying_key()
-                .to_encoded_point(false)
+                .to_encoded_point(true)
                 .as_bytes()
                 .to_vec(),
             rp_id: "pairkey.com".into(),

@@ -40,7 +40,11 @@ pub fn verify(
                 .map_err(|_| Error::Authorization)?;
             access::verify(
                 &Credential::Passkey {
-                    public_key: public_key.clone(),
+                    public_key: p256::ecdsa::VerifyingKey::from_sec1_bytes(public_key)
+                        .map_err(|_| Error::Authorization)?
+                        .to_encoded_point(false)
+                        .as_bytes()
+                        .to_vec(),
                     rp_id: rp_id.clone(),
                     origin: origin.clone(),
                 },

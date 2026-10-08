@@ -25,6 +25,7 @@ pairkey_run default-worker cargo check -p pairkey-worker --no-default-features -
 pairkey_run host-tests cargo test --workspace --features pairkey-worker/dev-simulation --locked
 pairkey_run sbf bash scripts/build-programs.sh
 pairkey_run registry-tests cargo test -p pairkey-platform-tests --test registry --locked -- --ignored
+pairkey_run approval-rules-tests cargo test -p pairkey-platform-tests --test approval_rules --locked -- --ignored
 pairkey_run build cargo build --workspace --features pairkey-worker/dev-simulation --locked
 pairkey_run ed25519-demo target/debug/local_demo
 pairkey_run multi-demo env PAIRKEY_DEMO_MULTI_ONLY=1 PAIRKEY_DEMO_JOB_LIFECYCLE=1 target/debug/local_demo

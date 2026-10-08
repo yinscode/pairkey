@@ -329,8 +329,8 @@ mod onchain {
     }
 }
 
-pub mod policy;
 pub mod approval;
+pub mod policy;
 pub mod receipt;
 
 pub mod attestation;
