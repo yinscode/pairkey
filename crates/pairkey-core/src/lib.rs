@@ -49,6 +49,7 @@ pub struct ObservedAccount {
     pub data: Vec<u8>,
 }
 pub mod access;
+pub mod approval;
 pub mod operation;
 mod policy;
 pub use policy::{
