@@ -6,13 +6,7 @@ use pairkey_core::{
 };
 use pairkey_types::approval::{Approval, Identity, Submission};
 
-#[derive(Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct IssuerConfig {
-    pub issuer: String,
-    pub audience: String,
-    pub jwks_url: String,
-}
+pub use pairkey_sdk::approval::IssuerConfig;
 struct CachedIssuer {
     issuer: Arc<TrustedIssuer>,
     fetched: Instant,
@@ -36,27 +30,7 @@ impl Offchain {
         role: Role,
         configs: Vec<IssuerConfig>,
     ) -> anyhow::Result<Self> {
-        ensure!(configs.len() <= 16, "OIDC configuration bound");
-        let mut seen = std::collections::BTreeSet::new();
-        for c in &configs {
-            for text in [&c.issuer, &c.jwks_url] {
-                let url = reqwest::Url::parse(text)?;
-                ensure!(
-                    url.scheme() == "https"
-                        && url.username().is_empty()
-                        && url.password().is_none()
-                        && url.fragment().is_none(),
-                    "OIDC requires configured HTTPS endpoints"
-                );
-            }
-            ensure!(
-                !c.audience.is_empty()
-                    && c.audience.len() <= 256
-                    && c.issuer.len() <= 256
-                    && seen.insert((c.issuer.clone(), c.audience.clone())),
-                "invalid or duplicate OIDC issuer/audience"
-            );
-        }
+        pairkey_sdk::approval::validate_oidc_issuers(&configs)?;
         let context = pairkey_types::digest(
             b"pairkey/worker-approval-store/v1",
             &(

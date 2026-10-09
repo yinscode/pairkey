@@ -4,13 +4,19 @@ use super::*;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use ed25519_dalek::Signer as _;
 use pairkey_types::approval::{Approval as PrivateApproval, Proof};
+mod management;
 
 struct Fixture {
     app: Arc<App>,
     client: pairkey_sdk::hosted::Client,
     accounts: Arc<Mutex<BTreeMap<String, Value>>>,
+    rpc_state: Arc<TestRpc>,
     tasks: Vec<tokio::task::JoinHandle<()>>,
     dir: PathBuf,
+}
+struct TestRpc {
+    accounts: Arc<Mutex<BTreeMap<String, Value>>>,
+    vm: Mutex<Option<litesvm::LiteSVM>>,
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
@@ -19,11 +25,45 @@ impl Drop for Fixture {
         }
     }
 }
-async fn test_rpc(
-    State(accounts): State<Arc<Mutex<BTreeMap<String, Value>>>>,
-    Json(q): Json<Value>,
-) -> Json<Value> {
+async fn test_rpc(State(state): State<Arc<TestRpc>>, Json(q): Json<Value>) -> Json<Value> {
     let slot = crate::chain::now().unwrap() as u64;
+    if let Some(vm) = state.vm.lock().unwrap().as_mut() {
+        let mut clock = vm.get_sysvar::<solana_sdk::clock::Clock>();
+        clock.unix_timestamp = slot as i64;
+        clock.slot = slot;
+        vm.set_sysvar(&clock);
+        let account = |key: &Value| {
+            vm.get_account(&key.as_str().unwrap().parse().unwrap()).map(|a|json!({"owner":a.owner.to_string(),"data":[STANDARD.encode(a.data),"base64"],"lamports":a.lamports,"executable":a.executable})).unwrap_or(Value::Null)
+        };
+        let result = match q["method"].as_str().unwrap() {
+            "getGenesisHash" => json!(GENESIS),
+            "getBlockTime" => json!(slot),
+            "getAccountInfo" => json!({"context":{"slot":slot},"value":account(&q["params"][0])}),
+            "getMultipleAccounts" => {
+                json!({"context":{"slot":slot},"value":q["params"][0].as_array().unwrap().iter().map(account).collect::<Vec<_>>()})
+            }
+            "getLatestBlockhash" => {
+                json!({"context":{"slot":slot},"value":{"blockhash":vm.latest_blockhash().to_string()}})
+            }
+            "simulateTransaction" => {
+                assert_eq!(q["params"][1]["sigVerify"], true);
+                assert_eq!(q["params"][1]["replaceRecentBlockhash"], false);
+                let tx: solana_sdk::transaction::Transaction = bincode::deserialize(
+                    &STANDARD.decode(q["params"][0].as_str().unwrap()).unwrap(),
+                )
+                .unwrap();
+                match vm.simulate_transaction(tx) {
+                    Ok(out) => {
+                        json!({"context":{"slot":slot},"value":{"err":null,"returnData":{"programId":out.meta.return_data.program_id.to_string(),"data":[STANDARD.encode(out.meta.return_data.data),"base64"]}}})
+                    }
+                    Err(e) => json!({"context":{"slot":slot},"value":{"err":format!("{e:?}")}}),
+                }
+            }
+            method => panic!("RPC evaluation must not broadcast: {method}"),
+        };
+        return Json(json!({"jsonrpc":"2.0","id":q["id"],"result":result}));
+    }
+    let accounts = &state.accounts;
     let result = match q["method"].as_str().unwrap() {
         "getGenesisHash" => json!(GENESIS),
         "getBlockTime" => json!(crate::chain::now().unwrap()),
@@ -87,9 +127,13 @@ impl Fixture {
         )])));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let rpc = format!("http://{}", listener.local_addr().unwrap());
+        let rpc_state = Arc::new(TestRpc {
+            accounts: accounts.clone(),
+            vm: Mutex::new(None),
+        });
         let server = Router::new()
             .route("/", post(test_rpc))
-            .with_state(accounts.clone());
+            .with_state(rpc_state.clone());
         let mut tasks = vec![tokio::spawn(async move {
             axum::serve(listener, server).await.unwrap();
         })];
@@ -122,6 +166,7 @@ impl Fixture {
         }));
         ready(&format!("http://{coordinator}"), "/health").await;
         let app = Arc::new(App {
+            oidc_issuers: vec![],
             root: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."),
             dir: dir.clone(),
             journal,
@@ -150,6 +195,7 @@ impl Fixture {
             app,
             client: pairkey_sdk::hosted::Client::new(format!("{base}/api/v2")).unwrap(),
             accounts,
+            rpc_state,
             tasks,
             dir,
         }

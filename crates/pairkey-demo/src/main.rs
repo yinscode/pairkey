@@ -36,6 +36,7 @@ struct App {
     dir: PathBuf,
     journal: Journal,
     hosted: Mutex<hosted::Store>,
+    oidc_issuers: Vec<pairkey_sdk::approval::IssuerConfig>,
     payer: Keypair,
     delegate: SigningKey,
     identities: [[u8; 32]; 2],
@@ -117,6 +118,7 @@ impl App {
             .enumerate()
         {
             self.spawn(&format!("worker-{i}"),json!({
+                "oidc_issuers":self.oidc_issuers,
                 "dkls_binary":self.root.join("target/silence-dkls23/release/dkls-spike"),
                 "role":role,"bind":self.workers[i].trim_start_matches("http://"),
                 "root_file":self.dir.join(format!("root-{i}")),"identity_file":self.dir.join(format!("identity-{i}")),
@@ -289,6 +291,7 @@ async fn main() -> Result<()> {
         ),
     )?);
     let app = Arc::new(App {
+        oidc_issuers: hosted::settings::load(&dir.join("oidc-issuers.json"))?,
         hosted,
         root,
         dir,

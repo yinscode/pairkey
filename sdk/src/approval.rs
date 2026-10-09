@@ -6,6 +6,41 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
+/// Operator-pinned identity provider. Neither tokens nor public API requests can
+/// select a JWKS URL. Shared by hosted provisioning and each independent worker.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IssuerConfig {
+    pub issuer: String,
+    pub audience: String,
+    pub jwks_url: String,
+}
+pub fn validate_oidc_issuers(configs: &[IssuerConfig]) -> Result<()> {
+    ensure!(configs.len() <= 16, "OIDC configuration bound");
+    let mut seen = std::collections::BTreeSet::new();
+    for c in configs {
+        for text in [&c.issuer, &c.jwks_url] {
+            let url = reqwest::Url::parse(text)?;
+            ensure!(
+                url.scheme() == "https"
+                    && url.username().is_empty()
+                    && url.password().is_none()
+                    && url.fragment().is_none(),
+                "OIDC requires configured HTTPS endpoints"
+            );
+        }
+        ensure!(
+            !c.audience.is_empty()
+                && c.audience.len() <= 256
+                && c.issuer.len() <= 256
+                && c.jwks_url.len() <= 2048
+                && seen.insert((c.issuer.clone(), c.audience.clone())),
+            "invalid or duplicate OIDC issuer/audience"
+        );
+    }
+    Ok(())
+}
+
 impl crate::service::Client {
     /// Both signers authenticate privately. Use the returned public commitment
     /// with existing submit_authorized/submit_intent APIs; do not put proofs in jobs.

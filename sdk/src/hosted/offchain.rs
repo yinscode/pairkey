@@ -1,6 +1,7 @@
 //! Hosted v2: lazy public metadata, exact private approval, public result recovery.
 use super::*;
 use pairkey_types::approval::{Identity, Proof, Request, Rules};
+pub mod management;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

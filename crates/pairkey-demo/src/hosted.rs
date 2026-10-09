@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, time::Instant};
 
 mod offchain;
+pub(crate) mod settings;
 
 const MAX_KEYS: usize = 1024;
 const MAX_JOBS: usize = 1024;

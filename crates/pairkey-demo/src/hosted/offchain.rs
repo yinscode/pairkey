@@ -6,6 +6,7 @@ use pairkey_types::{
     approval::{Identity, Request, Rules},
     policy::Authorization,
 };
+mod management;
 #[cfg(test)]
 mod tests;
 
@@ -81,14 +82,22 @@ pub(super) fn router() -> Router<Arc<App>> {
         .route("/api/v2/jobs/:id/recover", post(recover))
         .route("/api/v2/rpc", post(super::rpc))
         .route("/api/v2/verify", post(crate::api::verify_message))
+        .merge(management::router())
 }
 async fn config(State(app): State<Arc<App>>) -> Json<Value> {
-    let Json(mut value) = super::config(State(app)).await;
+    let Json(mut value) = super::config(State(app.clone())).await;
     value["version"] = json!(2);
     value["authorization"] = json!("exact_request");
     value["registration_required"] = json!(false);
     value["sessions"] = json!(false);
     value["program_approval"] = json!(["offchain", "onchain"]);
+    value["identity_sources"] = json!(["account", "program", "passkey"]);
+    // Configured does not mean the provider has completed a live integration test.
+    value["oidc_issuers"] = json!(app
+        .oidc_issuers
+        .iter()
+        .map(|c| json!({"issuer":c.issuer,"audience":c.audience}))
+        .collect::<Vec<_>>());
     Json(value)
 }
 fn identity(identity: &Identity) -> Result<()> {

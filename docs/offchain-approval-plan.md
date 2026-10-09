@@ -162,8 +162,20 @@ all private runtime state. Do not run the migrated local testnet worker state.
   reads only and rejects all transaction broadcasts. Tests also cover changed
   messages, invalid caller proofs, stale rules, same-request retries, recovery,
   and interrupted hosted persistence. The native hosted test is added to CI.
-  Hosted program/policy convenience endpoints, operator identity configuration,
-  browser SDK, quickstarts and demo still need integration.
+  Hosted policy and example-program helpers now construct unsigned owner actions,
+  read current revisions and reject stale updates. OIDC provider settings are
+  loaded from a private optional file and independently validated by each worker;
+  no provider is enabled implicitly. Four hosted integration tests execute actual
+  SBF code: wallet policy edits, native P-256 passkey policy edits followed by a
+  bound-ephemeral signing request, atomic program commit followed by signing, and
+  read-only program simulation through each worker's own RPC call. Simulation
+  neither creates an approval account nor consumes the program's counter. These
+  SBF tests are included in CI. See `docs/offchain-approval-api.md` for the versioned
+  API contract, identity proof flow, policy costs and operator configuration.
+  Workspace tests (including doc tests), all-target clippy and formatting pass
+  after this integration; the four hosted SBF tests were also run explicitly.
+  Browser SDK, public quickstarts and demo still need migration. A configured
+  production OIDC issuer has not been exercised through the hosted HTTP path.
 - Stage 6 remains open: complete the hosted program and bound-identity paths,
   full CI, website checks and deployment readiness review. These changes are not
   deployed; do not deploy the gateway separately as a feature.
