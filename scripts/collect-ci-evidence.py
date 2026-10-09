@@ -38,9 +38,13 @@ for log, event, filename in [('ed25519-demo.log', 'local_demo_passed', 'ed25519-
             raise SystemExit('Missing EVM session evidence')
         lifecycle = evidence.get('job_lifecycle', {})
         cases = lifecycle.get('cases', [])
-        phases = ('register', 'prepare', 'sign', 'ecdsa_result', 'red_begin', 'red_finish', 'red_result')
-        expected = {(p, a) for p in phases for a in ('cancel', 'coordinator_restart', 'worker_restart', 'policy_freeze') if a != 'policy_freeze' or not p.endswith('result')}
-        if len(cases) != len(expected) or {(x.get('phase'), x.get('action')) for x in cases} != expected or not all(all(x.get(k) is True for k in ('explicit_fresh_retry_verified', 'duplicate_submission_deduplicated', 'cached_result_no_worker_calls')) for x in cases):
+        phases = {
+            'Dkls23Secp256k1': ('register', 'prepare', 'sign', 'ecdsa_result'),
+            'FrostRedPallas': ('red_begin', 'red_finish', 'red_result'),
+            'FrostSecp256k1Tr': ('red_begin', 'red_finish', 'red_result'),
+        }
+        expected = {(s, p, a) for s, ps in phases.items() for p in ps for a in ('cancel', 'coordinator_restart', 'worker_restart', 'policy_freeze') if a != 'policy_freeze' or not p.endswith('result')}
+        if len(cases) != len(expected) or {(x.get('suite'), x.get('phase'), x.get('action')) for x in cases} != expected or not all(all(x.get(k) is True for k in ('explicit_fresh_retry_verified', 'duplicate_submission_deduplicated', 'cached_result_no_worker_calls')) for x in cases):
             raise SystemExit('Missing lifecycle matrix evidence')
         if lifecycle.get('authorization') != 'program_cpi' or not all(lifecycle.get(k) is True for k in ('completed_results_survive_restart', 'queued_cancellation_refused_before_start', 'sse_observed')):
             raise SystemExit('Missing durable job evidence')
