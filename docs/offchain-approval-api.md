@@ -175,3 +175,47 @@ Before rollout or a configuration restart, inspect active hosted and coordinator
 jobs, preserve all roots, identities, journals and incident latches, and reconcile
 uncertain results. Deploy the gateway, controller ABI, workers and hosted API as a
 coordinated change. Never reset runtime state to make a failed test pass.
+
+## Coordinated rollout checklist
+
+This branch is an implementation candidate, not evidence of a live upgrade or
+production TEE deployment. Keep OIDC disabled until the intended issuer, client
+audience, nonce flow and each worker's HTTPS key retrieval have been tested.
+
+1. Record the deployed gateway/controller program IDs, enclave set and signer
+   identities. Save public namespace and derived-key certificates for existing
+   account and program authorities across all five suites. Compare them after the
+   upgrade; policy revisions and approval mode must not rotate those keys.
+2. Drain new admissions and inspect hosted/coordinator jobs. Reconcile incomplete
+   attempts through their original job IDs before restarting. If an outcome stays
+   uncertain, retain its fence; do not replace the attempt or reset its journal.
+3. Take a consistent, access-controlled backup of private roots, identity keys,
+   hosted/coordinator journals, worker approval stores, protocol ledgers and
+   incident latches. Preserve file ownership, permissions and exclusive-lock
+   behavior. These files must not enter public CI reports or the website.
+4. Build and verify the gateway and example controller together with the worker,
+   coordinator, hosted API and browser SDK versions. Check authority to upgrade
+   each deployed program. An immutable controller needs an explicit replacement
+   migration; a new program authority derives different keys. Do not change a
+   namespace's program ID silently to work around this.
+5. Exercise both approval paths on a disposable authority: off-chain signing must
+   create no approval transaction; commit must decrement the application counter
+   once and recover without another decrement. Test a denied rule, a stale policy
+   revision and an altered message. Verify the original request, approval, key and
+   both receipts with the independent Rust verifier.
+6. Recheck the existing registered COMMIT/session flows and customized policies.
+   V2 must not bypass an older restriction; customized legacy policy needs an
+   explicit owner-authorized v2 policy before using the new path. Resume admissions
+   only after the compatibility and key comparisons pass.
+
+If rollout fails, stop admission and preserve the new journals and on-chain state.
+Do not restore an older policy revision, delete an incident latch, or roll back a
+consumed allowance as an operational shortcut. Software rollback requires checking
+that the older binary understands the current durable formats and restrictions;
+otherwise leave the service stopped and reconcile forward.
+
+The repository gate is `bash scripts/ci.sh`. It includes legacy native transfers
+and sessions, new hosted five-suite signing and recovery, actual SBF policy/program
+tests, browser vectors, documentation checks and the extracted program download.
+Local fixture results establish behavior in that environment; they do not establish
+public RPC availability, production OIDC login or hardware attestation.

@@ -782,6 +782,24 @@ async fn limit(
     next.run(request).await
 }
 pub async fn run(path: &str) -> anyhow::Result<()> {
+    run_inner(
+        path,
+        #[cfg(feature = "test-fixtures")]
+        None,
+    )
+    .await
+}
+
+/// Isolated integration tests only. No CLI or config option enables custom trust.
+#[cfg(feature = "test-fixtures")]
+pub async fn run_with_test_oidc_root(path: &str, root_der: &[u8]) -> anyhow::Result<()> {
+    run_inner(path, Some(root_der)).await
+}
+
+async fn run_inner(
+    path: &str,
+    #[cfg(feature = "test-fixtures")] test_root: Option<&[u8]>,
+) -> anyhow::Result<()> {
     let config: Config = serde_json::from_slice(&std::fs::read(path)?)?;
     let bind: std::net::SocketAddr = config.bind.parse()?;
     ensure!(
@@ -824,6 +842,14 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
         config.role,
         config.oidc_issuers,
     )?;
+    #[cfg(feature = "test-fixtures")]
+    let offchain = {
+        let mut offchain = offchain;
+        if let Some(root) = test_root {
+            offchain.install_test_root(root)?;
+        }
+        offchain
+    };
     let worker = Arc::new(Worker {
         offchain,
         multi: multi::Multi::new(*root, config.root_file.clone(), config.dkls_binary),

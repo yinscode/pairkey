@@ -2725,12 +2725,14 @@ dependencies = [
  "pairkey-worker",
  "rand_core 0.6.4",
  "reqwest 0.12.12",
+ "ring",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "sha3",
  "solana-sdk",
  "tokio",
+ "tokio-rustls 0.26.6",
 ]
 
 [[package]]

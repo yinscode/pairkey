@@ -63,6 +63,25 @@ impl Offchain {
         );
         self.configs.push(config);
     }
+    /// Fixture roots are unavailable to the normal worker binary/config schema.
+    /// Certificate and hostname verification remain enabled for the local issuer.
+    #[cfg(feature = "test-fixtures")]
+    pub(super) fn install_test_root(&mut self, der: &[u8]) -> anyhow::Result<()> {
+        for config in &self.configs {
+            let url = reqwest::Url::parse(&config.jwks_url)?;
+            ensure!(
+                url.host_str() == Some("127.0.0.1"),
+                "test issuer must be loopback"
+            );
+        }
+        self.http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(6))
+            .redirect(reqwest::redirect::Policy::none())
+            .tls_built_in_root_certs(false)
+            .add_root_certificate(reqwest::Certificate::from_der(der)?)
+            .build()?;
+        Ok(())
+    }
     fn cache_key(auth: &pairkey_types::policy::Authorization) -> [u8; 32] {
         pairkey_types::digest(b"pairkey/private-approval/v1", auth)
     }

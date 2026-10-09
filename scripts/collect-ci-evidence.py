@@ -54,10 +54,39 @@ def passed(log):
     return sum(map(int, results))
 if passed('native-faults.log') != 9 or passed('native-invariants.log') < 15:
     raise SystemExit('Native lifecycle gates did not execute the expected tests')
+approval_gates = {}
+for log, minimum in [
+    ('offline-verifier-tests.log', 1),
+    ('hosted-dkls-tests.log', 1),
+    ('hosted-browser-tests.log', 1),
+    ('approval-rules-tests.log', 4),
+    ('controller-download.log', 4),
+    ('program-approval-tests.log', 4),
+    ('program-worker-tests.log', 3),
+    ('hosted-policy-tests.log', 5),
+]:
+    count = passed(log)
+    if count < minimum:
+        raise SystemExit(f'Approval gate did not execute the expected tests: {log}')
+    approval_gates[log.removesuffix('.log')] = count
+browser_passes = re.findall(r'^# pass (\d+)$', (report / 'browser-unit-tests.log').read_text(), re.M)
+if len(browser_passes) != 1 or int(browser_passes[0]) < 45:
+    raise SystemExit('Browser approval and recovery tests did not execute')
+approval_gates['browser-unit-tests'] = int(browser_passes[0])
+host_output = (report / 'host-tests.log').read_text()
+oidc_tests = (
+    'hosted_oidc_fetches_https_keys_at_both_workers_and_binds_exact_request',
+    'hosted_oidc_refuses_untrusted_tls_and_jwks_redirects',
+)
+for test in oidc_tests:
+    if not re.search(r'^test \S*::' + re.escape(test) + r' \.\.\. ok$', host_output, re.M):
+        raise SystemExit(f'Missing hosted OIDC transport coverage: {test}')
+approval_gates['hosted-oidc-transport-tests'] = len(oidc_tests)
 artifacts = ['Cargo.lock', 'target/deploy/pair_registry.so', 'target/deploy/example_controller.so', 'target/deploy/example_policy.so', 'target/debug/pairkey-worker', 'target/debug/pairkey-coordinator', 'target/debug/local_demo', 'target/silence-dkls23/release/dkls-spike']
 hashes = {}
 for filename in artifacts:
     with (root / filename).open('rb') as stream:
         hashes[filename] = hashlib.file_digest(stream, 'sha256').hexdigest()
 validation = {'platform': platform.platform(), 'tool_versions': (report / 'versions.log').read_text().splitlines(), 'completed_at_utc': datetime.now(timezone.utc).isoformat(), 'base_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(), 'uncommitted_changes': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True).strip()), 'host_tests_passed': passed('host-tests.log'), 'native_lifecycle_tests_passed': passed('native-faults.log'), 'native_invariants_passed': passed('native-invariants.log'), 'registry_tests_passed': passed('registry-tests.log'), 'sbf_rebuilt': True, 'local_gate_passed': True, 'sha256': hashes}
+validation['approval_gates_passed'] = approval_gates
 (report / 'validation.json').write_text(json.dumps(validation, indent=2) + '\n')

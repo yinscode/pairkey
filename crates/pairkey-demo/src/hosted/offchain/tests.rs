@@ -5,6 +5,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use ed25519_dalek::Signer as _;
 use pairkey_types::approval::{Approval as PrivateApproval, Proof};
 mod management;
+mod oidc;
 
 struct Fixture {
     app: Arc<App>,
@@ -103,6 +104,12 @@ async fn ready(url: &str, path: &str) {
 }
 impl Fixture {
     async fn new() -> Self {
+        Self::with_oidc(vec![], None).await
+    }
+    async fn with_oidc(
+        issuers: Vec<pairkey_sdk::approval::IssuerConfig>,
+        test_root: Option<Vec<u8>>,
+    ) -> Self {
         let dir = std::env::temp_dir().join(format!("pairkey-hosted-v2-{}", hex(&fresh())));
         std::fs::create_dir(&dir).unwrap();
         let journal = Journal::open(&dir.join("state.json"), "isolated test".into()).unwrap();
@@ -147,11 +154,23 @@ impl Fixture {
             private(&identity_file, &keys[i].to_bytes()).unwrap();
             let config_file = dir.join(format!("worker-{i}.json"));
             let config = json!({"role":if i==0 {Role::A}else{Role::B},"bind":workers[i].trim_start_matches("http://"),"root_file":root_file,"identity_file":identity_file,"peer_identity":identities[1-i],"rpc_url":rpc,"provider_domain":format!("test-{i}"),"network":GENESIS.parse::<Pubkey>().unwrap().to_bytes(),"set_id":set_id,"set_governor":payer.pubkey().to_bytes(),"dkls_binary":PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/silence-dkls23/release/dkls-spike")});
+            let mut config = config;
+            config["oidc_issuers"] = serde_json::to_value(&issuers).unwrap();
             private(&config_file, &serde_json::to_vec(&config).unwrap()).unwrap();
+            let test_root = test_root.clone();
             tasks.push(tokio::spawn(async move {
-                pairkey_worker::development::run(config_file.to_str().unwrap())
+                if let Some(root) = test_root {
+                    pairkey_worker::development::run_with_test_oidc_root(
+                        config_file.to_str().unwrap(),
+                        &root,
+                    )
                     .await
                     .unwrap();
+                } else {
+                    pairkey_worker::development::run(config_file.to_str().unwrap())
+                        .await
+                        .unwrap();
+                }
             }));
             ready(&workers[i], "/health").await;
         }
@@ -167,7 +186,7 @@ impl Fixture {
         }));
         ready(&format!("http://{coordinator}"), "/health").await;
         let app = Arc::new(App {
-            oidc_issuers: vec![],
+            oidc_issuers: issuers,
             root: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../..")
                 .canonicalize()

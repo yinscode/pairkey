@@ -7,6 +7,8 @@ license.workspace = true
 
 [features]
 dev-simulation = ["pairkey-channel/dev-simulation"]
+# Explicitly opt-in fixture transport. Never enable in an operator build.
+test-fixtures = ["dev-simulation"]
 
 [dependencies]
 pairkey-types = { path = "../pairkey-types" }

@@ -494,3 +494,118 @@ async fn hosted_passkey_updates_policy_natively_and_signs_with_a_bound_ephemeral
     );
     f.close().await;
 }
+
+#[tokio::test]
+#[ignore = "requires SBF programs built by scripts/build-programs.sh"]
+async fn hosted_oidc_policy_fetches_https_keys_and_executes_dual_attested_update() {
+    let issuer = super::oidc::Issuer::start().await;
+    let f = Fixture::with_oidc(
+        vec![issuer.config.clone()],
+        Some(super::oidc::Issuer::root()),
+    )
+    .await;
+    let mut p = Programs::new(&f);
+    let ns = issuer.namespace(&f).await;
+    let q = PolicyRequest {
+        registration: ns.proposal.registration.clone(),
+        identity: ns.identity.clone(),
+        rules: Rules {
+            revision: 1,
+            path_prefixes: Some(vec![vec![0]]),
+            ..Rules::default()
+        },
+    };
+    let prepared: PolicyPrepared = f.client.post("/policies/prepare", &q).await.unwrap();
+    prepared.verify(&q, crate::chain::now().unwrap()).unwrap();
+    let ephemeral = SigningKey::from_bytes(&fresh());
+    let binding = super::oidc::binding(
+        &ns,
+        &ephemeral,
+        prepared.update.issued_at,
+        prepared.update.expires_at,
+    );
+    let token = issuer.token(&binding);
+    let approval = PolicyInstructionsRequest {
+        payer: p.owner.pubkey().to_string(),
+        authentication: PolicyAuthentication::Oidc {
+            binding,
+            id_token: token.clone(),
+            signature: ephemeral
+                .sign(&prepared.signing_message)
+                .to_bytes()
+                .to_vec(),
+        },
+        update: prepared.update,
+    };
+    let mut wrong = approval.clone();
+    wrong.update.rules.disabled = true;
+    assert!(f
+        .client
+        .post::<Value>("/policies/instructions", &wrong)
+        .await
+        .is_err());
+    let instructions: Instructions = f
+        .client
+        .post("/policies/instructions", &approval)
+        .await
+        .unwrap();
+    assert!(!serde_json::to_string(&instructions)
+        .unwrap()
+        .contains(&token));
+    p.send(&instructions);
+    let address = pair_registry::approval::rules_address(
+        &pair_registry::id(),
+        &ns.proposal.registration.namespace.digest(),
+    )
+    .0;
+    p.publish(&f, address);
+    let read: RulesResponse = f
+        .client
+        .post(
+            "/policies",
+            &RulesRequest {
+                registration: ns.proposal.registration.clone(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(read.rules, q.rules);
+    assert!(
+        f.client
+            .post::<Value>("/policies/instructions", &approval)
+            .await
+            .is_err(),
+        "stale revision accepted"
+    );
+    let (prepared, key) = f.prepared(&ns, Chain::Solana).await;
+    let binding = super::oidc::binding(
+        &ns,
+        &ephemeral,
+        prepared.request.issued_at,
+        prepared.request.expires_at,
+    );
+    let proof = Proof::Oidc {
+        id_token: issuer.token(&binding),
+        binding,
+        signature: ephemeral
+            .sign(&prepared.signing_message)
+            .to_bytes()
+            .to_vec(),
+    };
+    let job: Value = f
+        .client
+        .post("/jobs", &prepared.clone().submission(proof))
+        .await
+        .unwrap();
+    let result = f.wait(job["job_id"].as_str().unwrap()).await;
+    wire::verify_result(
+        &prepared.signing_request,
+        &prepared.request,
+        &key,
+        &result,
+        f.app.identities,
+    )
+    .unwrap();
+    assert_eq!(issuer.requests.load(std::sync::atomic::Ordering::SeqCst), 2);
+    f.close().await;
+}

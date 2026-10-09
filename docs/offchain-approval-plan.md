@@ -209,8 +209,8 @@ all private runtime state. Do not run the migrated local testnet worker state.
   a changed message, and recovered the original account job. The fixture completed
   exactly two jobs and was shut down. Download serving now includes ZIP and Rust
   source MIME types, exercised by the hosted browser integration test.
-  A configured production OIDC issuer has not been exercised through the hosted
-  HTTP path; complete isolated HTTPS issuer coverage and rollout review remain.
+  A production OIDC login has not been exercised; no real issuer is enabled by
+  this branch. The isolated HTTPS transport coverage is described below.
 - Stage 6 remains open: complete the hosted program and bound-identity paths,
   full CI, website checks and deployment readiness review. These changes are not
   deployed; do not deploy the gateway separately as a feature.
@@ -221,5 +221,21 @@ all private runtime state. Do not run the migrated local testnet worker state.
   negative controls still fence old views, including after restart. The original
   snapshot's global floor is retained conservatively; no journal reset or format
   replacement is required. Seven durable-store tests and workspace all-target
-  clippy pass. The validator-backed account/program concurrency and compatibility
-  demo is being rerun with the rebuilt worker executables.
+  clippy pass. The rebuilt validator-backed demo now passes account/program
+  concurrency, native transfers, expiry/durable nonce checks and legacy policy
+  and session compatibility.
+  The hosted OIDC path now has real HTTPS JWKS and RS256-token integration tests.
+  Each worker fetches keys independently; valid bound ephemeral authentication
+  signs and recovers without registration, while wrong subject, audience, nonce,
+  ephemeral key, untrusted TLS and redirect responses are rejected. An actual SBF
+  integration test executes the two-worker-attested policy update, rejects stale
+  revisions and altered updates, then signs under the saved rules. The token is
+  absent from persisted files and public instruction bundles. These three tests
+  pass. A loopback-only test-root constructor is behind the explicit test-fixtures
+  feature and is unavailable in the normal operator configuration. Both production
+  and test constructors retain TLS verification; the normal constructor rejects
+  the private fixture CA. No production identity service is contacted.
+  Operator rollout/reconciliation instructions are in offchain-approval-api.md.
+  The CI evidence collector now requires the new approval, browser, program and
+  OIDC gates rather than recording only legacy counts. Full CI will be rerun on
+  this final candidate before completion is claimed.

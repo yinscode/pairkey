@@ -28,7 +28,9 @@ example-controller = { path = "../../programs/example-controller", features = ["
 sha3 = "=0.10.8"
 
 [dev-dependencies]
-pairkey-worker = { path = "../pairkey-worker", features = ["dev-simulation"] }
+pairkey-worker = { path = "../pairkey-worker", features = ["test-fixtures"] }
 litesvm.workspace = true
 p256 = { version = "=0.13.2", features = ["ecdsa"] }
 sha2.workspace = true
+ring = "=0.17.14"
+tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
