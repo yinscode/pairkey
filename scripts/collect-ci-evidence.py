@@ -27,7 +27,7 @@ for log, event, filename in [('ed25519-demo.log', 'local_demo_passed', 'ed25519-
     evidence = json.loads(path.read_text())
     if log == 'multi-demo.log':
         flows = evidence.get('flows', [])
-        if {(x.get('authorization'), x.get('suite')) for x in flows} != {(a, s) for a in ('account', 'program_cpi') for s in ('Dkls23Secp256k1', 'FrostRedPallas')}:
+        if {(x.get('authorization'), x.get('suite')) for x in flows} != {(a, s) for a in ('account', 'program_cpi') for s in ('Dkls23Secp256k1', 'FrostRedPallas', 'FrostSecp256k1Tr')}:
             raise SystemExit('Missing multi-suite flows')
         checks = ('missing_approval_refused', 'workers_refused_substitutions', 'tampered_receipt_refused', 'restart_preserved_key', 'freeze_refused')
         if not all(all(x.get(check) for check in checks) for x in flows):
