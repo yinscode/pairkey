@@ -174,7 +174,17 @@ all private runtime state. Do not run the migrated local testnet worker state.
   API contract, identity proof flow, policy costs and operator configuration.
   Workspace tests (including doc tests), all-target clippy and formatting pass
   after this integration; the four hosted SBF tests were also run explicitly.
-  Browser SDK, public quickstarts and demo still need migration. A configured
+  The browser v2 SDK now verifies canonical approval bytes before wallet signing,
+  validates namespace attestations and transaction instructions, supports bound
+  ephemeral identities, and saves public-only recovery metadata before submission.
+  Rust-generated vectors cover all five chains and wallet/program management
+  instructions. All 38 website tests pass, as do generated-doc/link checks,
+  workspace all-target clippy and formatting. A real HTTP browser-SDK test with
+  both workers signs and recovers all five suites (including native DKLS); it is
+  now gated in CI alongside Node 22, vector consistency and website checks.
+  Curve-specific key certificates and full receipt verification remain the Rust
+  SDK's responsibility; browser Ed25519 checks do not imply full multisuite proof
+  verification. Public quickstarts and demo still need migration. A configured
   production OIDC issuer has not been exercised through the hosted HTTP path.
 - Stage 6 remains open: complete the hosted program and bound-identity paths,
   full CI, website checks and deployment readiness review. These changes are not

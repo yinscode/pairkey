@@ -13,6 +13,7 @@ struct Fixture {
     rpc_state: Arc<TestRpc>,
     tasks: Vec<tokio::task::JoinHandle<()>>,
     dir: PathBuf,
+    endpoint: String,
 }
 struct TestRpc {
     accounts: Arc<Mutex<BTreeMap<String, Value>>>,
@@ -198,6 +199,7 @@ impl Fixture {
             rpc_state,
             tasks,
             dir,
+            endpoint: format!("{base}/api/v2"),
         }
     }
     async fn metadata(&self, owner: &SigningKey) -> wire::NamespaceResponse {
@@ -265,6 +267,42 @@ impl Fixture {
         drop(self);
         std::fs::remove_dir_all(dir).unwrap();
     }
+}
+
+#[tokio::test]
+#[ignore = "requires Node 22+ and the native DKLS sidecar"]
+async fn hosted_browser_sdk_runs_all_five_signing_flows_and_recovery() {
+    use std::io::Write;
+    let f = Fixture::new().await;
+    let input = serde_json::to_vec(&json!({"endpoint":f.endpoint,"seed":fresh(),"chains":["solana","evm","zcash","near","bitcoin"]})).unwrap();
+    let output = tokio::task::spawn_blocking(move || {
+        let mut child = std::process::Command::new("node")
+            .arg(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../website/tests/hosted-v2-live.mjs"),
+            )
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(&input).unwrap();
+        child.wait_with_output().unwrap()
+    })
+    .await
+    .unwrap();
+    assert!(
+        output.status.success(),
+        "browser SDK integration failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        f.accounts.lock().unwrap().len(),
+        1,
+        "browser must not broadcast a registration or approval transaction"
+    );
+    assert_eq!(f.app.hosted.lock().unwrap().snapshot.offchain_jobs.len(), 5);
+    f.close().await;
 }
 fn signed(prepared: &wire::Prepared, owner: &SigningKey) -> wire::SubmitRequest {
     prepared.clone().submission(Proof::Account {

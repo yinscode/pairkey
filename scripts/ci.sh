@@ -20,10 +20,14 @@ pairkey_run native bash experiments/silence-dkls23/bootstrap.sh build --release 
 pairkey_run native-invariants bash experiments/silence-dkls23/bootstrap.sh test --release --locked --test invariants
 pairkey_run native-faults bash experiments/silence-dkls23/bootstrap.sh test --release --locked --features research-faults --bin dkls-spike d_driver::tests:: -- --test-threads=1
 pairkey_run format cargo fmt -- --check
+pairkey_run browser-vectors cargo run -p pairkey-sdk --example approval_vectors --locked -- --check
+pairkey_run browser-unit-tests node --test website/*.test.mjs
+pairkey_run website python3 website/check-site.py
 pairkey_run clippy cargo clippy --workspace --all-targets --features pairkey-worker/dev-simulation --locked -- -D warnings
 pairkey_run default-worker cargo check -p pairkey-worker --no-default-features --locked
 pairkey_run host-tests cargo test --workspace --features pairkey-worker/dev-simulation --locked
 pairkey_run hosted-dkls-tests cargo test -p pairkey-demo --locked hosted::offchain::tests::hosted_evm_offchain_approval_runs_real_dkls_signing -- --ignored
+pairkey_run hosted-browser-tests cargo test -p pairkey-demo --locked hosted_browser_sdk_runs_all_five_signing_flows_and_recovery -- --ignored
 pairkey_run sbf bash scripts/build-programs.sh
 pairkey_run registry-tests cargo test -p pairkey-platform-tests --test registry --locked -- --ignored
 pairkey_run approval-rules-tests cargo test -p pairkey-platform-tests --test approval_rules --locked -- --ignored
