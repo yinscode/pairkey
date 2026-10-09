@@ -34,7 +34,7 @@ def render(index):
     slug, label, title = PAGES[index]
     prefix = '' if slug == 'overview' else '../'
     body = (ROOT / 'content' / f'{slug}.html').read_text()
-    body = body.replace('<!-- HOSTED_CONTROLLER_SOURCE -->', '<pre><code class="language-rust">' + html.escape((ROOT.parent / 'examples/hosted-controller/src/lib.rs').read_text()) + '</code></pre>')
+    body = body.replace('<!-- HOSTED_CONTROLLER_SOURCE -->', '<pre><code class="language-rust">' + html.escape((ROOT.parent / 'programs/example-controller/src/approval.rs').read_text()) + '</code></pre>')
     for anchor, target in ALIASES.items():
         body = body.replace(f'docs.html#{anchor}', f'{url(target)}#{anchor}')
     # Content links are repository-site-root relative; resolve them for each output page.
@@ -65,6 +65,35 @@ def render(index):
 <footer class="wrap footer"><a class="brand" href="{prefix}index.html"><img src="{prefix}mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="{prefix}docs/security.html">Security &amp; status →</a></footer></body></html>
 '''
 
+def archive_files(files):
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
+        for name, data in sorted(files.items()):
+            info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            bundle.writestr(info, data)
+    return archive.getvalue()
+
+def controller_bundle():
+    repo = ROOT.parent
+    template = repo / 'examples/hosted-controller'
+    manifest = (template / 'Cargo.toml').read_text().replace('../../programs/example-controller', 'vendor/programs/example-controller')
+    # The bundled path dependencies inherit the exact repository versions.
+    manifest += '\n[workspace.package]' + (repo / 'Cargo.toml').read_text().split('[workspace.package]', 1)[1]
+    files = {'Cargo.toml': manifest.encode(), 'Cargo.lock': (template / 'Cargo.lock').read_bytes(), 'src/lib.rs': (template / 'src/lib.rs').read_bytes(), 'README.md': (template / 'README.md').read_bytes()}
+    for crate in ['programs/example-controller', 'programs/pair-registry', 'crates/pairkey-types']:
+        base = repo / crate
+        for path in [base / 'Cargo.toml', *sorted(base.rglob('*.rs'))]:
+            data = path.read_bytes()
+            if path.name == 'Cargo.toml':
+                # Dependency tests are maintained in the repository, not in the
+                # standalone app download. Exclude their unrelated path crates.
+                data = data.decode().split('[dev-dependencies]', 1)[0].encode()
+            files['vendor/' + path.relative_to(repo).as_posix()] = data
+    files['vendor/programs/program-id-build.rs'] = (repo / 'programs/program-id-build.rs').read_bytes()
+    return archive_files({'hosted-controller/' + name: data for name, data in files.items()})
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true')
@@ -73,14 +102,9 @@ def main():
     outputs[ROOT / 'examples/program_jobs.rs']=(ROOT.parent / 'sdk/examples/program_jobs.rs').read_bytes()
     outputs[ROOT / 'examples/verify_hosted.rs']=(ROOT.parent / 'sdk/examples/verify_hosted.rs').read_bytes()
     outputs[ROOT / 'examples/hosted-controller.rs']=(ROOT.parent / 'examples/hosted-controller/src/lib.rs').read_bytes()
-    archive = io.BytesIO()
-    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
-        for name in ['Cargo.toml', 'Cargo.lock', 'src/lib.rs']:
-            info = zipfile.ZipInfo('hosted-controller/' + name, (1980, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o644 << 16
-            bundle.writestr(info, (ROOT.parent / 'examples/hosted-controller' / name).read_bytes())
-    outputs[ROOT / 'examples/hosted-controller.zip'] = archive.getvalue()
+    outputs[ROOT / 'examples/program-approval.rs']=(ROOT.parent / 'programs/example-controller/src/approval.rs').read_bytes()
+    outputs[ROOT / 'examples/hosted-controller.zip'] = controller_bundle()
+    outputs[ROOT / 'examples/hosted-client-v2.zip'] = archive_files({name: (ROOT / name).read_bytes() for name in ['hosted-v2.mjs', 'hosted-client.mjs', 'approval-codec.mjs']})
     for path,data in outputs.items():
         if args.check:
             if not path.exists() or path.read_bytes()!=data:

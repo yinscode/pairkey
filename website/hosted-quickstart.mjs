@@ -1,95 +1,98 @@
-import { PairKey } from './hosted-client.mjs?v=wallet-compatibility-2';
+import {PairKey} from './hosted-v2.mjs';
+import {HostedSession} from './hosted-session.mjs';
 const form = document.querySelector('[data-hosted-quickstart]');
 if (form) {
-  const client = new PairKey({ web3: window.solanaWeb3, endpoint: `${location.origin}/api/v1`, onProgress: ({ message, signature }) => {
-    tell(message);
-    if (signature) link('View transaction on Solana devnet', signature);
-  } });
   const $ = id => form.querySelector(`#${id}`);
-  const output = $('hosted-output');
-  let wallet, walletAddress, namespace, key, result, approval;
-  const tell = text => { output.textContent = text; };
+  const program = form.dataset.hostedQuickstart === 'program';
+  const tell = text => { $('hosted-output').textContent = text; };
   const linked = new Set();
-  const link = (label, signature) => {
+  const link = signature => {
     if (linked.has(signature)) return;
     linked.add(signature);
-    const a = document.createElement('a'); a.textContent = label;
+    const a = document.createElement('a'); a.textContent = 'View transaction on Solana devnet';
     a.href = `https://explorer.solana.com/tx/${encodeURIComponent(signature)}?cluster=devnet`;
     a.target = '_blank'; a.rel = 'noopener noreferrer'; $('hosted-links').append(a, document.createElement('br'));
   };
-  async function action(button, work) {
-    const buttons = [...form.querySelectorAll('button, input, select, textarea')];
-    buttons.forEach(b => { b.dataset.wasDisabled = String(b.disabled); b.disabled = true; });
-    try { await work(); } catch (e) { tell(`Action stopped: ${e.message || String(e)}`); }
-    finally { buttons.forEach(b => { b.disabled = b.dataset.wasDisabled === 'true'; }); }
+  const client = new PairKey({web3: window.solanaWeb3, endpoint: `${location.origin}/api/v2`, onProgress: ({message, signature}) => {
+    tell(message); if (signature) link(signature);
+  }});
+  const stages = {
+    preparing: 'Checking the exact message, key and current policy…',
+    authorizing: 'Approve this exact request with a wallet message signature. This step sends no transaction.',
+    committing: 'Your program must consume an allowance. Approve its Solana transaction, then wait for finality.',
+    submitting: 'Submitting the approved request to the hosted signers…',
+    signing: 'Signing is in progress. Both signers must authorize and participate; individual completion is not yet reported.',
+    recovering: 'Recovering the saved job. No new wallet approval or signing attempt will be made.',
+  };
+  const flow = new HostedSession(client, {onStage: stage => {if (stages[stage]) tell(stages[stage]);}});
+  let loaded;
+  const enable = (id, enabled) => {const control=$(id);if(control)control.dataset.wasDisabled=String(!enabled);};
+  async function action(work) {
+    const controls = [...form.querySelectorAll('button, input, select, textarea')];
+    controls.forEach(b => {b.dataset.wasDisabled=String(b.disabled);b.disabled=true;});
+    try {await work();} catch(e) {tell(`Action stopped: ${e.message || String(e)}`);}
+    finally {controls.forEach(b=>{b.disabled=b.dataset.wasDisabled==='true';});}
   }
-  $('hosted-connect').addEventListener('click', () => action(null, async () => {
-    wallet = window.phantom?.solana || window.solflare || window.solana;
-    if (!wallet?.connect || !wallet?.signTransaction) throw new Error('Open this page in a browser with a Solana wallet such as Phantom or Solflare. Select devnet in your wallet.');
-    await wallet.connect();
-    walletAddress = wallet.publicKey.toBase58();
-    key = result = approval = undefined;
-    $('hosted-sign').dataset.wasDisabled = 'true';
-    $('hosted-verify').dataset.wasDisabled = 'true';
-    $('hosted-public-key').textContent = 'Your key will appear here.';
-    $('hosted-signature').textContent = 'Your signature will appear here.';
-    let options = {};
-    if (form.dataset.hostedQuickstart === 'program') {
-      if (!$('hosted-program').value.trim()) throw new Error('Enter the program ID you deployed from the owner-gated controller template.');
-      options = client.controller($('hosted-program').value.trim(), wallet.publicKey);
-    }
-    tell('Preparing your namespace with the hosted signers…');
-    namespace = await client.onboard(wallet, options);
-    if (namespace.transaction) link('Namespace registration on Solana', namespace.transaction);
-    tell(`Namespace ready: ${namespace.namespaceAddress}\nAuthority: ${new solanaWeb3.PublicKey(namespace.registration.namespace.derivation_authority)}\nChoose a chain, then load its key.`);
-    $('hosted-key').dataset.wasDisabled = 'false';
+  function selection() {
+    const index=Number($('hosted-path').value);
+    if(!Number.isInteger(index)||index<0||index>4294967295)throw new Error('Path index must be an integer from 0 to 4294967295.');
+    return {chain:$('hosted-chain').value,path:[index]};
+  }
+  function clearResult() {flow.result=undefined;enable('hosted-verify',false);$('hosted-signature').textContent='Your signature will appear here.';}
+  function showResult(result) {
+    $('hosted-signature').textContent=result.signature_hex;
+    $('hosted-public-key').textContent=result.public_key_hex;
+    $('hosted-message').value=result.signed_message;
+    enable('hosted-verify',true);
+    tell('Signature ready. Both signer receipts were returned. No destination transaction was broadcast.');
+  }
+  function programUnchanged() {
+    if(program&&(!loaded||loaded.program!==$('hosted-program').value.trim()||loaded.mode!==$('hosted-mode').value))throw new Error('Program or approval mode changed. Connect again.');
+  }
+  $('hosted-connect').addEventListener('click',()=>action(async()=>{
+    loaded=undefined;flow.reset();clearResult();enable('hosted-key',false);enable('hosted-sign',false);enable('hosted-policy',false);
+    const wallet=window.phantom?.solana||window.solflare||window.solana;
+    const options=program?{program:$('hosted-program').value.trim(),mode:$('hosted-mode').value}:{};
+    if(program&&!options.program)throw new Error('Enter a program ID deployed with the v2 example ABI.');
+    tell('Connecting your wallet and preparing public namespace metadata…');
+    const ns=await flow.connect(wallet,options);loaded=options;
+    $('hosted-public-key').textContent='Your key will appear here.';
+    enable('hosted-key',true);enable('hosted-policy',true);
+    tell(`Namespace ready without a registration transaction.\nAuthority: ${client.pubkey(ns.registration.namespace.derivation_authority)}\n${program?'Set or review the program’s policy, then load a derived key.':'Choose a chain and load its key. No SOL is needed for ordinary message approvals.'}`);
   }));
-  $('hosted-key').addEventListener('click', () => action(null, async () => {
-    const index = Number($('hosted-path').value);
-    if (!Number.isInteger(index) || index < 0 || index > 4294967295) throw new Error('Path index must be an integer from 0 to 4294967295.');
-    tell('Enrolling your derived key with the hosted signers…');
-    key = await client.key(namespace, $('hosted-chain').value, [Number($('hosted-path').value)]);
-    key.chain = $('hosted-chain').value; key.path = Number($('hosted-path').value);
-    result = undefined; $('hosted-verify').dataset.wasDisabled = 'true';
-    $('hosted-signature').textContent = 'Your signature will appear here.';
-    $('hosted-public-key').textContent = key.public_key_hex;
-    tell(`Key ready. ${key.address ? `Public identifier: ${key.address}` : 'Public key shown below.'}\nWrite a message, then approve it on Solana.`);
-    $('hosted-sign').dataset.wasDisabled = 'false';
+  $('hosted-key').addEventListener('click',()=>action(async()=>{
+    programUnchanged();clearResult();enable('hosted-sign',false);
+    tell('Loading the derived public key from the hosted signers…');
+    const q=selection(),key=await flow.loadKey(q.chain,q.path);
+    $('hosted-public-key').textContent=key.public_key_hex;
+    tell(`Key ready.${key.address?` Public identifier: ${key.address}`:''}\nWrite a message, then approve the exact request.`);
+    enable('hosted-sign',true);
   }));
-  $('hosted-sign').addEventListener('click', () => action(null, async () => {
-    if (!wallet.publicKey || wallet.publicKey.toBase58() !== walletAddress) throw new Error('Wallet changed. Connect and register again.');
-    if (key.chain !== $('hosted-chain').value || key.path !== Number($('hosted-path').value)) throw new Error('Chain or path changed. Load its key first.');
-    result = undefined;
-    $('hosted-verify').dataset.wasDisabled = 'true';
-    $('hosted-signature').textContent = 'Waiting for this request’s signature.';
-    approval = await client.prepare(namespace, wallet, { chain: key.chain, path: [key.path], message: $('hosted-message').value });
-    sessionStorage.setItem('pairkey-hosted-pending', JSON.stringify(approval));
-    sessionStorage.removeItem('pairkey-hosted-job');
-    tell('Approve this message in your wallet. Waiting for Solana devnet finality…');
-    const tx = await client.approve(namespace, wallet, approval); link('Message approval on Solana', tx);
-    tell('Approval finalized. Both signers are checking your authority and signing…');
-    const job = await client.submit(approval);
-    sessionStorage.setItem('pairkey-hosted-job', job.job_id);
-    result = await client.wait(job.job_id);
-    $('hosted-signature').textContent = result.signature_hex;
-    tell(`Signature ready. Job ${job.job_id}\nNo destination transaction was broadcast.`);
-    $('hosted-verify').dataset.wasDisabled = 'false';
+  $('hosted-sign').addEventListener('click',()=>action(async()=>{
+    programUnchanged();clearResult();
+    showResult(await flow.sign({...selection(),message:$('hosted-message').value}));
   }));
-  $('hosted-verify').addEventListener('click', () => action(null, async () => {
-    const checked = await client.verify({ ...result, signed_message: $('hosted-message').value });
-    tell(checked.valid ? 'Signature verified against the derived public key and exact message.' : 'Signature verification failed.');
+  $('hosted-verify').addEventListener('click',()=>action(async()=>{
+    const checked=await client.verify({...flow.result,signed_message:$('hosted-message').value});
+    tell(checked.valid?'Service verification passed for the displayed message and derived public key. Use the Rust verifier for independent receipt and signature verification.':'Signature verification failed for the displayed message.');
   }));
-  $('hosted-recover').addEventListener('click', () => action(null, async () => {
-    let id = sessionStorage.getItem('pairkey-hosted-job');
-    if (!id) {
-      const pending = sessionStorage.getItem('pairkey-hosted-pending');
-      if (!pending) throw new Error('No submitted job is saved in this browser tab.');
-      const submitted = await client.submit(JSON.parse(pending));
-      id = submitted.job_id; sessionStorage.setItem('pairkey-hosted-job', id);
-    }
-    tell(`Recovering existing job ${id}…`); result = await client.wait(id);
-    $('hosted-signature').textContent = result.signature_hex; $('hosted-public-key').textContent = result.public_key_hex;
-    $('hosted-message').value = result.signed_message;
-    tell(`Recovered signature for: ${result.signed_message}`); $('hosted-verify').dataset.wasDisabled = 'false';
+  $('hosted-recover').addEventListener('click',()=>action(async()=>{clearResult();showResult(await flow.recover());}));
+  $('hosted-example')?.addEventListener('click',()=>action(async()=>{
+    const config=await client.config();
+    if(!config.example_program)throw new Error('This deployment has no configured example program.');
+    $('hosted-program').value=config.example_program;
+    $('hosted-mode').value='Onchain';
+    tell('Example program selected. On-chain approval supports its upgradeable code. Connect your wallet, then set your own policy.');
+  }));
+  $('hosted-policy')?.addEventListener('click',()=>action(async()=>{
+    programUnchanged();client.checkWallet(flow.namespace,flow.wallet);
+    if(!flow.wallet.signTransaction)throw new Error('Policy changes need wallet transaction signing and devnet SOL.');
+    const current=await client.programPolicy(loaded.program,flow.wallet.publicKey);
+    const q=selection(),remaining=Number($('hosted-allowance').value);
+    if(!Number.isSafeInteger(remaining)||remaining<0)throw new Error('Allowance must be a nonnegative safe integer.');
+    const signature=await client.setProgramPolicy(flow.wallet,{program:loaded.program,owner:flow.wallet.publicKey.toBase58(),revision:(current?.revision||0)+1,enabled:true,chain:q.chain,path_prefix:q.path,max_payload_bytes:1232,require_commit:loaded.mode==='Onchain',remaining_approvals:remaining});
+    link(signature);clearResult();
+    tell(`Program policy updated: ${q.chain}, path prefix ${q.path.join('/')}. ${loaded.mode==='Onchain'?`${remaining} on-chain approvals available.`:'Read-only approval; no counter is consumed.'} Load the key before signing.`);
+    flow.key=undefined;enable('hosted-sign',false);
   }));
 }

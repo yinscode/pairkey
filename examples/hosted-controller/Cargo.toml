@@ -8,3 +8,4 @@ publish = false
 crate-type = ["cdylib"]
 [dependencies]
 solana-program = "=2.2.1"
+example-controller = { path = "../../programs/example-controller", features = ["no-entrypoint"] }

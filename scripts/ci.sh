@@ -21,6 +21,7 @@ pairkey_run native-invariants bash experiments/silence-dkls23/bootstrap.sh test 
 pairkey_run native-faults bash experiments/silence-dkls23/bootstrap.sh test --release --locked --features research-faults --bin dkls-spike d_driver::tests:: -- --test-threads=1
 pairkey_run format cargo fmt -- --check
 pairkey_run browser-vectors cargo run -p pairkey-sdk --example approval_vectors --locked -- --check
+pairkey_run offline-verifier-tests cargo test -p pairkey-sdk --example verify_hosted --locked
 pairkey_run browser-unit-tests node --test website/*.test.mjs
 pairkey_run website python3 website/check-site.py
 pairkey_run clippy cargo clippy --workspace --all-targets --features pairkey-worker/dev-simulation --locked -- -D warnings
@@ -31,6 +32,7 @@ pairkey_run hosted-browser-tests cargo test -p pairkey-demo --locked hosted_brow
 pairkey_run sbf bash scripts/build-programs.sh
 pairkey_run registry-tests cargo test -p pairkey-platform-tests --test registry --locked -- --ignored
 pairkey_run approval-rules-tests cargo test -p pairkey-platform-tests --test approval_rules --locked -- --ignored
+pairkey_run controller-download python3 scripts/check-controller-bundle.py --sbf
 pairkey_run program-approval-tests cargo test -p pairkey-platform-tests --test program_approval --locked -- --ignored
 pairkey_run program-worker-tests cargo test -p pairkey-worker --features dev-simulation --locked -- --ignored
 pairkey_run hosted-policy-tests cargo test -p pairkey-demo --locked hosted::offchain::tests::management -- --ignored

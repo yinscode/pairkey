@@ -184,7 +184,19 @@ all private runtime state. Do not run the migrated local testnet worker state.
   now gated in CI alongside Node 22, vector consistency and website checks.
   Curve-specific key certificates and full receipt verification remain the Rust
   SDK's responsibility; browser Ed25519 checks do not imply full multisuite proof
-  verification. Public quickstarts and demo still need migration. A configured
+  verification. Both public quickstarts now use v2: account message authorization,
+  explicit program policy setup, immutable read-only evaluation or on-chain commit,
+  all five chains, and recovery that cannot resubmit or consume another allowance.
+  The shared page lifecycle passes all five real hosted signing/reload-recovery
+  flows; 43 website tests and generated page/link checks pass. Browser inspection
+  confirms the updated controls and safe missing-wallet/no-saved-job errors.
+  The downloadable program now includes the typed ABI and tested application
+  policy implementation, rejects legacy forwarding at its entrypoint, and builds
+  outside this repository. Its extracted SBF binary passes the four approval tests;
+  CI builds and tests that exact archive. Existing dalek/SBF diagnostics remain as
+  noted above. The offline verifier now requires the original v2 approval and
+  still verifies legacy transcripts. Its regression test and workspace clippy pass.
+  Remaining public docs and the demo still need migration. A configured
   production OIDC issuer has not been exercised through the hosted HTTP path.
 - Stage 6 remains open: complete the hosted program and bound-identity paths,
   full CI, website checks and deployment readiness review. These changes are not

@@ -91,6 +91,7 @@ async fn config(State(app): State<Arc<App>>) -> Json<Value> {
     value["registration_required"] = json!(false);
     value["sessions"] = json!(false);
     value["program_approval"] = json!(["offchain", "onchain"]);
+    value["example_program"] = json!(example_controller::id().to_string());
     value["identity_sources"] = json!(["account", "program", "passkey"]);
     // Configured does not mean the provider has completed a live integration test.
     value["oidc_issuers"] = json!(app
