@@ -1,5 +1,6 @@
 //! Identity authentication for the new approval format. Chain observations and durable
 //! request claims must still be checked by each worker before any signing round.
+pub mod program;
 use crate::{access, Error};
 use crate::{decode, validate_freshness, validate_set, Observation, Trust};
 use pair_registry::{EnclaveSet, NamespaceRecord, PolicyRecord};
@@ -33,6 +34,9 @@ pub fn verify_with_oidc(
         .map_err(|_| Error::Authorization)?;
     let message = request.signing_message();
     match (&request.identity, &approval.proof) {
+        (Identity::Program(_), Proof::Program { .. }) => {
+            program::source_and_caller(approval).map(|_| ())
+        }
         (Identity::Account { public_key }, Proof::Account { signature }) => {
             ed25519(public_key, signature, &message)
         }
@@ -194,6 +198,33 @@ pub fn authorize(
     now: i64,
     minimum_slot: u64,
 ) -> Result<(), Error> {
+    authorize_with_program(
+        trust,
+        observation,
+        registration,
+        attempt,
+        payload,
+        proof,
+        issuer,
+        None,
+        now,
+        minimum_slot,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn authorize_with_program(
+    trust: &Trust,
+    observation: &Observation,
+    registration: &Registration,
+    attempt: &pairkey_types::Attempt,
+    payload: &[u8],
+    proof: &pairkey_types::approval::Proof,
+    issuer: Option<&crate::oidc::TrustedIssuer>,
+    program: Option<&program::ProgramObservation>,
+    now: i64,
+    minimum_slot: u64,
+) -> Result<(), Error> {
     validate_freshness(trust, observation, now, minimum_slot)?;
     let set: EnclaveSet = decode(&observation.set, &trust.registry)?;
     validate_set(trust, observation, registration, &set)?;
@@ -248,6 +279,20 @@ pub fn authorize(
     )?;
     if set.retired || frozen {
         return Err(Error::Inactive);
+    }
+    if matches!(approval.request.identity, Identity::Program(_)) {
+        if !program::decision(
+            trust,
+            observation,
+            registration,
+            &approval,
+            payload,
+            program.ok_or(Error::Authorization)?,
+        )? {
+            return Err(Error::Authorization);
+        }
+    } else if program.is_some() {
+        return Err(Error::Authorization);
     }
     Ok(())
 }

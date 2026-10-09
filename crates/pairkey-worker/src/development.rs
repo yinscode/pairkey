@@ -34,6 +34,7 @@ use zeroize::Zeroizing;
 
 mod multi;
 mod offchain;
+mod program;
 #[cfg(test)]
 mod tests;
 
@@ -250,7 +251,7 @@ impl Worker {
             self.trust.max_observation_age_secs as u64 * 1000,
         )?;
         if let Some(evidence) = &view.offchain {
-            pairkey_core::approval::authorize(
+            pairkey_core::approval::authorize_with_program(
                 &self.trust,
                 &view.observation,
                 &begin.registration,
@@ -258,6 +259,7 @@ impl Worker {
                 &begin.message,
                 &evidence.approval.proof,
                 evidence.issuer.as_deref(),
+                evidence.program.as_ref(),
                 now(),
                 view.minimum_slot,
             )?;
@@ -279,6 +281,22 @@ impl Worker {
                     == Some(begin.attempt.authorization.policy_version),
                 "policy changed before issuance"
             );
+        }
+        if let Some(evidence) = &view.offchain {
+            if let Some(pairkey_core::approval::program::ProgramObservation::Evaluated {
+                slot,
+                input,
+                ..
+            }) = &evidence.program
+            {
+                let source =
+                    pairkey_core::approval::program::source_and_caller(&evidence.approval)?.0;
+                self.offchain.store.lock().unwrap().check_program(
+                    pairkey_core::approval::program::fence_key(&begin.registration, source),
+                    input.state_digest,
+                    *slot,
+                )?;
+            }
         }
         release.controls.check_active(view.observation.slot)?;
         let rules =

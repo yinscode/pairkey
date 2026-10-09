@@ -45,6 +45,12 @@ struct PolicyFence {
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct ProgramFence {
+    digest: [u8; 32],
+    slot: u64,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Snapshot {
     version: u16,
     context: [u8; 32],
@@ -52,6 +58,8 @@ struct Snapshot {
     minimum_slot: u64,
     records: BTreeMap<String, Record>,
     policies: BTreeMap<String, PolicyFence>,
+    #[serde(default)]
+    program_states: BTreeMap<String, ProgramFence>,
 }
 pub struct ApprovalStore {
     disk: LocalStore,
@@ -69,6 +77,7 @@ impl ApprovalStore {
                 minimum_slot: 0,
                 records: BTreeMap::new(),
                 policies: BTreeMap::new(),
+                program_states: BTreeMap::new(),
             },
             Some(bytes) => serde_json::from_slice::<Snapshot>(&bytes).map_err(io::Error::other)?,
         };
@@ -77,6 +86,7 @@ impl ApprovalStore {
             || snapshot.clock_floor < 0
             || snapshot.records.len() > MAX_REQUESTS
             || snapshot.policies.len() > MAX_POLICIES
+            || snapshot.program_states.len() > MAX_POLICIES
         {
             return Err(invalid());
         }
@@ -97,7 +107,12 @@ impl ApprovalStore {
                 record.status = Status::Uncertain;
             }
         }
-        for id in store.snapshot.policies.keys() {
+        for id in store
+            .snapshot
+            .policies
+            .keys()
+            .chain(store.snapshot.program_states.keys())
+        {
             if URL_SAFE_NO_PAD.decode(id).map_err(io::Error::other)?.len() != 32 {
                 return Err(invalid());
             }
@@ -308,6 +323,49 @@ impl ApprovalStore {
                 Ok(())
             }
             _ => Err(io::Error::other("policy changed before signature release")),
+        }
+    }
+    pub fn program_slot(&self, key: [u8; 32]) -> io::Result<Option<u64>> {
+        self.ready()?;
+        Ok(self
+            .snapshot
+            .program_states
+            .get(&URL_SAFE_NO_PAD.encode(key))
+            .map(|p| p.slot))
+    }
+    pub fn observe_program(
+        &mut self,
+        key: [u8; 32],
+        digest: [u8; 32],
+        slot: u64,
+        now: i64,
+    ) -> io::Result<()> {
+        self.clock(now)?;
+        let key = URL_SAFE_NO_PAD.encode(key);
+        if let Some(old) = self.snapshot.program_states.get(&key) {
+            if slot < old.slot || (slot == old.slot && digest != old.digest) {
+                return Err(invalid());
+            }
+        } else if self.snapshot.program_states.len() >= MAX_POLICIES {
+            return Err(invalid());
+        }
+        self.snapshot
+            .program_states
+            .insert(key, ProgramFence { digest, slot });
+        self.snapshot.clock_floor = now;
+        self.save()
+    }
+    pub fn check_program(&self, key: [u8; 32], digest: [u8; 32], slot: u64) -> io::Result<()> {
+        self.ready()?;
+        match self
+            .snapshot
+            .program_states
+            .get(&URL_SAFE_NO_PAD.encode(key))
+        {
+            Some(p) if p.digest == digest && slot >= p.slot => Ok(()),
+            _ => Err(io::Error::other(
+                "program state changed before signing release",
+            )),
         }
     }
     pub fn observe_inactive(&mut self, slot: u64, now: i64) -> io::Result<()> {

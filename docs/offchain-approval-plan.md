@@ -140,9 +140,15 @@ all private runtime state. Do not run the migrated local testnet worker state.
   legacy handlers into separate functions removed that diagnostic. The on-chain
   PDA curve check uses the native syscall because this SDK's Pubkey method panics
   on SBF. Existing dalek/toolchain diagnostics remain as previously documented.
-  Next: independently authenticate program callers at each worker, fetch and bind
-  application state, simulate the new ABI or read the committed approval, and
-  enforce that decision again at signing release. The worker currently refuses
-  program proofs until this integration is complete.
+  Worker integration is complete: each worker verifies the caller's exact request,
+  fetches finalized application state, and runs its own signed RPC simulation or
+  reads the exact gateway approval. Release checks bind the decision again, with
+  durable state fences that reject stale prepared views after a newer denial.
+  Three actual-SBF worker tests produce and verify FROST signatures, check that
+  commit consumes the application counter exactly once, and reject forged caller
+  proofs and tampered simulation results. Two additional core-context tests pass.
+  Workspace tests, all-target clippy and formatting pass; the three ignored SBF
+  worker tests and doc tests also pass in a serial run. CI runs this integration
+  gate after building the programs.
 - Stages 5–6 pending. The new policies are not yet enforced by running signers or
   exposed through the hosted UI; do not deploy the gateway separately as a feature.

@@ -150,3 +150,35 @@ fn persistence_errors_poison_issuance_and_context_cannot_be_replaced() {
     // The failed pre-issuance write exposed no nonce and left the durable file empty.
     assert!(store.reserve(claim(), 1000).unwrap());
 }
+
+#[test]
+fn program_state_fences_survive_restart_and_load_pre_program_snapshots() {
+    let temp = Temp::new();
+    let mut store = ApprovalStore::open(temp.file(), [9; 32]).unwrap();
+    store.observe_program([1; 32], [2; 32], 100, 1000).unwrap();
+    store.check_program([1; 32], [2; 32], 100).unwrap();
+    store.observe_program([1; 32], [3; 32], 101, 1001).unwrap();
+    assert!(store.check_program([1; 32], [2; 32], 100).is_err());
+    assert!(store.observe_program([1; 32], [2; 32], 100, 1001).is_err());
+    assert!(store.observe_program([1; 32], [2; 32], 101, 1001).is_err());
+    drop(store);
+    let store = ApprovalStore::open(temp.file(), [9; 32]).unwrap();
+    assert_eq!(store.program_slot([1; 32]).unwrap(), Some(101));
+    store.check_program([1; 32], [3; 32], 101).unwrap();
+    assert!(store.check_program([1; 32], [2; 32], 102).is_err());
+    drop(store);
+    // Additive snapshot field: an old journal can be opened without resetting claims.
+    let old = Temp::new();
+    let mut store = ApprovalStore::open(old.file(), [9; 32]).unwrap();
+    store.reserve(claim(), 1000).unwrap();
+    drop(store);
+    let mut snapshot: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(old.file()).unwrap()).unwrap();
+    snapshot.as_object_mut().unwrap().remove("program_states");
+    std::fs::write(old.file(), serde_json::to_vec(&snapshot).unwrap()).unwrap();
+    let store = ApprovalStore::open(old.file(), [9; 32]).unwrap();
+    assert_eq!(
+        store.lookup([1; 32], [2; 32], [3; 32]).unwrap(),
+        Some(Status::Uncertain)
+    );
+}

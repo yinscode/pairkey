@@ -25,6 +25,7 @@ pub(super) struct Offchain {
     http: reqwest::Client,
 }
 pub(super) struct Evidence {
+    pub program: Option<pairkey_core::approval::program::ProgramObservation>,
     pub approval: Approval,
     pub issuer: Option<Arc<TrustedIssuer>>,
 }
@@ -215,23 +216,56 @@ impl Worker {
             reg.public_shares[own.role.index()] == own.public_share,
             "namespace root mismatch"
         );
+        let program_source = if matches!(approval.request.identity, Identity::Program(_)) {
+            Some(
+                pairkey_core::approval::program::source_and_caller(&approval)?
+                    .0
+                    .clone(),
+            )
+        } else {
+            None
+        };
         let issuer = self.offchain.issuer(&approval.request.identity).await?;
         let minimum_slot = {
             let release = self.release.lock().unwrap();
+            let store = self.offchain.store.lock().unwrap();
+            let program_slot = if let Some(source) = &program_source {
+                store
+                    .program_slot(pairkey_core::approval::program::fence_key(reg, source))?
+                    .unwrap_or(0)
+            } else {
+                0
+            };
             release
                 .highest_slot
                 .max(release.controls.minimum_slot())
-                .max(self.offchain.store.lock().unwrap().minimum_slot()?)
+                .max(store.minimum_slot()?)
+                .max(program_slot)
         };
         let registry = self.trust.registry;
         let namespace = pair_registry::namespace_address(&registry, reg).0;
-        let addresses = [
+        let mut addresses = vec![
             self.trust.enclave_set,
             namespace,
             pair_registry::policy_address(&registry, &namespace).0,
             pair_registry::approval::rules_address(&registry, &reg.namespace.digest()).0,
         ];
-        let response=self.rpc.call("getMultipleAccounts",json!([addresses.map(|a|a.to_string()),{"encoding":"base64","commitment":"finalized","minContextSlot":minimum_slot}])).await?;
+        if let Some(source) = &program_source {
+            match source.mode {
+                pairkey_types::program_approval::Mode::Offchain => {
+                    addresses.extend(source.accounts.iter().map(|a| Pubkey::new_from_array(*a)))
+                }
+                pairkey_types::program_approval::Mode::Onchain => addresses.push(
+                    pair_registry::program_approval::approval_address(
+                        &registry,
+                        &reg.namespace.digest(),
+                        &attempt.commit.request_id,
+                    )
+                    .0,
+                ),
+            }
+        }
+        let response=self.rpc.call("getMultipleAccounts",json!([addresses.iter().map(|a|a.to_string()).collect::<Vec<_>>(),{"encoding":"base64","commitment":"finalized","minContextSlot":minimum_slot}])).await?;
         let slot = response["context"]["slot"]
             .as_u64()
             .context("missing slot")?;
@@ -296,7 +330,69 @@ impl Worker {
             },
         };
         self.record_rules(&observation, reg, minimum_slot)?;
-        let decision = pairkey_core::approval::authorize(
+        pairkey_core::approval::verify_with_oidc(
+            reg,
+            message,
+            &pairkey_core::approval::rules(&self.trust, &observation, reg)?,
+            &approval,
+            now(),
+            issuer.as_deref(),
+        )?;
+        let program = if let Some(source) = &program_source {
+            ensure!(
+                !pairkey_core::approval::observe_rules(
+                    &self.trust,
+                    &observation,
+                    reg,
+                    now(),
+                    minimum_slot
+                )?
+                .1,
+                "inactive namespace or signer set"
+            );
+            let state =
+                |i: usize| -> anyhow::Result<pairkey_types::program_approval::AccountState> {
+                    if accounts[i].is_null() {
+                        return Ok(pairkey_types::program_approval::AccountState {
+                            address: addresses[i].to_bytes(),
+                            owner: solana_sdk::system_program::id().to_bytes(),
+                            lamports: 0,
+                            executable: false,
+                            data: vec![],
+                        });
+                    }
+                    let account = decode(i)?;
+                    Ok(pairkey_types::program_approval::AccountState {
+                        address: account.address.to_bytes(),
+                        owner: account.owner.to_bytes(),
+                        data: account.data,
+                        lamports: accounts[i]["lamports"]
+                            .as_u64()
+                            .context("account lamports")?,
+                        executable: accounts[i]["executable"]
+                            .as_bool()
+                            .context("account executable flag")?,
+                    })
+                };
+            let view = match source.mode {
+                pairkey_types::program_approval::Mode::Offchain => {
+                    let mut states = vec![state(0)?];
+                    for i in 4..addresses.len() {
+                        states.push(state(i)?);
+                    }
+                    self.evaluate_program(reg, &approval, message, &observation, states)
+                        .await?
+                }
+                pairkey_types::program_approval::Mode::Onchain => {
+                    pairkey_core::approval::program::ProgramObservation::Committed(decode(4)?)
+                }
+            };
+            self.record_program(reg, &approval, message, &observation, &view)?;
+            Some(view)
+        } else {
+            None
+        };
+        let decision = pairkey_core::approval::authorize_with_program(
             &self.trust,
             &observation,
             reg,
@@ -304,6 +400,7 @@ impl Worker {
             message,
             &approval.proof,
             issuer.as_deref(),
+            program.as_ref(),
             now(),
             minimum_slot,
         );
@@ -333,7 +430,11 @@ impl Worker {
         Ok(AuthorizedView {
             observation,
             minimum_slot,
-            offchain: Some(Evidence { approval, issuer }),
+            offchain: Some(Evidence {
+                approval,
+                issuer,
+                program,
+            }),
         })
     }
     /// Called with the issuance lock held, before allocating any signing nonce.

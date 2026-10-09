@@ -1,3 +1,4 @@
+mod program;
 use super::*;
 use pair_registry::{EnclaveSet, NamespaceRecord, RequestRecord};
 use pairkey_types::approval::{
@@ -6,12 +7,21 @@ use pairkey_types::approval::{
 use pairkey_types::{AccountPath, Commit, Scheme};
 
 struct RpcState {
+    program: Mutex<Option<program::ProgramRpc>>,
     observation: Mutex<Observation>,
     paused: AtomicBool,
     entered: tokio::sync::Notify,
     resume: tokio::sync::Notify,
 }
 async fn rpc(State(state): State<Arc<RpcState>>, Json(q): Json<Value>) -> Json<Value> {
+    let program_response = {
+        let mut program = state.program.lock().unwrap();
+        program.as_mut().map(|p| p.rpc(&state, &q))
+    };
+    if let Some(result) = program_response {
+        return Json(json!({"jsonrpc":"2.0","id":1,"result":result}));
+    }
+
     let result = match q["method"].as_str().unwrap() {
         "getMultipleAccounts" => {
             let o = state.observation.lock().unwrap();
@@ -219,6 +229,7 @@ impl Fixture {
             max_chain_lag_secs: 30,
         };
         let state = Arc::new(RpcState {
+            program: Default::default(),
             observation: Mutex::new(observation),
             paused: AtomicBool::new(false),
             entered: Default::default(),
