@@ -38,6 +38,9 @@ pub fn set_rules(payer: Pubkey, update: PolicyUpdate, proof: PolicyProof) -> Ins
         Identity::Account { public_key } => {
             AccountMeta::new_readonly(Pubkey::new_from_array(*public_key), true)
         }
+        Identity::Program(source) => {
+            AccountMeta::new_readonly(Pubkey::new_from_array(source.authority), true)
+        }
         _ => AccountMeta::new_readonly(payer, false),
     };
     pair_registry::instruction(

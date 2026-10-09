@@ -25,10 +25,12 @@ pub enum Identity {
         audience: String,
         subject: String,
     },
+    Program(Box<crate::program_approval::Source>),
 }
 impl Identity {
     pub fn validate(&self) -> Result<(), Error> {
         match self {
+            Self::Program(source) => source.validate(),
             Self::Account { public_key } if *public_key != [0; 32] => Ok(()),
             Self::Passkey {
                 public_key,
@@ -64,6 +66,7 @@ impl Identity {
     pub fn authority(&self) -> [u8; 32] {
         match self {
             Self::Account { public_key } => *public_key,
+            Self::Program(source) => source.authority,
             _ => digest(b"pairkey/identity-authority/v1", self),
         }
     }
@@ -258,6 +261,10 @@ pub enum Proof {
         id_token: String,
         signature: Vec<u8>,
     },
+    Program {
+        caller: [u8; 32],
+        signature: Vec<u8>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
@@ -338,6 +345,7 @@ pub enum PolicyProof {
     },
     /// Both enrolled signer identities must attest the exact update, not a sign request.
     OidcAttested,
+    ProgramCpi,
 }
 
 fn interval(issued_at: i64, expires_at: i64, now: i64, maximum: i64) -> Result<(), Error> {

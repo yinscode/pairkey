@@ -14,6 +14,7 @@ use solana_program::{
 include!(concat!(env!("OUT_DIR"), "/program_id.rs"));
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
+pub mod approval;
 pub const AUTHORITY_SEED: &[u8] = b"controller";
 
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
@@ -31,6 +32,12 @@ pub fn process_instruction(
 ) -> ProgramResult {
     if data.len() > 1600 {
         return Err(ProgramError::InvalidArgument);
+    }
+    if data.starts_with(pairkey_types::program_approval::APPROVE_PREFIX)
+        || data.starts_with(pairkey_types::program_approval::COMMIT_PREFIX)
+        || data.starts_with(approval::POLICY_PREFIX)
+    {
+        return approval::process(program, accounts, data);
     }
     let call = ControllerInstruction::try_from_slice(data)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
@@ -54,6 +61,7 @@ pub fn process_instruction(
         RegistryInstruction::Register { .. }
         | RegistryInstruction::Commit { .. }
         | RegistryInstruction::SetPolicy { .. }
+        | RegistryInstruction::SetRules { .. }
         | RegistryInstruction::GrantSession { .. }
         | RegistryInstruction::GrantEvmSession { .. } => {}
         RegistryInstruction::Freeze { .. }

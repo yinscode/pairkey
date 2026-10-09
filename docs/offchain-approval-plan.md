@@ -122,9 +122,27 @@ all private runtime state. Do not run the migrated local testnet worker state.
   rebuilt programs. The existing SBF toolchain diagnostics remain as noted above.
   Remaining integration verification must exercise the full hosted path and all
   five chain adapters; these foundation tests do not establish that rollout.
-- Stages 4–6 pending. The new policies are not yet enforced by running signers or
+- Stage 4 in progress: additive program-source identity, caller-proof and approval
+  ABI types preserve the existing program-controlled PDA as derivation authority.
+  A new gateway instruction records an exact approval through that PDA without
+  namespace registration. The example controller implements `pairkey_approve`
+  and `pairkey_approve_commit`, owner-managed destination/path rules, and a
+  persistent remaining-approvals counter. Simulation authenticates a signer-bound
+  caller/context and the exact state snapshot against the application's pinned
+  enclave set; it never consumes the counter. Commit atomically decrements the
+  counter and records approval, with duplicate/failing CPI rolling the change back.
+  Programs can also update standard rules through authenticated CPI.
+  Off-chain mode pins immutable code; on-chain mode uses the committed PDA
+  authorization and supports upgradeable programs. Four new SBF tests cover these
+  paths, real transaction-size bounds, state changes, forged authority and fake
+  enclave sets. The ten existing policy/registry SBF tests also pass.
+  Expanding the instruction enum exposed a live SBF decoder stack overflow; moving
+  legacy handlers into separate functions removed that diagnostic. The on-chain
+  PDA curve check uses the native syscall because this SDK's Pubkey method panics
+  on SBF. Existing dalek/toolchain diagnostics remain as previously documented.
+  Next: independently authenticate program callers at each worker, fetch and bind
+  application state, simulate the new ABI or read the committed approval, and
+  enforce that decision again at signing release. The worker currently refuses
+  program proofs until this integration is complete.
+- Stages 5–6 pending. The new policies are not yet enforced by running signers or
   exposed through the hosted UI; do not deploy the gateway separately as a feature.
-  The existing `example-policy` simulation is a legacy, registered-namespace
-  evaluator with a signer-attested input. Stage 4 must add the registration-free
-  program source, authenticated caller context and general approval ABI, rather
-  than treating that legacy evaluator as completion of the new program flow.

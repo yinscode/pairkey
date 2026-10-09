@@ -363,3 +363,5 @@ pub fn simulation_transaction(
 }
 
 pub mod multi;
+
+pub mod program_approval;

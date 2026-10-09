@@ -367,3 +367,19 @@ mod tests {
         assert!(shift_public(&reg, Scalar::from(2u64)).is_ok());
     }
 }
+
+pub mod program_approval;
+
+/// Curve membership for PDA-vs-wallet authority checks; not a prime-order key validator.
+pub fn is_edwards_point(bytes: [u8; 32]) -> bool {
+    #[cfg(target_os = "solana")]
+    {
+        solana_curve25519::edwards::validate_edwards(&solana_curve25519::edwards::PodEdwardsPoint(
+            bytes,
+        ))
+    }
+    #[cfg(not(target_os = "solana"))]
+    {
+        CompressedEdwardsY(bytes).decompress().is_some()
+    }
+}

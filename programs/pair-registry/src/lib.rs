@@ -19,6 +19,7 @@ use solana_program::{
 
 pub mod approval;
 mod policy;
+pub mod program_approval;
 pub use policy::{
     evm_session_address, policy_address, session_address, EvmSessionRecord, PolicyRecord,
     SessionRecord,
@@ -96,6 +97,9 @@ pub enum RegistryInstruction {
     SetRules {
         update: pairkey_types::approval::PolicyUpdate,
         proof: pairkey_types::approval::PolicyProof,
+    },
+    ApproveProgram {
+        approval: pairkey_types::program_approval::CommitApproval,
     },
 }
 pub fn set_address(program: &Pubkey, id: &[u8; 32]) -> (Pubkey, u8) {
@@ -249,8 +253,10 @@ pub fn process_instruction(
         return Err(bad());
     }
     let ix = RegistryInstruction::try_from_slice(data).map_err(|_| bad())?;
-    let mut iter = accounts.iter();
     match ix {
+        RegistryInstruction::ApproveProgram { approval } => {
+            program_approval::approve(program, accounts, approval)
+        }
         RegistryInstruction::SetRules { update, proof } => {
             approval::set_rules(program, accounts, update, proof)
         }
@@ -263,179 +269,16 @@ pub fn process_instruction(
             set_id,
             identities,
             development,
-        } => {
-            let payer = next_account_info(&mut iter)?;
-            let target = next_account_info(&mut iter)?;
-            let system = next_account_info(&mut iter)?;
-            signer(payer)?;
-            if identities[0] == identities[1] {
-                return Err(bad());
-            }
-            let (pda, bump) = set_address(program, &set_id);
-            address(target, pda)?;
-            // Creation governance is this signer; consumers must pin the enclave-set PDA.
-            let set = EnclaveSet {
-                version: VERSION,
-                set_id,
-                governor: payer.key.to_bytes(),
-                identities,
-                retired: false,
-                development,
-            };
-            create(
-                payer,
-                target,
-                system,
-                program,
-                &[b"set", &set_id, &[bump]],
-                &set,
-            )
-        }
+        } => process_createset(program, accounts, set_id, identities, development),
         RegistryInstruction::Register { registration } => {
-            let payer = next_account_info(&mut iter)?;
-            let controller = next_account_info(&mut iter)?;
-            let set_info = next_account_info(&mut iter)?;
-            let target = next_account_info(&mut iter)?;
-            let instructions = next_account_info(&mut iter)?;
-            let system = next_account_info(&mut iter)?;
-            signer(controller)?;
-            registration.validate().map_err(|_| bad())?;
-            if registration.namespace.registry != program.to_bytes()
-                || registration.namespace.derivation_authority != controller.key.to_bytes()
-            {
-                return Err(bad());
-            }
-            address(
-                set_info,
-                set_address(program, &registration.namespace.enclave_set).0,
-            )?;
-            let set: EnclaveSet = read(set_info, program)?;
-            if set.retired || set.version != VERSION {
-                return Err(bad());
-            }
-            let message = registration_message(&registration, controller.key);
-            for key in &set.identities {
-                ed_verified(instructions, key, &message, None)?;
-            }
-            let hash = registration.namespace.digest();
-            let (pda, bump) = namespace_address(program, &registration);
-            address(target, pda)?;
-            let record = NamespaceRecord {
-                registration,
-                controller: controller.key.to_bytes(),
-                frozen: false,
-            };
-            create(
-                payer,
-                target,
-                system,
-                program,
-                &[b"namespace", &hash, &[bump]],
-                &record,
-            )
+            process_register(program, accounts, registration)
         }
-        RegistryInstruction::Commit { commit } => {
-            let payer = next_account_info(&mut iter)?;
-            let controller = next_account_info(&mut iter)?;
-            let ns_info = next_account_info(&mut iter)?;
-            let set_info = next_account_info(&mut iter)?;
-            let target = next_account_info(&mut iter)?;
-            let system = next_account_info(&mut iter)?;
-            signer(controller)?;
-            let ns: NamespaceRecord = read(ns_info, program)?;
-            address(ns_info, namespace_address(program, &ns.registration).0)?;
-            address(
-                set_info,
-                set_address(program, &ns.registration.namespace.enclave_set).0,
-            )?;
-            let set: EnclaveSet = read(set_info, program)?;
-            if ns.frozen
-                || set.retired
-                || ns.controller != controller.key.to_bytes()
-                || commit.registration_digest != ns.registration.digest()
-                || commit.message_len == 0
-                || commit.message_len as usize > MAX_MESSAGE
-            {
-                return Err(bad());
-            }
-            let key = derive_public(&ns.registration, &commit.account).map_err(|_| bad())?;
-            let (pda, bump) = request_address(program, ns_info.key, &commit.request_id);
-            address(target, pda)?;
-            let id = commit.request_id;
-            let record = RequestRecord {
-                namespace_address: ns_info.key.to_bytes(),
-                commit,
-                derived_key: key,
-            };
-            create(
-                payer,
-                target,
-                system,
-                program,
-                &[b"request", ns_info.key.as_ref(), &id, &[bump]],
-                &record,
-            )
-        }
+        RegistryInstruction::Commit { commit } => process_commit(program, accounts, commit),
         RegistryInstruction::Respond { message, signature } => {
-            let payer = next_account_info(&mut iter)?;
-            let ns_info = next_account_info(&mut iter)?;
-            let req_info = next_account_info(&mut iter)?;
-            let target = next_account_info(&mut iter)?;
-            let instructions = next_account_info(&mut iter)?;
-            let system = next_account_info(&mut iter)?;
-            let ns: NamespaceRecord = read(ns_info, program)?;
-            address(ns_info, namespace_address(program, &ns.registration).0)?;
-            let req: RequestRecord = read(req_info, program)?;
-            address(
-                req_info,
-                request_address(program, ns_info.key, &req.commit.request_id).0,
-            )?;
-            if req.namespace_address != ns_info.key.to_bytes() {
-                return Err(bad());
-            }
-            req.commit
-                .authorize(&ns.registration, &message)
-                .map_err(|_| bad())?;
-            ed_verified(instructions, &req.derived_key, &message, Some(&signature))?;
-            let (pda, bump) = response_address(program, req_info.key);
-            address(target, pda)?;
-            let response = ResponseRecord {
-                request_address: req_info.key.to_bytes(),
-                signature,
-            };
-            create(
-                payer,
-                target,
-                system,
-                program,
-                &[b"response", req_info.key.as_ref(), &[bump]],
-                &response,
-            )
+            process_respond(program, accounts, message, signature)
         }
-        RegistryInstruction::Freeze { frozen } => {
-            let controller = next_account_info(&mut iter)?;
-            let ns_info = next_account_info(&mut iter)?;
-            signer(controller)?;
-            let mut ns: NamespaceRecord = read(ns_info, program)?;
-            address(ns_info, namespace_address(program, &ns.registration).0)?;
-            if ns.controller != controller.key.to_bytes() {
-                return Err(bad());
-            }
-            ns.frozen = frozen;
-            write(ns_info, &ns)
-        }
-        RegistryInstruction::Retire { retired } => {
-            let governor = next_account_info(&mut iter)?;
-            let set_info = next_account_info(&mut iter)?;
-            signer(governor)?;
-            let mut set: EnclaveSet = read(set_info, program)?;
-            address(set_info, set_address(program, &set.set_id).0)?;
-            if set.governor != governor.key.to_bytes() {
-                return Err(bad());
-            }
-            set.retired = retired;
-            write(set_info, &set)
-        }
+        RegistryInstruction::Freeze { frozen } => process_freeze(program, accounts, frozen),
+        RegistryInstruction::Retire { retired } => process_retire(program, accounts, retired),
     }
 }
 pub fn instruction(
@@ -448,4 +291,210 @@ pub fn instruction(
         accounts,
         data: borsh::to_vec(&data).unwrap(),
     }
+}
+
+#[inline(never)]
+fn process_createset(
+    program: &Pubkey,
+    accounts: &[AccountInfo],
+    set_id: [u8; 32],
+    identities: [[u8; 32]; 2],
+    development: bool,
+) -> ProgramResult {
+    let mut iter = accounts.iter();
+    let payer = next_account_info(&mut iter)?;
+    let target = next_account_info(&mut iter)?;
+    let system = next_account_info(&mut iter)?;
+    signer(payer)?;
+    if identities[0] == identities[1] {
+        return Err(bad());
+    }
+    let (pda, bump) = set_address(program, &set_id);
+    address(target, pda)?;
+    // Creation governance is this signer; consumers must pin the enclave-set PDA.
+    let set = EnclaveSet {
+        version: VERSION,
+        set_id,
+        governor: payer.key.to_bytes(),
+        identities,
+        retired: false,
+        development,
+    };
+    create(
+        payer,
+        target,
+        system,
+        program,
+        &[b"set", &set_id, &[bump]],
+        &set,
+    )
+}
+
+#[inline(never)]
+fn process_register(
+    program: &Pubkey,
+    accounts: &[AccountInfo],
+    registration: Registration,
+) -> ProgramResult {
+    let mut iter = accounts.iter();
+    let payer = next_account_info(&mut iter)?;
+    let controller = next_account_info(&mut iter)?;
+    let set_info = next_account_info(&mut iter)?;
+    let target = next_account_info(&mut iter)?;
+    let instructions = next_account_info(&mut iter)?;
+    let system = next_account_info(&mut iter)?;
+    signer(controller)?;
+    registration.validate().map_err(|_| bad())?;
+    if registration.namespace.registry != program.to_bytes()
+        || registration.namespace.derivation_authority != controller.key.to_bytes()
+    {
+        return Err(bad());
+    }
+    address(
+        set_info,
+        set_address(program, &registration.namespace.enclave_set).0,
+    )?;
+    let set: EnclaveSet = read(set_info, program)?;
+    if set.retired || set.version != VERSION {
+        return Err(bad());
+    }
+    let message = registration_message(&registration, controller.key);
+    for key in &set.identities {
+        ed_verified(instructions, key, &message, None)?;
+    }
+    let hash = registration.namespace.digest();
+    let (pda, bump) = namespace_address(program, &registration);
+    address(target, pda)?;
+    let record = NamespaceRecord {
+        registration,
+        controller: controller.key.to_bytes(),
+        frozen: false,
+    };
+    create(
+        payer,
+        target,
+        system,
+        program,
+        &[b"namespace", &hash, &[bump]],
+        &record,
+    )
+}
+
+#[inline(never)]
+fn process_commit(program: &Pubkey, accounts: &[AccountInfo], commit: Commit) -> ProgramResult {
+    let mut iter = accounts.iter();
+    let payer = next_account_info(&mut iter)?;
+    let controller = next_account_info(&mut iter)?;
+    let ns_info = next_account_info(&mut iter)?;
+    let set_info = next_account_info(&mut iter)?;
+    let target = next_account_info(&mut iter)?;
+    let system = next_account_info(&mut iter)?;
+    signer(controller)?;
+    let ns: NamespaceRecord = read(ns_info, program)?;
+    address(ns_info, namespace_address(program, &ns.registration).0)?;
+    address(
+        set_info,
+        set_address(program, &ns.registration.namespace.enclave_set).0,
+    )?;
+    let set: EnclaveSet = read(set_info, program)?;
+    if ns.frozen
+        || set.retired
+        || ns.controller != controller.key.to_bytes()
+        || commit.registration_digest != ns.registration.digest()
+        || commit.message_len == 0
+        || commit.message_len as usize > MAX_MESSAGE
+    {
+        return Err(bad());
+    }
+    let key = derive_public(&ns.registration, &commit.account).map_err(|_| bad())?;
+    let (pda, bump) = request_address(program, ns_info.key, &commit.request_id);
+    address(target, pda)?;
+    let id = commit.request_id;
+    let record = RequestRecord {
+        namespace_address: ns_info.key.to_bytes(),
+        commit,
+        derived_key: key,
+    };
+    create(
+        payer,
+        target,
+        system,
+        program,
+        &[b"request", ns_info.key.as_ref(), &id, &[bump]],
+        &record,
+    )
+}
+
+#[inline(never)]
+fn process_respond(
+    program: &Pubkey,
+    accounts: &[AccountInfo],
+    message: Vec<u8>,
+    signature: [u8; 64],
+) -> ProgramResult {
+    let mut iter = accounts.iter();
+    let payer = next_account_info(&mut iter)?;
+    let ns_info = next_account_info(&mut iter)?;
+    let req_info = next_account_info(&mut iter)?;
+    let target = next_account_info(&mut iter)?;
+    let instructions = next_account_info(&mut iter)?;
+    let system = next_account_info(&mut iter)?;
+    let ns: NamespaceRecord = read(ns_info, program)?;
+    address(ns_info, namespace_address(program, &ns.registration).0)?;
+    let req: RequestRecord = read(req_info, program)?;
+    address(
+        req_info,
+        request_address(program, ns_info.key, &req.commit.request_id).0,
+    )?;
+    if req.namespace_address != ns_info.key.to_bytes() {
+        return Err(bad());
+    }
+    req.commit
+        .authorize(&ns.registration, &message)
+        .map_err(|_| bad())?;
+    ed_verified(instructions, &req.derived_key, &message, Some(&signature))?;
+    let (pda, bump) = response_address(program, req_info.key);
+    address(target, pda)?;
+    let response = ResponseRecord {
+        request_address: req_info.key.to_bytes(),
+        signature,
+    };
+    create(
+        payer,
+        target,
+        system,
+        program,
+        &[b"response", req_info.key.as_ref(), &[bump]],
+        &response,
+    )
+}
+
+#[inline(never)]
+fn process_freeze(program: &Pubkey, accounts: &[AccountInfo], frozen: bool) -> ProgramResult {
+    let mut iter = accounts.iter();
+    let controller = next_account_info(&mut iter)?;
+    let ns_info = next_account_info(&mut iter)?;
+    signer(controller)?;
+    let mut ns: NamespaceRecord = read(ns_info, program)?;
+    address(ns_info, namespace_address(program, &ns.registration).0)?;
+    if ns.controller != controller.key.to_bytes() {
+        return Err(bad());
+    }
+    ns.frozen = frozen;
+    write(ns_info, &ns)
+}
+
+#[inline(never)]
+fn process_retire(program: &Pubkey, accounts: &[AccountInfo], retired: bool) -> ProgramResult {
+    let mut iter = accounts.iter();
+    let governor = next_account_info(&mut iter)?;
+    let set_info = next_account_info(&mut iter)?;
+    signer(governor)?;
+    let mut set: EnclaveSet = read(set_info, program)?;
+    address(set_info, set_address(program, &set.set_id).0)?;
+    if set.governor != governor.key.to_bytes() {
+        return Err(bad());
+    }
+    set.retired = retired;
+    write(set_info, &set)
 }

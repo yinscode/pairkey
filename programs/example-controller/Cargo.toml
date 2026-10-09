@@ -15,3 +15,5 @@ no-entrypoint = []
 pair-registry = { path = "../pair-registry", features = ["no-entrypoint"] }
 borsh.workspace = true
 solana-program.workspace = true
+
+pairkey-types = { path = "../../crates/pairkey-types" }

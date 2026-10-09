@@ -151,6 +151,10 @@ pub(super) fn set_rules(
             let message = passkey_message(&update, &authenticator_data, &client_data_json)?;
             p256_verified(instructions, public_key, &message)?;
         }
+        (Identity::Program(source), PolicyProof::ProgramCpi) => {
+            address(owner, super::program_approval::validate_source(source)?)?;
+            signer(owner)?;
+        }
         (Identity::Oidc { .. }, PolicyProof::OidcAttested) => {
             for identity in set.identities {
                 ed_verified(instructions, &identity, &update.attestation_message(), None)?;
