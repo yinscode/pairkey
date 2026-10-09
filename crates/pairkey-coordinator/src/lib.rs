@@ -55,6 +55,25 @@ pub struct Relay {
     config: Config,
 }
 impl Relay {
+    pub async fn approve_offchain(
+        &self,
+        q: &pairkey_types::approval::Submission,
+    ) -> anyhow::Result<pairkey_types::policy::Authorization> {
+        q.approval
+            .request
+            .commit
+            .authorize(&q.registration, &q.payload)?;
+        let expected = pairkey_types::policy::Authorization::offchain(&q.approval);
+        let (a, b) = tokio::join!(
+            self.post::<_, pairkey_types::policy::Authorization>(0, "/approve/offchain", q),
+            self.post::<_, pairkey_types::policy::Authorization>(1, "/approve/offchain", q)
+        );
+        ensure!(
+            a? == expected && b? == expected,
+            "signer approval commitment mismatch"
+        );
+        Ok(expected)
+    }
     pub async fn registration(
         &self,
         request: RegistrationRequest,
@@ -342,6 +361,23 @@ struct Service {
     subscriptions: Arc<tokio::sync::Semaphore>,
 }
 type S = Arc<Service>;
+async fn approve_offchain(
+    State(s): State<S>,
+    Json(q): Json<pairkey_types::approval::Submission>,
+) -> Result<Json<pairkey_types::policy::Authorization>, (StatusCode, Json<Value>)> {
+    let _permit = s.capacity.clone().try_acquire_owned().map_err(|_| {
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({"error":"approval capacity reached"})),
+        )
+    })?;
+    s.relay.approve_offchain(&q).await.map(Json).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":e.to_string()})),
+        )
+    })
+}
 async fn propose(
     State(s): State<S>,
     Json(request): Json<RegistrationRequest>,
@@ -529,6 +565,10 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         .route("/jobs/:id/events", get(events))
         .route("/jobs/:id/cancel", post(jobs::cancel))
         .layer(DefaultBodyLimit::max(16_384))
+        .route(
+            "/approvals/offchain",
+            post(approve_offchain).layer(DefaultBodyLimit::max(64 * 1024)),
+        )
         .with_state(service);
     println!(
         "{}",

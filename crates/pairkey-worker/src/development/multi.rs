@@ -419,7 +419,8 @@ pub(super) async fn start(
             }
         };
         if let Some((b, v)) = &checked {
-            drop(w.release_guard(b, v)?);
+            let _release = w.release_guard(b, v)?;
+            w.reserve_approval(b)?;
         }
         d.active = Some((q.id, auth, Instant::now()));
         if let Err(e) = send(d, &dkls::Frame::DCommand(Box::new(command))).await {
@@ -477,7 +478,10 @@ pub(super) async fn exchange(
                     sig.push(recovery_id);
                     let (b, v) = view(&w, a).await?;
                     let _release = w.release_guard(&b, &v)?;
-                    result = Some(receipt(&w, a, sig, v.observation.slot)?);
+                    w.check_approval(&b)?;
+                    let response = receipt(&w, a, sig, v.observation.slot)?;
+                    w.complete_approval(&b, &response)?;
+                    result = Some(response);
                     terminal = true;
                 }
                 dkls::Frame::Failure(f) => {
@@ -498,6 +502,7 @@ pub(super) async fn exchange(
                     if let Some(a) = &auth {
                         let (b, v) = view(&w, a).await?;
                         let _release = w.release_guard(&b, &v)?;
+                        w.check_approval(&b)?;
                         frames.push(other);
                     } else {
                         terminal = matches!(other, dkls::Frame::DReply(_));
@@ -545,6 +550,7 @@ pub(super) async fn rbegin(
             "FROST capacity or duplicate attempt"
         );
         let permit = w.nonce_capacity.clone().try_acquire_owned()?;
+        w.reserve_approval(&b)?;
         let (round, owned) = match (&a.request.certificate, &a.request.intent.payload) {
             (mw::Certificate::RedPallas(public), Payload::RedPallas { message }) => {
                 let (r, p) = redpallas::Pending::begin(
@@ -599,7 +605,7 @@ pub(super) struct RedResult {
     pub finish: RedFinish,
     pub shares: [Envelope; 2],
 }
-fn rounds(w: &Worker, q: &RedFinish) -> anyhow::Result<[Vec<u8>; 2]> {
+pub(super) fn rounds(w: &Worker, q: &RedFinish) -> anyhow::Result<[Vec<u8>; 2]> {
     let b = begin(&q.authorized)?;
     ensure!(
         q.rounds[0].sender == Role::A && q.rounds[1].sender == Role::B,
@@ -641,6 +647,7 @@ pub(super) async fn rfinish(
                 "expired or restarted attempt"
             );
             let _release = w.release_guard(&b, &v)?;
+            w.check_approval(&b)?;
             ensure!(
                 !owned.lease.cancelled.load(Ordering::SeqCst),
                 "cancelled FROST attempt"
@@ -680,6 +687,7 @@ pub(super) async fn rresult(
             shares[i] = s;
         }
         let mut release = w.release_guard(&b, &v)?;
+        w.check_approval(&b)?;
         let result = match (&a.request.certificate, &a.request.intent.payload) {
             (mw::Certificate::RedPallas(public), Payload::RedPallas { message }) => {
                 redpallas::aggregate(
@@ -710,7 +718,9 @@ pub(super) async fn rresult(
                 return Err(e);
             }
         };
-        receipt(&w, a, sig, v.observation.slot)
+        let response = receipt(&w, a, sig, v.observation.slot)?;
+        w.complete_approval(&b, &response)?;
+        Ok(response)
     }
     .await
     .map(Json)

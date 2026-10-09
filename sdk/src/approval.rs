@@ -6,6 +6,32 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
+impl crate::service::Client {
+    /// Both signers authenticate privately. Use the returned public commitment
+    /// with existing submit_authorized/submit_intent APIs; do not put proofs in jobs.
+    pub async fn approve_offchain(
+        &self,
+        q: &pairkey_types::approval::Submission,
+    ) -> Result<pairkey_types::policy::Authorization> {
+        q.approval
+            .request
+            .commit
+            .authorize(&q.registration, &q.payload)?;
+        let expected = pairkey_types::policy::Authorization::offchain(&q.approval);
+        let response = self
+            .http
+            .post(format!("{}/approvals/offchain", self.endpoint))
+            .json(q)
+            .send()
+            .await
+            .map_err(reqwest::Error::without_url)?;
+        let auth: pairkey_types::policy::Authorization =
+            crate::http::bounded_json(response, crate::http::MAX_SERVICE_RESPONSE).await?;
+        ensure!(auth == expected, "approval commitment changed");
+        Ok(auth)
+    }
+}
+
 pub fn set_rules(payer: Pubkey, update: PolicyUpdate, proof: PolicyProof) -> Instruction {
     let registry = Pubkey::new_from_array(update.namespace.registry);
     let owner = match &update.identity {

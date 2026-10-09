@@ -255,6 +255,15 @@ pub struct Approval {
     pub proof: Proof,
 }
 
+/// Private submission to both signers before the public signing protocol starts.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Submission {
+    pub registration: Registration,
+    pub payload: Vec<u8>,
+    pub approval: Approval,
+}
+
 /// Owner-authorized replacement of one persistent policy. Revisions start at one;
 /// there is no delete instruction that could silently restore the absent default.
 #[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]

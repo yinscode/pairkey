@@ -33,12 +33,15 @@ use std::{
 use zeroize::Zeroizing;
 
 mod multi;
+mod offchain;
 #[cfg(test)]
 mod tests;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(default)]
+    pub oidc_issuers: Vec<offchain::IssuerConfig>,
     #[serde(default)]
     pub dkls_binary: Option<String>,
     pub role: Role,
@@ -145,8 +148,10 @@ impl ReleaseState {
 struct AuthorizedView {
     observation: Observation,
     minimum_slot: u64,
+    offchain: Option<offchain::Evidence>,
 }
 struct Worker {
+    offchain: offchain::Offchain,
     multi: multi::Multi,
     signer: Signer,
     channel: Channel,
@@ -223,6 +228,11 @@ impl Worker {
         let mut release = self.release.lock().unwrap();
         release.controls.observe_inactive(slot)?;
         release.highest_slot = release.highest_slot.max(slot);
+        self.offchain
+            .store
+            .lock()
+            .unwrap()
+            .observe_inactive(slot, now())?;
         Ok(())
     }
     fn release_guard(
@@ -239,32 +249,68 @@ impl Worker {
             self.started.elapsed().as_millis() as u64,
             self.trust.max_observation_age_secs as u64 * 1000,
         )?;
-        let reg = authorize(
-            &self.trust,
-            &view.observation,
-            &begin.attempt,
-            &begin.message,
-            now(),
-            view.minimum_slot,
-        )?;
-        ensure!(reg == begin.registration, "registration changed");
+        if let Some(evidence) = &view.offchain {
+            pairkey_core::approval::authorize(
+                &self.trust,
+                &view.observation,
+                &begin.registration,
+                &begin.attempt,
+                &begin.message,
+                &evidence.approval.proof,
+                evidence.issuer.as_deref(),
+                now(),
+                view.minimum_slot,
+            )?;
+        } else {
+            let reg = authorize(
+                &self.trust,
+                &view.observation,
+                &begin.attempt,
+                &begin.message,
+                now(),
+                view.minimum_slot,
+            )?;
+            ensure!(reg == begin.registration, "registration changed");
+            ensure!(
+                release
+                    .policies
+                    .get(&view.observation.namespace.address)
+                    .map(|p| p.0)
+                    == Some(begin.attempt.authorization.policy_version),
+                "policy changed before issuance"
+            );
+        }
         release.controls.check_active(view.observation.slot)?;
-        ensure!(
-            release
-                .policies
-                .get(&view.observation.namespace.address)
-                .map(|p| p.0)
-                == Some(begin.attempt.authorization.policy_version),
-            "policy changed before issuance"
-        );
+        let rules =
+            pairkey_core::approval::rules(&self.trust, &view.observation, &begin.registration)?;
+        self.offchain.store.lock().unwrap().check_policy(
+            begin.registration.namespace.digest(),
+            rules.revision,
+            rules.digest(),
+            view.observation.slot,
+        )?;
         Ok(release)
     }
     async fn observe(&self, begin: &Begin) -> anyhow::Result<AuthorizedView> {
+        if begin.attempt.authorization.offchain_request().is_some() {
+            let approval = self.offchain.proof(&begin.attempt.authorization)?;
+            return self
+                .offchain_view(
+                    &begin.registration,
+                    &begin.attempt,
+                    &begin.message,
+                    approval,
+                )
+                .await;
+        }
         self.active()?;
         // Capture the lower bound once; concurrent newer reads cannot invalidate this read.
         let minimum_slot = {
             let release = self.release.lock().unwrap();
-            release.highest_slot.max(release.controls.minimum_slot())
+            release
+                .highest_slot
+                .max(release.controls.minimum_slot())
+                .max(self.offchain.store.lock().unwrap().minimum_slot()?)
         };
         let program = pair_registry::id();
         let namespace = pair_registry::namespace_address(&program, &begin.registration).0;
@@ -351,6 +397,7 @@ impl Worker {
                 decode(2)?
             },
         };
+        self.record_rules(&observation, &begin.registration, minimum_slot)?;
         // Authenticate the entire authorization before contacting the simulator.
         let preparation = prepare(
             &self.trust,
@@ -368,6 +415,15 @@ impl Worker {
         }
         {
             let mut release = self.release.lock().unwrap();
+            let rules =
+                pairkey_core::approval::rules(&self.trust, &observation, &begin.registration)?;
+            self.offchain.store.lock().unwrap().observe_policy(
+                begin.registration.namespace.digest(),
+                rules.revision,
+                rules.digest(),
+                slot,
+                now(),
+            )?;
             let policies = &mut release.policies;
             let version = begin.attempt.authorization.policy_version;
             if let Some((old_version, old_slot)) = policies.get(&namespace) {
@@ -487,6 +543,7 @@ impl Worker {
         Ok(AuthorizedView {
             observation,
             minimum_slot,
+            offchain: None,
         })
     }
     fn decode_rounds(&self, request: &Finish) -> anyhow::Result<[RoundOne; 2]> {
@@ -573,6 +630,7 @@ async fn begin(State(w): State<W>, Json(q): Json<Begin>) -> Result<Json<Envelope
         .clone()
         .try_acquire_owned()
         .map_err(failure)?;
+    w.reserve_approval(&q).map_err(failure)?;
     let (round, signing) = w
         .signer
         .begin_owned(&q.registration, &q.attempt, &q.message, &mut OsRng)
@@ -605,6 +663,7 @@ async fn finish(State(w): State<W>, Json(q): Json<Finish>) -> Result<Json<Envelo
         let view = w.observe(&q.begin).await?;
         let rounds = w.decode_rounds(&q)?;
         let mut release = w.release_guard(&q.begin, &view)?;
+        w.check_approval(&q.begin)?;
         let share = match in_flight.sign(&rounds) {
             Ok(share) => share,
             Err(e) => {
@@ -647,6 +706,7 @@ async fn result(
             .map_err(failure)?,
     ];
     let mut release = w.release_guard(begin, &view).map_err(failure)?;
+    w.check_approval(begin).map_err(failure)?;
     let signature = match aggregate(
         &begin.registration,
         &begin.attempt,
@@ -675,11 +735,13 @@ async fn result(
         provider_domain: w.trust.provider_domain.clone(),
     };
     let identity_signature = w.channel.sign_public(&receipt_message(&receipt));
-    Ok(Json(ResultResponse {
+    let response = ResultResponse {
         attestation: w.channel.attest(begin.peer.evidence.boot_id),
         receipt,
         identity_signature,
-    }))
+    };
+    w.complete_approval(begin, &response).map_err(failure)?;
+    Ok(Json(response))
 }
 async fn abort(State(w): State<W>, Json(at): Json<Attempt>) -> StatusCode {
     let _release = w.release.lock().unwrap();
@@ -738,7 +800,14 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
     };
     let root_path = std::fs::canonicalize(&config.root_file)?;
     let release = ReleaseState::load(&format!("{}.incident", root_path.display()))?;
+    let offchain = offchain::Offchain::new(
+        &format!("{}.approvals-v1", root_path.display()),
+        &trust,
+        config.role,
+        config.oidc_issuers,
+    )?;
     let worker = Arc::new(Worker {
+        offchain,
         multi: multi::Multi::new(*root, config.root_file.clone(), config.dkls_binary),
         signer: Signer::new(Root::new(*root), config.role),
         channel,
@@ -773,6 +842,11 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
         .route("/abort", post(abort))
         .layer(DefaultBodyLimit::max(16_384))
         .merge(multi_router)
+        .route(
+            "/approve/offchain",
+            post(offchain::approve).layer(DefaultBodyLimit::max(64 * 1024)),
+        )
+        .route("/approve/result", post(offchain::lookup))
         .layer(axum::middleware::from_fn_with_state(worker.clone(), limit))
         .with_state(worker.clone());
     tokio::spawn(async move {

@@ -92,11 +92,16 @@ all private runtime state. Do not run the migrated local testnet worker state.
   the new flow. New rules also restrict legacy COMMIT/session authorization.
   Workers now fetch the rules account for legacy requests; four new chain-core
   tests, existing authorization tests and ten worker regression tests pass.
-  Next: privately preauthorize an exact request at each worker, cache its bounded
-  proof until expiry, then refer to the proof commitment during signing. This
-  avoids putting authentication tokens into public signing requests/receipts.
-  Connect the durable store before nonce generation and at release; fetch JWKS
-  only from operator-configured HTTPS endpoints. Add coordinator/SDK ingress and
-  restart-safe Ed25519 job recovery alongside the existing multi-suite job store.
+  Worker integration is now implemented: each worker privately authenticates the
+  request, caches its bounded proof until expiry, and uses only a proof commitment
+  in public protocol messages. JWKS are fetched only from configured HTTPS URLs.
+  Durable claims precede signing nonce generation in all worker suites; policy and
+  authentication are checked again before releasing output. Observing a stricter
+  policy fences previously prepared requests even when the new request is denied.
+  Coordinator/SDK private ingress is available. Fifteen worker tests pass, including
+  actual registration-free account/Ed25519 and bound-passkey/RedPallas signing,
+  invalid proofs, cached public results, cancellation and policy races. Targeted
+  clippy checks pass. Coordinator restart-safe recovery and OIDC policy-update
+  attestation endpoints remain to be connected.
 - Stages 4–6 pending. The new policies are not yet enforced by running signers or
   exposed through the hosted UI; do not deploy the gateway separately as a feature.

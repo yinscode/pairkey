@@ -1,17 +1,20 @@
 use super::*;
 use pair_registry::{EnclaveSet, NamespaceRecord, RequestRecord};
+use pairkey_types::approval::{
+    Approval, Identity, Proof, Request, Rules, Submission, APPROVAL_VERSION,
+};
 use pairkey_types::{AccountPath, Commit, Scheme};
 
 struct RpcState {
-    observation: Observation,
+    observation: Mutex<Observation>,
     paused: AtomicBool,
     entered: tokio::sync::Notify,
     resume: tokio::sync::Notify,
 }
 async fn rpc(State(state): State<Arc<RpcState>>, Json(q): Json<Value>) -> Json<Value> {
-    let o = &state.observation;
     let result = match q["method"].as_str().unwrap() {
         "getMultipleAccounts" => {
+            let o = state.observation.lock().unwrap();
             let known = [&o.set, &o.namespace, &o.request]
                 .into_iter()
                 .chain(o.policy.as_ref())
@@ -28,7 +31,7 @@ async fn rpc(State(state): State<Arc<RpcState>>, Json(q): Json<Value>) -> Json<V
                 state.entered.notify_one();
                 state.resume.notified().await;
             }
-            json!(o.block_time)
+            json!(state.observation.lock().unwrap().block_time)
         }
         other => panic!("unexpected test RPC {other}"),
     };
@@ -48,10 +51,55 @@ impl Drop for Fixture {
     }
 }
 impl Fixture {
+    fn wallet_submission(&self) -> Submission {
+        use ed25519_dalek::Signer as _;
+        let request = Request {
+            version: APPROVAL_VERSION,
+            identity: Identity::Account {
+                public_key: self.begin.registration.namespace.derivation_authority,
+            },
+            commit: self.begin.attempt.commit.clone(),
+            policy_revision: 0,
+            policy_digest: Rules::default().digest(),
+            issued_at: now(),
+            expires_at: now() + 120,
+        };
+        let proof = Proof::Account {
+            signature: ed25519_dalek::SigningKey::from_bytes(&[42; 32])
+                .sign(&request.signing_message())
+                .to_bytes()
+                .to_vec(),
+        };
+        Submission {
+            registration: self.begin.registration.clone(),
+            payload: self.begin.message.clone(),
+            approval: Approval { request, proof },
+        }
+    }
+    async fn wallet() -> (Self, Submission) {
+        let key = ed25519_dalek::SigningKey::from_bytes(&[42; 32]);
+        let mut f = Self::new_source(
+            false,
+            Some(Identity::Account {
+                public_key: key.verifying_key().to_bytes(),
+            }),
+        )
+        .await;
+        let q = f.wallet_submission();
+        f.begin.attempt.authorization =
+            offchain::approve(State(Arc::clone(&f.worker)), Json(q.clone()))
+                .await
+                .unwrap()
+                .0;
+        (f, q)
+    }
     async fn new() -> Self {
         Self::new_with(false).await
     }
     async fn new_with(red: bool) -> Self {
+        Self::new_source(red, None).await
+    }
+    async fn new_source(red: bool, identity: Option<pairkey_types::approval::Identity>) -> Self {
         let a_identity = Channel::development(Role::A, [31; 32], [0; 32]).identity();
         let peer = Channel::development(Role::B, [32; 32], a_identity);
         let channel = Channel::development(Role::A, [31; 32], peer.identity());
@@ -63,7 +111,7 @@ impl Fixture {
             scheme: Scheme::FrostEd25519,
             network: [1; 32],
             registry: program.to_bytes(),
-            derivation_authority: [3; 32],
+            derivation_authority: identity.as_ref().map(|i| i.authority()).unwrap_or([3; 32]),
             namespace_id: [4; 32],
             enclave_set: [5; 32],
         };
@@ -109,7 +157,7 @@ impl Fixture {
         let namespace = pair_registry::namespace_address(&program, &reg).0;
         let set = pair_registry::set_address(&program, &ns.enclave_set).0;
         let identities = [channel.identity(), peer.identity()];
-        let observation = Observation {
+        let mut observation = Observation {
             rules: None,
             policy: None,
             session: None,
@@ -154,6 +202,11 @@ impl Fixture {
                 .unwrap(),
             },
         };
+        if identity.is_some() {
+            observation.namespace.owner = solana_sdk::system_program::id();
+            observation.namespace.data.clear();
+            observation.request.data.clear();
+        }
         let trust = Trust {
             registry: program,
             network: ns.network,
@@ -166,7 +219,7 @@ impl Fixture {
             max_chain_lag_secs: 30,
         };
         let state = Arc::new(RpcState {
-            observation,
+            observation: Mutex::new(observation),
             paused: AtomicBool::new(false),
             entered: Default::default(),
             resume: Default::default(),
@@ -190,6 +243,19 @@ impl Fixture {
             peer: peer.attest(channel.boot_id()),
         };
         let worker = Arc::new(Worker {
+            offchain: offchain::Offchain::new(
+                std::env::temp_dir()
+                    .join(format!(
+                        "pairkey-offchain-test-{}",
+                        Pubkey::new_from_array(pairkey_signing::dkls::fresh())
+                    ))
+                    .to_str()
+                    .unwrap(),
+                &trust,
+                Role::A,
+                vec![],
+            )
+            .unwrap(),
             multi: multi::Multi::new([11; 32], String::new(), None),
             signer,
             channel,
@@ -344,6 +410,137 @@ async fn transcript_splice_refuses_without_incident_but_authenticated_bad_share_
         b"incident-v1\n"
     );
     assert!(begin(State(Arc::clone(&f.worker)), Json(f.begin.clone()))
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn offchain_account_signs_without_registration_and_recovers_public_result() {
+    let (f, q) = Fixture::wallet().await;
+    assert!(f.rpc.observation.lock().unwrap().namespace.data.is_empty());
+    let rounds = f.rounds().await;
+    let shares = f.shares(&rounds).await;
+    let output = result(
+        State(Arc::clone(&f.worker)),
+        Json(ResultRequest {
+            finish: rounds,
+            shares,
+        }),
+    )
+    .await
+    .unwrap()
+    .0;
+    pairkey_sdk::service::verify_receipt(
+        &f.begin.registration,
+        &f.begin.attempt,
+        &f.begin.message,
+        &output,
+        f.worker.channel.identity(),
+        Role::A,
+        true,
+    )
+    .unwrap();
+    assert!(begin(State(Arc::clone(&f.worker)), Json(f.begin.clone()))
+        .await
+        .is_err());
+    let cached = offchain::lookup(
+        State(Arc::clone(&f.worker)),
+        Json(offchain::Lookup {
+            namespace_digest: f.begin.registration.namespace.digest(),
+            request_id: f.begin.attempt.commit.request_id,
+            approval_digest: q.approval.request.digest(),
+        }),
+    )
+    .await
+    .unwrap()
+    .0
+    .unwrap();
+    let pairkey_core::approval_store::Status::Complete(bytes) = cached else {
+        panic!("missing persisted result")
+    };
+    let recovered: ResultResponse = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(recovered.receipt.signature, output.receipt.signature);
+}
+
+#[tokio::test]
+async fn invalid_private_proof_cannot_approve_or_start_a_request() {
+    let key = ed25519_dalek::SigningKey::from_bytes(&[42; 32]);
+    let mut f = Fixture::new_source(
+        false,
+        Some(Identity::Account {
+            public_key: key.verifying_key().to_bytes(),
+        }),
+    )
+    .await;
+    let mut q = f.wallet_submission();
+    if let Proof::Account { signature } = &mut q.approval.proof {
+        signature[0] ^= 1;
+    }
+    f.begin.attempt.authorization = pairkey_types::policy::Authorization::offchain(&q.approval);
+    assert!(offchain::approve(State(Arc::clone(&f.worker)), Json(q))
+        .await
+        .is_err());
+    assert!(begin(State(Arc::clone(&f.worker)), Json(f.begin.clone()))
+        .await
+        .is_err());
+    assert!(f.worker.pending.lock().unwrap().is_empty());
+    assert!(!f
+        .worker
+        .offchain
+        .store
+        .lock()
+        .unwrap()
+        .knows_policy(f.begin.registration.namespace.digest())
+        .unwrap());
+}
+
+#[tokio::test]
+async fn denied_policy_update_fences_an_older_prepared_request() {
+    let (f, q) = Fixture::wallet().await;
+    let old = f.worker.observe(&f.begin).await.unwrap();
+    {
+        let mut o = f.rpc.observation.lock().unwrap();
+        o.slot += 1;
+        o.rules = Some(ObservedAccount {
+            address: pair_registry::approval::rules_address(
+                &f.worker.trust.registry,
+                &f.begin.registration.namespace.digest(),
+            )
+            .0,
+            owner: f.worker.trust.registry,
+            data: borsh::to_vec(&pair_registry::approval::RulesRecord {
+                namespace_digest: f.begin.registration.namespace.digest(),
+                rules: Rules {
+                    revision: 1,
+                    disabled: true,
+                    ..Default::default()
+                },
+            })
+            .unwrap(),
+        });
+    }
+    assert!(offchain::approve(State(Arc::clone(&f.worker)), Json(q))
+        .await
+        .is_err());
+    assert!(f.worker.release_guard(&f.begin, &old).is_err());
+    assert!(begin(State(Arc::clone(&f.worker)), Json(f.begin.clone()))
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn cancelled_offchain_attempt_cannot_restart_with_new_randomness() {
+    let (f, _) = Fixture::wallet().await;
+    let _ = begin(State(Arc::clone(&f.worker)), Json(f.begin.clone()))
+        .await
+        .unwrap();
+    abort(State(Arc::clone(&f.worker)), Json(f.begin.attempt.clone())).await;
+    assert!(begin(State(Arc::clone(&f.worker)), Json(f.begin.clone()))
+        .await
+        .is_err());
+    let mut another = f.begin.clone();
+    another.attempt.random_id = [8; 32];
+    assert!(begin(State(Arc::clone(&f.worker)), Json(another))
         .await
         .is_err());
 }
@@ -510,6 +707,147 @@ fn red_request(f: &Fixture) -> pairkey_signing::wire::Authorized {
         },
         peer: f.begin.peer.clone(),
     }
+}
+
+#[tokio::test]
+async fn passkey_bound_ephemeral_key_authorizes_redpallas_without_exposing_assertion() {
+    use ed25519_dalek::Signer as _;
+    use pairkey_signing::{redpallas, wire as mw};
+    use pairkey_types::approval::{Assertion, Binding};
+    use sha2::{Digest, Sha256};
+    let owner = p256::ecdsa::SigningKey::from_slice(&[3; 32]).unwrap();
+    let identity = Identity::Passkey {
+        public_key: owner
+            .verifying_key()
+            .to_encoded_point(true)
+            .as_bytes()
+            .to_vec(),
+        rp_id: "pairkey.com".into(),
+        origin: "https://pairkey.com".into(),
+    };
+    let mut f = Fixture::new_source(true, Some(identity.clone())).await;
+    let ephemeral = ed25519_dalek::SigningKey::from_bytes(&[44; 32]);
+    let request = Request {
+        version: APPROVAL_VERSION,
+        identity: identity.clone(),
+        commit: f.begin.attempt.commit.clone(),
+        policy_revision: 0,
+        policy_digest: Rules::default().digest(),
+        issued_at: now(),
+        expires_at: now() + 120,
+    };
+    let binding = Binding {
+        namespace_digest: f.begin.registration.namespace.digest(),
+        identity_digest: identity.digest(),
+        public_key: ephemeral.verifying_key().to_bytes(),
+        issued_at: request.issued_at,
+        expires_at: request.expires_at,
+    };
+    let mut authenticator_data = Sha256::digest(b"pairkey.com").to_vec();
+    authenticator_data.extend([5, 0, 0, 0, 0]);
+    let client_data_json=serde_json::to_vec(&json!({"type":"webauthn.get","origin":"https://pairkey.com","challenge":base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(binding.challenge())})).unwrap();
+    let mut signed = authenticator_data.clone();
+    signed.extend_from_slice(&Sha256::digest(&client_data_json));
+    let signature: p256::ecdsa::Signature = owner.sign(&signed);
+    let assertion = Assertion {
+        authenticator_data,
+        client_data_json,
+        signature_der: signature.to_der().as_bytes().to_vec(),
+    };
+    let signature = ephemeral
+        .sign(&request.signing_message())
+        .to_bytes()
+        .to_vec();
+    let q = Submission {
+        registration: f.begin.registration.clone(),
+        payload: f.begin.message.clone(),
+        approval: Approval {
+            request,
+            proof: Proof::Passkey {
+                binding,
+                assertion,
+                signature,
+            },
+        },
+    };
+    f.begin.attempt.authorization = offchain::approve(State(f.worker.clone()), Json(q))
+        .await
+        .unwrap()
+        .0;
+    let a = red_request(&f);
+    let own = multi::rbegin(
+        State(f.worker.clone()),
+        Json(mw::RBegin {
+            authorized: a.clone(),
+        }),
+    )
+    .await
+    .unwrap()
+    .0;
+    let mw::Certificate::RedPallas(public) = &a.request.certificate else {
+        unreachable!()
+    };
+    let (peer_round, peer_pending) = redpallas::Pending::begin(
+        &[22; 32],
+        &a.request.registration,
+        &a.request.intent.key.account,
+        public,
+        Role::B,
+        b"worker test",
+    )
+    .unwrap();
+    let peer_round = f
+        .peer
+        .seal(
+            &f.own_attestation(),
+            a.request.attempt.digest(),
+            11,
+            &peer_round,
+        )
+        .unwrap();
+    let rounds = multi::RedFinish {
+        authorized: a.clone(),
+        rounds: [own, peer_round],
+    };
+    let decoded = multi::rounds(&f.worker, &rounds).unwrap();
+    let own_share = multi::rfinish(State(f.worker.clone()), Json(rounds.clone()))
+        .await
+        .unwrap()
+        .0;
+    let peer_share = peer_pending.finish(&decoded).unwrap();
+    let transcript = pairkey_types::digest(
+        b"pairkey/redpallas/rounds/v1",
+        &(a.request.attempt.digest(), &decoded),
+    );
+    let peer_share = f
+        .peer
+        .seal(
+            &f.own_attestation(),
+            a.request.attempt.digest(),
+            12,
+            &(transcript, peer_share),
+        )
+        .unwrap();
+    let receipt = multi::rresult(
+        State(f.worker.clone()),
+        Json(multi::RedResult {
+            finish: rounds,
+            shares: [own_share, peer_share],
+        }),
+    )
+    .await
+    .unwrap()
+    .0;
+    receipt.verify(f.worker.channel.identity()).unwrap();
+    a.request.intent.verify(&receipt.signature).unwrap();
+    assert!(!serde_json::to_string(&receipt)
+        .unwrap()
+        .contains("client_data_json"));
+    assert!(
+        multi::rbegin(State(f.worker.clone()), Json(mw::RBegin { authorized: a }))
+            .await
+            .is_err()
+    );
 }
 async fn red_rounds(f: &Fixture) -> multi::RedFinish {
     use pairkey_signing::{redpallas, wire as mw};

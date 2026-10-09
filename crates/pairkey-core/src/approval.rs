@@ -121,6 +121,39 @@ pub fn rules(trust: &Trust, observation: &Observation, reg: &Registration) -> Re
     }
 }
 
+/// Validate registry context before recording a fence, including when new rules
+/// deny the request. Older prepared views must not survive a known restriction.
+pub fn observe_rules(
+    trust: &Trust,
+    o: &Observation,
+    reg: &Registration,
+    now: i64,
+    minimum_slot: u64,
+) -> Result<(Rules, bool), Error> {
+    validate_freshness(trust, o, now, minimum_slot)?;
+    reg.validate().map_err(|_| Error::Authorization)?;
+    let set: EnclaveSet = decode(&o.set, &trust.registry)?;
+    validate_set(trust, o, reg, &set)?;
+    if reg.namespace.registry != trust.registry.to_bytes()
+        || reg.namespace.network != trust.network
+        || o.namespace.address != pair_registry::namespace_address(&trust.registry, reg).0
+    {
+        return Err(Error::Authorization);
+    }
+    let frozen = if o.namespace.owner == solana_program::system_program::id()
+        && o.namespace.data.is_empty()
+    {
+        false
+    } else {
+        let ns: NamespaceRecord = decode(&o.namespace, &trust.registry)?;
+        if ns.registration != *reg {
+            return Err(Error::Authorization);
+        }
+        ns.frozen
+    };
+    Ok((rules(trust, o, reg)?, set.retired || frozen))
+}
+
 /// Independent chain authorization without a registration/COMMIT transaction.
 /// A missing namespace is represented by an empty system-owned account at its PDA.
 /// The adapter must distinguish an RPC error from an actual null account result.

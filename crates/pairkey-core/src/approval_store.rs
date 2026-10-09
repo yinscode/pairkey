@@ -243,6 +243,13 @@ impl ApprovalStore {
         self.ready()?;
         Ok(self.snapshot.minimum_slot)
     }
+    pub fn knows_policy(&self, namespace: [u8; 32]) -> io::Result<bool> {
+        self.ready()?;
+        Ok(self
+            .snapshot
+            .policies
+            .contains_key(&URL_SAFE_NO_PAD.encode(namespace)))
+    }
     /// Caller has already validated the finalized record's ownership and namespace.
     pub fn observe_policy(
         &mut self,
