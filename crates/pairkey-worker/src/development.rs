@@ -275,7 +275,18 @@ impl Worker {
         let session_address = begin.attempt.authorization.session_id.map(|id| {
             pairkey_core::session_address_for_message(&program, &namespace, &id, &begin.message)
         });
-        let mut addresses = vec![self.trust.enclave_set, namespace, request, policy_address];
+        let rules_address = pair_registry::approval::rules_address(
+            &program,
+            &begin.registration.namespace.digest(),
+        )
+        .0;
+        let mut addresses = vec![
+            self.trust.enclave_set,
+            namespace,
+            request,
+            policy_address,
+            rules_address,
+        ];
         if let Some(session) = session_address {
             addresses.push(session);
         }
@@ -306,13 +317,18 @@ impl Worker {
             .as_i64()
             .context("missing finalized block time")?;
         let mut observation = Observation {
+            rules: if accounts[4].is_null() {
+                None
+            } else {
+                Some(decode(4)?)
+            },
             policy: if accounts[3].is_null() {
                 None
             } else {
                 Some(decode(3)?)
             },
             session: if session_address.is_some() {
-                Some(decode(4)?)
+                Some(decode(5)?)
             } else {
                 None
             },

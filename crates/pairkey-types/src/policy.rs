@@ -48,6 +48,12 @@ pub enum AccessProof {
         client_data_json: Vec<u8>,
         signature_der: Vec<u8>,
     },
+    /// Public commitment only. The actual proof travels privately to each signer.
+    /// Appended to preserve existing authorization/attempt encodings and digests.
+    Offchain {
+        request: Box<crate::approval::Request>,
+        proof_digest: [u8; 32],
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -146,6 +152,45 @@ pub struct Authorization {
     pub access_proof: Option<AccessProof>,
 }
 impl Authorization {
+    pub fn offchain(approval: &crate::approval::Approval) -> Self {
+        Self {
+            policy_version: approval.request.policy_revision,
+            access_proof: Some(AccessProof::Offchain {
+                request: Box::new(approval.request.clone()),
+                proof_digest: digest(b"pairkey/approval-proof/v1", &approval.proof),
+            }),
+            ..Self::default()
+        }
+    }
+    pub fn offchain_request(&self) -> Option<&crate::approval::Request> {
+        match &self.access_proof {
+            Some(AccessProof::Offchain { request, .. }) => Some(request),
+            _ => None,
+        }
+    }
+    pub fn with_offchain_proof(
+        &self,
+        proof: &crate::approval::Proof,
+    ) -> Result<crate::approval::Approval, Error> {
+        let Some(AccessProof::Offchain {
+            request,
+            proof_digest,
+        }) = &self.access_proof
+        else {
+            return Err(Error::Metadata);
+        };
+        if self.session_id.is_some()
+            || self.session_proof.is_some()
+            || self.policy_version != request.policy_revision
+            || *proof_digest != digest(b"pairkey/approval-proof/v1", proof)
+        {
+            return Err(Error::Metadata);
+        }
+        Ok(crate::approval::Approval {
+            request: (**request).clone(),
+            proof: proof.clone(),
+        })
+    }
     /// Operation identity is stable over transport retries; destination replay rules still apply.
     pub fn challenge(
         &self,

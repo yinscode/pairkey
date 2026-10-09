@@ -86,5 +86,17 @@ all private runtime state. Do not run the migrated local testnet worker state.
   tests cover concurrency, restarts, mismatched retries and storage failures.
   Authentication proofs must travel privately; public receipts contain only their
   commitment, never an OIDC token. The store and proofs still need worker integration.
+  The chain authorization core now supports absent namespace/COMMIT accounts,
+  verifies the pinned set and fresh observation, and preserves freeze/retirement.
+  Existing custom policies require explicit owner-authored new rules before using
+  the new flow. New rules also restrict legacy COMMIT/session authorization.
+  Workers now fetch the rules account for legacy requests; four new chain-core
+  tests, existing authorization tests and ten worker regression tests pass.
+  Next: privately preauthorize an exact request at each worker, cache its bounded
+  proof until expiry, then refer to the proof commitment during signing. This
+  avoids putting authentication tokens into public signing requests/receipts.
+  Connect the durable store before nonce generation and at release; fetch JWKS
+  only from operator-configured HTTPS endpoints. Add coordinator/SDK ingress and
+  restart-safe Ed25519 job recovery alongside the existing multi-suite job store.
 - Stages 4–6 pending. The new policies are not yet enforced by running signers or
   exposed through the hosted UI; do not deploy the gateway separately as a feature.

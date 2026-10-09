@@ -12,9 +12,15 @@ async fn rpc(State(state): State<Arc<RpcState>>, Json(q): Json<Value>) -> Json<V
     let o = &state.observation;
     let result = match q["method"].as_str().unwrap() {
         "getMultipleAccounts" => {
-            let accounts: Vec<_> = [&o.set, &o.namespace, &o.request].into_iter().map(|a| {
-                json!({"owner":a.owner.to_string(), "data":[STANDARD.encode(&a.data), "base64"]})
-            }).chain(std::iter::once(Value::Null)).collect();
+            let known = [&o.set, &o.namespace, &o.request]
+                .into_iter()
+                .chain(o.policy.as_ref())
+                .chain(o.rules.as_ref())
+                .chain(o.session.as_ref());
+            let known: BTreeMap<_, _> = known.map(|a| (a.address.to_string(), a)).collect();
+            let accounts:Vec<_>=q["params"][0].as_array().unwrap().iter().map(|key| {
+                known.get(key.as_str().unwrap()).map(|a|json!({"owner":a.owner.to_string(),"data":[STANDARD.encode(&a.data),"base64"]})).unwrap_or(Value::Null)
+            }).collect();
             json!({"context":{"slot":o.slot},"value":accounts})
         }
         "getBlockTime" => {
@@ -104,6 +110,7 @@ impl Fixture {
         let set = pair_registry::set_address(&program, &ns.enclave_set).0;
         let identities = [channel.identity(), peer.identity()];
         let observation = Observation {
+            rules: None,
             policy: None,
             session: None,
             simulation: None,

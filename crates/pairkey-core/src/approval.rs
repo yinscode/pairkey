@@ -1,6 +1,8 @@
 //! Identity authentication for the new approval format. Chain observations and durable
 //! request claims must still be checked by each worker before any signing round.
 use crate::{access, Error};
+use crate::{decode, validate_freshness, validate_set, Observation, Trust};
+use pair_registry::{EnclaveSet, NamespaceRecord, PolicyRecord};
 use pairkey_types::{
     approval::{Approval, Identity, Proof, Rules},
     policy::{AccessProof, Credential},
@@ -98,6 +100,98 @@ fn ed25519(public_key: &[u8; 32], signature: &[u8], message: &[u8]) -> Result<()
             key.verify_strict(message, &ed25519_dalek::Signature::from_slice(signature)?)
         })
         .map_err(|_| Error::Authorization)
+}
+
+pub fn rules(trust: &Trust, observation: &Observation, reg: &Registration) -> Result<Rules, Error> {
+    match &observation.rules {
+        None => Ok(Rules::default()),
+        Some(info) => {
+            let record: pair_registry::approval::RulesRecord = decode(info, &trust.registry)?;
+            if info.address
+                != pair_registry::approval::rules_address(&trust.registry, &reg.namespace.digest())
+                    .0
+                || record.namespace_digest != reg.namespace.digest()
+                || record.rules.revision == 0
+            {
+                return Err(Error::Authorization);
+            }
+            record.rules.validate().map_err(|_| Error::Authorization)?;
+            Ok(record.rules)
+        }
+    }
+}
+
+/// Independent chain authorization without a registration/COMMIT transaction.
+/// A missing namespace is represented by an empty system-owned account at its PDA.
+/// The adapter must distinguish an RPC error from an actual null account result.
+#[allow(clippy::too_many_arguments)]
+pub fn authorize(
+    trust: &Trust,
+    observation: &Observation,
+    registration: &Registration,
+    attempt: &pairkey_types::Attempt,
+    payload: &[u8],
+    proof: &pairkey_types::approval::Proof,
+    issuer: Option<&crate::oidc::TrustedIssuer>,
+    now: i64,
+    minimum_slot: u64,
+) -> Result<(), Error> {
+    validate_freshness(trust, observation, now, minimum_slot)?;
+    let set: EnclaveSet = decode(&observation.set, &trust.registry)?;
+    validate_set(trust, observation, registration, &set)?;
+    let expected = pair_registry::namespace_address(&trust.registry, registration).0;
+    if registration.namespace.registry != trust.registry.to_bytes()
+        || registration.namespace.network != trust.network
+        || observation.namespace.address != expected
+        || observation.session.is_some()
+        || observation.simulation.is_some()
+    {
+        return Err(Error::Authorization);
+    }
+    let frozen = if observation.namespace.owner == solana_program::system_program::id()
+        && observation.namespace.data.is_empty()
+    {
+        false
+    } else {
+        let record: NamespaceRecord = decode(&observation.namespace, &trust.registry)?;
+        if record.registration != *registration
+            || record.controller != registration.namespace.derivation_authority
+        {
+            return Err(Error::Authorization);
+        }
+        record.frozen
+    };
+    if let Some(info) = &observation.policy {
+        let record: PolicyRecord = decode(info, &trust.registry)?;
+        if info.address != pair_registry::policy_address(&trust.registry, &expected).0
+            || record.namespace_address != expected.to_bytes()
+            || observation.rules.is_none()
+        {
+            return Err(Error::Authorization);
+        }
+        record.policy.validate().map_err(|_| Error::Authorization)?;
+        // Only an explicit owner-authored new rules record opts into the new flow.
+        // Existing custom policy is never silently replaced by an absent default.
+    }
+    let approval = attempt
+        .authorization
+        .with_offchain_proof(proof)
+        .map_err(|_| Error::Authorization)?;
+    if approval.request.commit != attempt.commit {
+        return Err(Error::Authorization);
+    }
+    verify_with_oidc(
+        registration,
+        payload,
+        &rules(trust, observation, registration)?,
+        &approval,
+        now,
+        issuer,
+    )?;
+    if set.retired || frozen {
+        return Err(Error::Inactive);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

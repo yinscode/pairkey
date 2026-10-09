@@ -60,6 +60,7 @@ pub use policy::{
 };
 
 pub struct Observation {
+    pub rules: Option<ObservedAccount>,
     pub policy: Option<ObservedAccount>,
     pub session: Option<ObservedAccount>,
     pub simulation: Option<SimulationObservation>,
@@ -110,6 +111,46 @@ fn authorize_impl(
     minimum_slot: u64,
     check_simulation: bool,
 ) -> Result<Registration, Error> {
+    validate_freshness(trust, observation, now, minimum_slot)?;
+    let set: EnclaveSet = decode(&observation.set, &trust.registry)?;
+    let ns: NamespaceRecord = decode(&observation.namespace, &trust.registry)?;
+
+    validate_set(trust, observation, &ns.registration, &set)?;
+    if ns.registration.namespace.registry != trust.registry.to_bytes()
+        || ns.registration.namespace.network != trust.network
+        || observation.namespace.address != namespace_address(&trust.registry, &ns.registration).0
+    {
+        return Err(Error::Authorization);
+    }
+    attempt
+        .commit
+        .authorize(&ns.registration, message)
+        .map_err(|_| Error::Authorization)?;
+    // New restrictions also apply to the legacy approval path, preventing downgrade.
+    approval::rules(trust, observation, &ns.registration)?
+        .allows(&attempt.commit, message)
+        .map_err(|_| Error::Authorization)?;
+    policy::authorize_policy(
+        trust,
+        observation,
+        attempt,
+        message,
+        now,
+        &ns,
+        check_simulation,
+    )?;
+    if set.retired || ns.frozen {
+        return Err(Error::Inactive);
+    }
+    Ok(ns.registration)
+}
+
+fn validate_freshness(
+    trust: &Trust,
+    observation: &Observation,
+    now: i64,
+    minimum_slot: u64,
+) -> Result<(), Error> {
     if trust.max_observation_age_secs <= 0
         || trust.max_chain_lag_secs <= 0
         || !observation.finalized
@@ -123,13 +164,18 @@ fn authorize_impl(
     {
         return Err(Error::State);
     }
-    let set: EnclaveSet = decode(&observation.set, &trust.registry)?;
-    let ns: NamespaceRecord = decode(&observation.namespace, &trust.registry)?;
-
+    Ok(())
+}
+fn validate_set(
+    trust: &Trust,
+    observation: &Observation,
+    registration: &Registration,
+    set: &EnclaveSet,
+) -> Result<(), Error> {
     if observation.set.address != trust.enclave_set
         || observation.set.address
-            != set_address(&trust.registry, &ns.registration.namespace.enclave_set).0
-        || set.set_id != ns.registration.namespace.enclave_set
+            != set_address(&trust.registry, &registration.namespace.enclave_set).0
+        || set.set_id != registration.namespace.enclave_set
         || set.identities != trust.identity_keys
         || set.version != VERSION
         || set.governor != trust.set_governor
@@ -137,30 +183,7 @@ fn authorize_impl(
     {
         return Err(Error::Authorization);
     }
-    if ns.registration.namespace.registry != trust.registry.to_bytes()
-        || ns.registration.namespace.network != trust.network
-        || observation.namespace.address != namespace_address(&trust.registry, &ns.registration).0
-    {
-        return Err(Error::Authorization);
-    }
-    attempt
-        .commit
-        .authorize(&ns.registration, message)
-        .map_err(|_| Error::Authorization)?;
-    policy::authorize_policy(
-        trust,
-        observation,
-        attempt,
-        message,
-        now,
-        &ns,
-        check_simulation,
-    )?;
-    // Only well-formed, correctly bound records may advance a negative-control fence.
-    if set.retired || ns.frozen {
-        return Err(Error::Inactive);
-    }
-    Ok(ns.registration)
+    Ok(())
 }
 
 /// Prepare verifies all authority before a worker constructs its own simulation call.

@@ -361,6 +361,17 @@ fn oidc_requires_nonce_bound_owner_token_and_ephemeral_request_signature() {
             signature,
         },
     };
+    let marker = pairkey_types::policy::Authorization::offchain(&a);
+    let public = serde_json::to_string(&marker).unwrap();
+    assert!(!public.contains("id_token"));
+    let Proof::Oidc { id_token, .. } = &a.proof else {
+        unreachable!()
+    };
+    assert!(!public.contains(id_token));
+    assert_eq!(marker.with_offchain_proof(&a.proof).unwrap(), a);
+    let mut session = marker.clone();
+    session.session_id = Some([8; 32]);
+    assert!(session.with_offchain_proof(&a.proof).is_err());
     assert!(verify(&reg, b"hello", &Rules::default(), &a, 1000).is_err());
     verify_with_oidc(&reg, b"hello", &Rules::default(), &a, 1000, Some(&issuer)).unwrap();
     let mut b = a.clone();

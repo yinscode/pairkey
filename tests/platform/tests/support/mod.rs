@@ -41,6 +41,7 @@ pub fn fixture() -> (Trust, Observation, Attempt, Vec<u8>) {
     let request = request_address(&program, &namespace, &commit.request_id).0;
     let identities = [[31; 32], [32; 32]];
     let observation = Observation {
+        rules: None,
         policy: None,
         session: None,
         simulation: None,
