@@ -80,5 +80,11 @@ all private runtime state. Do not run the migrated local testnet worker state.
   ring for RSA verification and strict typed claims, including rejecting present
   null/mistyped optional time claims. Ten core tests pass, including real RSA
   signatures over malformed claims. JWKS fetching and signer integration remain.
+  A separate durable approval store now persists request/attempt claims before
+  issuance, makes interrupted work uncertain on restart, recovers completed public
+  results, and preserves policy, clock and negative-control fences. Four store
+  tests cover concurrency, restarts, mismatched retries and storage failures.
+  Authentication proofs must travel privately; public receipts contain only their
+  commitment, never an OIDC token. The store and proofs still need worker integration.
 - Stages 4–6 pending. The new policies are not yet enforced by running signers or
   exposed through the hosted UI; do not deploy the gateway separately as a feature.
