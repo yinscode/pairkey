@@ -302,3 +302,75 @@ fn binding_and_request_lifetimes_are_bounded_without_overflow() {
     b.expires_at = 1301;
     assert!(b.validate(&reg, b"hello", &Rules::default(), 1000).is_err());
 }
+
+#[test]
+fn oidc_requires_nonce_bound_owner_token_and_ephemeral_request_signature() {
+    use ring::{
+        rand::SystemRandom,
+        signature::{RsaKeyPair, RSA_PKCS1_SHA256},
+    };
+    let identity = Identity::Oidc {
+        issuer: "https://issuer.example".into(),
+        audience: "pairkey".into(),
+        subject: "user-123".into(),
+    };
+    let (reg, request) = request(identity.clone(), &Rules::default());
+    let ephemeral = SigningKey::from_bytes(&[44; 32]);
+    let binding = Binding {
+        namespace_digest: reg.namespace.digest(),
+        identity_digest: identity.digest(),
+        public_key: ephemeral.verifying_key().to_bytes(),
+        issued_at: 990,
+        expires_at: 1200,
+    };
+    let claims = serde_json::json!({"iss":"https://issuer.example","aud":"pairkey","sub":"user-123","iat":990,"exp":1200,
+        "nonce":URL_SAFE_NO_PAD.encode(binding.challenge())});
+    let message = format!(
+        "{}.{}",
+        URL_SAFE_NO_PAD.encode(br#"{"alg":"RS256","kid":"test-only"}"#),
+        URL_SAFE_NO_PAD.encode(claims.to_string())
+    );
+    let issuer_key =
+        RsaKeyPair::from_pkcs8(include_bytes!("../oidc/fixtures/test-only.pk8")).unwrap();
+    let mut token_sig = vec![0; issuer_key.public().modulus_len()];
+    issuer_key
+        .sign(
+            &RSA_PKCS1_SHA256,
+            &SystemRandom::new(),
+            message.as_bytes(),
+            &mut token_sig,
+        )
+        .unwrap();
+    let id_token = format!("{message}.{}", URL_SAFE_NO_PAD.encode(token_sig));
+    let issuer = crate::oidc::TrustedIssuer::from_jwks(
+        "https://issuer.example".into(),
+        "pairkey".into(),
+        include_bytes!("../oidc/fixtures/jwks.json"),
+        999,
+    )
+    .unwrap();
+    let signature = ephemeral
+        .sign(&request.signing_message())
+        .to_bytes()
+        .to_vec();
+    let a = Approval {
+        request,
+        proof: Proof::Oidc {
+            binding,
+            id_token,
+            signature,
+        },
+    };
+    assert!(verify(&reg, b"hello", &Rules::default(), &a, 1000).is_err());
+    verify_with_oidc(&reg, b"hello", &Rules::default(), &a, 1000, Some(&issuer)).unwrap();
+    let mut b = a.clone();
+    if let Proof::Oidc { signature, .. } = &mut b.proof {
+        signature[0] ^= 1;
+    }
+    assert!(verify_with_oidc(&reg, b"hello", &Rules::default(), &b, 1000, Some(&issuer)).is_err());
+    let mut b = a.clone();
+    if let Proof::Oidc { binding, .. } = &mut b.proof {
+        binding.public_key = SigningKey::from_bytes(&[45; 32]).verifying_key().to_bytes();
+    }
+    assert!(verify_with_oidc(&reg, b"hello", &Rules::default(), &b, 1000, Some(&issuer)).is_err());
+}

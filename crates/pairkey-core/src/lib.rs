@@ -50,6 +50,7 @@ pub struct ObservedAccount {
 }
 pub mod access;
 pub mod approval;
+pub mod oidc;
 pub mod operation;
 mod policy;
 pub use policy::{

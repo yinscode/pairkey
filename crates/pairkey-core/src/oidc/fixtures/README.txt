@@ -1,0 +1,1 @@
+Generated RSA test fixture. This private key is intentionally public and MUST NEVER be used for a real issuer, user, signer, or deployment. It exists only to create signed malformed-token regression tests.

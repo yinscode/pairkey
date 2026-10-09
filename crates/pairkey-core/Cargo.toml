@@ -23,3 +23,4 @@ bincode.workspace = true
 pairkey-signing = { path = "../pairkey-signing" }
 
 libc = "=0.2.190"
+ring = "=0.17.14"

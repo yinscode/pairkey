@@ -14,6 +14,17 @@ pub fn verify(
     approval: &Approval,
     now: i64,
 ) -> Result<(), Error> {
+    verify_with_oidc(registration, payload, rules, approval, now, None)
+}
+
+pub fn verify_with_oidc(
+    registration: &Registration,
+    payload: &[u8],
+    rules: &Rules,
+    approval: &Approval,
+    now: i64,
+    issuer: Option<&crate::oidc::TrustedIssuer>,
+) -> Result<(), Error> {
     let request = &approval.request;
     request
         .validate(registration, payload, rules, now)
@@ -57,8 +68,26 @@ pub fn verify(
             )?;
             ed25519(&binding.public_key, signature, &message)
         }
-        // A JWT is never accepted without a configured, independently verified issuer.
-        // The OIDC adapter is added separately; mismatched proof variants also fail closed.
+        (
+            Identity::Oidc { .. },
+            Proof::Oidc {
+                binding,
+                id_token,
+                signature,
+            },
+        ) => {
+            binding
+                .validate(registration, request, now)
+                .map_err(|_| Error::Authorization)?;
+            issuer.ok_or(Error::Authorization)?.verify(
+                &request.identity,
+                binding,
+                id_token,
+                request.expires_at,
+                now,
+            )?;
+            ed25519(&binding.public_key, signature, &message)
+        }
         _ => Err(Error::Authorization),
     }
 }

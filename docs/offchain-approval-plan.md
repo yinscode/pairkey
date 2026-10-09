@@ -75,5 +75,10 @@ all private runtime state. Do not run the migrated local testnet worker state.
   CI runs the new SBF tests after building programs. The SBF toolchain still emits
   its existing dalek stack/syscall diagnostics; these exercised program paths pass
   in LiteSVM. This is not evidence that every unused compiled path is safe.
-- Stages 3–6 pending. The new policies are not yet enforced by running signers or
+- Stage 3 in progress: configured-issuer RS256 ID-token verification now binds
+  issuer, audience, subject, token nonce, ephemeral key and exact request. It uses
+  ring for RSA verification and strict typed claims, including rejecting present
+  null/mistyped optional time claims. Ten core tests pass, including real RSA
+  signatures over malformed claims. JWKS fetching and signer integration remain.
+- Stages 4–6 pending. The new policies are not yet enforced by running signers or
   exposed through the hosted UI; do not deploy the gateway separately as a feature.
