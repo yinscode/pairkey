@@ -364,12 +364,18 @@ pub(super) async fn sign(
     let Json(submitted) = super::jobs::enqueue(s.clone(), q).await?;
     let id = submitted["job_id"].as_str().unwrap();
     loop {
-        let job = s.intent_jobs.lock().unwrap().get(id).map_err(|e| {
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({"error":e.to_string()})),
-            )
-        })?;
+        let job = match super::poll(State(s.clone()), Path(id.to_owned())).await {
+            Ok(Json(value)) => Some(
+                serde_json::from_value::<pairkey_sdk::multi::IntentJob>(value).map_err(|e| {
+                    (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        Json(json!({"error":e.to_string()})),
+                    )
+                })?,
+            ),
+            Err(StatusCode::NOT_FOUND) => None,
+            Err(code) => return Err((code, Json(json!({"error":"job store unavailable"})))),
+        };
         match job {
             Some(pairkey_sdk::multi::IntentJob::Complete { result }) => return Ok(Json(*result)),
             Some(pairkey_sdk::multi::IntentJob::Failed {

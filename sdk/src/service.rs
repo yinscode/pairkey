@@ -60,7 +60,14 @@ impl Client {
             .map_err(reqwest::Error::without_url)?;
         let result: Value =
             crate::http::bounded_json(response, crate::http::MAX_SERVICE_RESPONSE).await?;
-        Ok(result["job_id"].as_str().context("invalid job id")?.into())
+        let id = result["job_id"].as_str().context("invalid job id")?;
+        if authorization.offchain_request().is_some() {
+            ensure!(
+                id == crate::approval::job_id(authorization)?,
+                "job identifier mismatch"
+            );
+        }
+        Ok(id.into())
     }
     pub async fn namespace(
         &self,

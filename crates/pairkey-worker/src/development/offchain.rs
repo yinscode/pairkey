@@ -378,16 +378,23 @@ pub(super) async fn approve(
     Ok(Json(auth))
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct Lookup {
-    pub namespace_digest: [u8; 32],
-    pub request_id: [u8; 32],
-    pub approval_digest: [u8; 32],
+pub(super) async fn check(
+    State(w): State<W>,
+    Json(q): Json<ApprovalCheck>,
+) -> Result<Json<bool>, Failure> {
+    let proof = w
+        .offchain
+        .proof(&q.attempt.authorization)
+        .map_err(failure)?;
+    w.offchain_view(&q.registration, &q.attempt, &q.payload, proof)
+        .await
+        .map_err(failure)?;
+    Ok(Json(true))
 }
+
 pub(super) async fn lookup(
     State(w): State<W>,
-    Json(q): Json<Lookup>,
+    Json(q): Json<ApprovalLookup>,
 ) -> Result<Json<Option<Status>>, Failure> {
     w.offchain
         .store

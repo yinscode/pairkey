@@ -44,4 +44,19 @@ pub struct ResultRequest {
     pub finish: Finish,
     pub shares: [Envelope; 2],
 }
+/// Public request reference used to recheck private, previously supplied authentication.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApprovalCheck {
+    pub registration: Registration,
+    pub attempt: Attempt,
+    pub payload: Vec<u8>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApprovalLookup {
+    pub namespace_digest: [u8; 32],
+    pub request_id: [u8; 32],
+    pub approval_digest: [u8; 32],
+}
 pub use pairkey_types::receipt::{receipt_message, Receipt, ResultResponse};

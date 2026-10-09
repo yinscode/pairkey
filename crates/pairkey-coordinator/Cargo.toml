@@ -26,3 +26,6 @@ pairkey-signing = { path = "../pairkey-signing" }
 sl-mpc-mate = { version = "=1.0.0-beta", features = ["simple-relay"] }
 
 pairkey-core = { path = "../pairkey-core" }
+
+[dev-dependencies]
+pairkey-channel = { path = "../pairkey-channel", features = ["dev-simulation"] }

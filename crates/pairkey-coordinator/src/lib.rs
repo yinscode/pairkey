@@ -1,6 +1,7 @@
 //! Untrusted routing, bounded jobs, public results. No provisioning files or keys.
 mod jobs;
 mod multi;
+mod offchain_jobs;
 use anyhow::{ensure, Context};
 use axum::{
     extract::{DefaultBodyLimit, Path, State},
@@ -209,15 +210,27 @@ impl Relay {
         request
             .commit
             .authorize(&request.registration, &request.message)?;
+        let attempt = Attempt {
+            authorization: request.authorization.clone(),
+            commit: request.commit.clone(),
+            random_id: pairkey_signing::dkls::fresh(),
+        };
+        self.sign_attempt(request, attempt).await
+    }
+    async fn sign_attempt(
+        &self,
+        request: SignRequest,
+        attempt: Attempt,
+    ) -> anyhow::Result<SignedResult> {
+        request
+            .commit
+            .authorize(&request.registration, &request.message)?;
+        ensure!(
+            attempt.commit == request.commit && attempt.authorization == request.authorization,
+            "prepared attempt mismatch"
+        );
         let started = Instant::now();
         let peers = self.peers().await?;
-        let mut random_id = [0; 32];
-        OsRng.fill_bytes(&mut random_id);
-        let attempt = Attempt {
-            authorization: request.authorization,
-            commit: request.commit,
-            random_id,
-        };
         let begins = [
             Begin {
                 registration: request.registration.clone(),
@@ -352,6 +365,7 @@ struct Entry {
     created: Instant,
 }
 struct Service {
+    offchain_jobs: Mutex<offchain_jobs::Store>,
     intent_jobs: Mutex<jobs::Store>,
     cancels: jobs::Cancels,
     multi: Arc<tokio::sync::Mutex<()>>,
@@ -414,6 +428,9 @@ async fn enqueue(
             Json(json!({"error":e.to_string()})),
         )
     })?;
+    if request.authorization.offchain_request().is_some() {
+        return offchain_jobs::enqueue(s, offchain_jobs::Input::ed(request)).await;
+    }
     request
         .commit
         .authorize(&request.registration, &request.message)
@@ -467,6 +484,15 @@ async fn enqueue(
 }
 async fn poll(State(s): State<S>, Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
     if let Some(job) = s
+        .offchain_jobs
+        .lock()
+        .unwrap()
+        .get(&id)
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+    {
+        return Ok(Json(job));
+    }
+    if let Some(job) = s
         .intent_jobs
         .lock()
         .unwrap()
@@ -489,7 +515,13 @@ async fn events(
     Sse<impl futures_util::Stream<Item = Result<Event, std::convert::Infallible>>>,
     StatusCode,
 > {
-    if !s.jobs.lock().unwrap().contains_key(&id)
+    if s.offchain_jobs
+        .lock()
+        .unwrap()
+        .get(&id)
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+        .is_none()
+        && !s.jobs.lock().unwrap().contains_key(&id)
         && s.intent_jobs
             .lock()
             .unwrap()
@@ -543,7 +575,12 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
             .context("jobs_file must be configured")?,
         context,
     )?;
+    let offchain_jobs = offchain_jobs::Store::open(
+        &format!("{}.offchain-v1", config.jobs_file.as_ref().unwrap()),
+        context,
+    )?;
     let service = Arc::new(Service {
+        offchain_jobs: Mutex::new(offchain_jobs),
         intent_jobs: Mutex::new(intent_jobs),
         cancels: Default::default(),
         multi: Default::default(),
@@ -564,6 +601,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         .route("/jobs/:id", get(poll))
         .route("/jobs/:id/events", get(events))
         .route("/jobs/:id/cancel", post(jobs::cancel))
+        .route("/jobs/:id/recover", post(offchain_jobs::recover))
         .layer(DefaultBodyLimit::max(16_384))
         .route(
             "/approvals/offchain",
@@ -599,6 +637,10 @@ mod tests {
             Pubkey::new_from_array(pairkey_signing::dkls::fresh())
         ));
         let s = Arc::new(Service {
+            offchain_jobs: Mutex::new(
+                offchain_jobs::Store::open(&format!("{}.offchain", path.display()), [0; 32])
+                    .unwrap(),
+            ),
             intent_jobs: Mutex::new(jobs::Store::open(path.to_str().unwrap(), [0; 32]).unwrap()),
             cancels: Default::default(),
             multi: Default::default(),

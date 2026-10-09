@@ -90,7 +90,8 @@ pub fn verify_result(q: &SignRequest, r: &Signed, identities: [[u8; 32]; 2]) -> 
         ensure!(
             receipt.role.index() == i
                 && receipt.request.registration == q.registration
-                && receipt.request.attempt.digest() == q.attempt.digest()
+                && same_approved_attempt(&q.attempt, &receipt.request.attempt)
+                && receipt.request.attempt == r.receipts[1 - i].request.attempt
                 && receipt.request.intent == q.intent
                 && receipt.signature == r.signature
                 && receipt.finalized_slot > 0,
@@ -140,6 +141,9 @@ impl IntentJob {
 /// The same exact submission has one job ID during the coordinator's retention window.
 pub fn intent_job_id(q: &SignRequest) -> Result<String> {
     q.validate()?;
+    if q.attempt.authorization.offchain_request().is_some() {
+        return crate::approval::job_id(&q.attempt.authorization);
+    }
     Ok(
         solana_sdk::pubkey::Pubkey::new_from_array(pairkey_types::digest(
             b"pairkey/intent-job/v2",
@@ -222,6 +226,10 @@ impl crate::service::Client {
 /// Explicit retry changes only the signing attempt; Solana approval and delegate scope stay bound.
 pub fn fresh_attempt(q: &SignRequest, random_id: [u8; 32]) -> Result<SignRequest> {
     ensure!(
+        q.attempt.authorization.offchain_request().is_none(),
+        "off-chain approvals cannot start a fresh attempt; recover the original job"
+    );
+    ensure!(
         random_id != q.attempt.random_id,
         "retry requires a fresh attempt ID"
     );
@@ -229,4 +237,27 @@ pub fn fresh_attempt(q: &SignRequest, random_id: [u8; 32]) -> Result<SignRequest
     next.attempt.random_id = random_id;
     next.validate()?;
     Ok(next)
+}
+
+/// Completed off-chain results belong to the approved request, regardless of a
+/// retry's new transport randomness or renewed private authentication evidence.
+/// Both result receipts must still agree on the original, fully verified attempt.
+fn same_approved_attempt(
+    expected: &pairkey_types::Attempt,
+    actual: &pairkey_types::Attempt,
+) -> bool {
+    match (
+        expected.authorization.offchain_request(),
+        actual.authorization.offchain_request(),
+    ) {
+        (Some(a), Some(b)) => {
+            a == b
+                && expected.commit == actual.commit
+                && a.commit == expected.commit
+                && crate::approval::job_id(&expected.authorization).is_ok()
+                && crate::approval::job_id(&actual.authorization).is_ok()
+        }
+        (None, None) => expected == actual,
+        _ => false,
+    }
 }

@@ -445,7 +445,7 @@ async fn offchain_account_signs_without_registration_and_recovers_public_result(
         .is_err());
     let cached = offchain::lookup(
         State(Arc::clone(&f.worker)),
-        Json(offchain::Lookup {
+        Json(ApprovalLookup {
             namespace_digest: f.begin.registration.namespace.digest(),
             request_id: f.begin.attempt.commit.request_id,
             approval_digest: q.approval.request.digest(),

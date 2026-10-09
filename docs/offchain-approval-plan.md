@@ -101,7 +101,16 @@ all private runtime state. Do not run the migrated local testnet worker state.
   Coordinator/SDK private ingress is available. Fifteen worker tests pass, including
   actual registration-free account/Ed25519 and bound-passkey/RedPallas signing,
   invalid proofs, cached public results, cancellation and policy races. Targeted
-  clippy checks pass. Coordinator restart-safe recovery and OIDC policy-update
-  attestation endpoints remain to be connected.
+  clippy checks pass.
+  Coordinator off-chain jobs now use a separate durable journal. Both workers
+  revalidate private authentication before the coordinator reserves a request;
+  the original attempt is persisted before protocol work begins. Request IDs
+  cannot be reassigned or retried with fresh randomness. Restart marks unfinished
+  work uncertain; `/jobs/:id/recover` only reads and verifies both workers' cached
+  receipts, even after approval expiry. SDK retries preserve the original job ID
+  and verify matching semantic approvals and a matching receipt pair. Eight
+  coordinator tests pass, including real Ed25519/RedPallas recovery, concurrent
+  retries, incomplete worker results, tampered receipts and failed persistence.
+  OIDC policy-update attestation endpoints remain to be connected.
 - Stages 4–6 pending. The new policies are not yet enforced by running signers or
   exposed through the hosted UI; do not deploy the gateway separately as a feature.

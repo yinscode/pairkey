@@ -117,3 +117,41 @@ pub fn passkey_rules(
         ),
     ])
 }
+
+/// An exact off-chain approval has a stable job ID even if delivery is retried.
+/// Private proof commitments and protocol randomness do not change its identity.
+pub fn job_id(auth: &pairkey_types::policy::Authorization) -> anyhow::Result<String> {
+    let r = auth
+        .offchain_request()
+        .ok_or_else(|| anyhow::anyhow!("off-chain approval required"))?;
+    anyhow::ensure!(
+        auth.session_id.is_none()
+            && auth.session_proof.is_none()
+            && auth.policy_version == r.policy_revision,
+        "off-chain authorization metadata"
+    );
+    Ok(
+        solana_sdk::pubkey::Pubkey::new_from_array(pairkey_types::digest(
+            b"pairkey/offchain-job/v1",
+            &r.digest(),
+        ))
+        .to_string(),
+    )
+}
+
+impl crate::service::Client {
+    /// Reconcile an interrupted job using persisted public receipts, without signing again.
+    pub async fn recover_job(&self, id: &str) -> anyhow::Result<serde_json::Value> {
+        anyhow::ensure!(
+            id.parse::<solana_sdk::pubkey::Pubkey>().is_ok(),
+            "invalid job id"
+        );
+        let response = self
+            .http
+            .post(format!("{}/jobs/{id}/recover", self.endpoint))
+            .send()
+            .await
+            .map_err(reqwest::Error::without_url)?;
+        crate::http::bounded_json(response, crate::http::MAX_SERVICE_RESPONSE).await
+    }
+}

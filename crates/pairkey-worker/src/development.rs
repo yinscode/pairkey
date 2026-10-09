@@ -847,6 +847,7 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
             post(offchain::approve).layer(DefaultBodyLimit::max(64 * 1024)),
         )
         .route("/approve/result", post(offchain::lookup))
+        .route("/approve/check", post(offchain::check))
         .layer(axum::middleware::from_fn_with_state(worker.clone(), limit))
         .with_state(worker.clone());
     tokio::spawn(async move {

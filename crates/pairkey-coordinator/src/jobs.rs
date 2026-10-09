@@ -134,6 +134,10 @@ pub(super) async fn enqueue(
     s: S,
     q: mw::SignRequest,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if q.attempt.authorization.offchain_request().is_some() {
+        return super::offchain_jobs::enqueue(s, super::offchain_jobs::Input::Multi(Box::new(q)))
+            .await;
+    }
     let id = intent_job_id(&q).map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
@@ -212,6 +216,9 @@ pub(super) async fn cancel(
     State(s): State<S>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if let Some(value) = super::offchain_jobs::cancel(&s, &id).map_err(error)? {
+        return Ok(Json(value));
+    }
     let job = s
         .intent_jobs
         .lock()
