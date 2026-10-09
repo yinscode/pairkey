@@ -59,7 +59,45 @@ TEE attestation or live OIDC integration before the relevant configuration and
 verification exist. Deployments require checking for active jobs and preserving
 all private runtime state. Do not run the migrated local testnet worker state.
 
-## Progress
+## Completion audit
+
+All six implementation stages are complete on `codex/offchain-approval`. This is
+a locally verified implementation, not a live deployment or production TEE claim.
+The [public acceptance snapshot](offchain-approval-test-evidence.json) records the
+tested source, tool versions, artifact hashes, gate counts and remaining deployment
+boundaries. The GitHub workflow remains ready locally, as requested.
+
+| Requirement | Implementation and acceptance evidence |
+|---|---|
+| Exact account/passkey/OIDC authorization, no registration transaction | Canonical approval and binding types; core mutation/expiry/identity tests; real hosted account and bound-identity signing; browser lifecycle asserts no registration/approval broadcasts. |
+| Optional persistent rules and inexpensive policy edits | Reused rules PDAs, monotonic revisions, native P-256 passkey verification and dual-worker OIDC attestations; four rule SBF tests and five hosted management SBF tests. |
+| Independent enforcement and durable recovery | Both workers check private proofs and fresh policy; seven durable-store tests, worker/coordinator negative controls and restart tests; HTTPS OIDC test requires two independent JWKS fetches and rejects TLS/redirect failures. |
+| Program evaluation and atomic commit | Authenticated deployed-code evaluation and exact PDA approval; four program SBF tests, three worker/SBF integrations, hosted simulation and commit tests. Simulation does not consume an allowance; commit consumes it once. |
+| SDK, quickstarts, demo, five signing destinations | Browser/Rust SDKs, public account/program pages and demo; 45 website tests, generated-site checks, real hosted five-suite signing and recovery, manual browser account/program verification, independently built downloaded program and offline verifier. |
+| Legacy compatibility, concurrency and rollout readiness | Full validator demos, six account/program DKLS23/RedPallas/Bitcoin flows, two EVM session flows and 37 lifecycle cases; preserved formats and roots; coordinated rollout and reconciliation instructions in the API contract. |
+
+The final local run passed 113 host tests, 15 native invariants, nine native fault
+tests, six legacy registry SBF tests and all the new approval gates listed in the
+snapshot. Formatting, all-target clippy, non-development worker compilation,
+browser vectors and generated documentation checks also passed. The full run used
+an isolated committed checkout and verified source archive because the working
+checkout's research cache contains unrelated edits; those edits were preserved.
+
+The CI wrapper's build/test phases all completed. Its final collector initially
+expected the pre-Bitcoin four-flow/26-case matrix. The collector was corrected to
+require all six flows and all 37 suite-specific cases, then rerun successfully
+against the completed logs. Runtime and test sources were unchanged by those two
+report fixes. Existing SBF toolchain diagnostics remain as described below; the
+actual exercised SBF paths pass, without claiming all compiled paths are safe.
+
+Sessions in the new flow, production hardware attestation and a production OIDC
+login remain intentionally outside this implementation's acceptance scope. No
+operational roots, journals, policies, incident latches or live programs were reset
+or deployed. All implementation commit author/committer dates are October 9–10,
+2026, as requested. The following log preserves the intermediate milestones and
+their then-current limitations; this audit states the final status.
+
+## Implementation history
 
 - Branch created; legacy formats and enforcement paths inspected.
 - Stage 1 complete: additive types and account/passkey authentication; six tests

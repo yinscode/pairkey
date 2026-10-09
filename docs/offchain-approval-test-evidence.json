@@ -1,0 +1,516 @@
+{
+  "description": "Off-chain approval v2 local acceptance evidence; public results only.",
+  "validation": {
+    "platform": "Darwin-25.2.0-arm64-arm-64bit-Mach-O",
+    "tool_versions": [
+      "rustc 1.88.0 (6b00bc388 2025-06-23)",
+      "solana-cli 3.0.14 (src:f516a892; feat:3604001754, client:Agave)",
+      "anvil Version: 1.3.1-v1.3.1",
+      "Commit SHA: 08d3a4ad4d78b62bcb897350803bf96fc2cf6cc9",
+      "Build Timestamp: 2025-08-12T07:40:48.462796000Z (1754984448)",
+      "Build Profile: maxperf",
+      "rustc 1.89.0-dev (e57530ef2 2026-08-14)"
+    ],
+    "completed_at_utc": "2026-10-12T21:07:32.497263+00:00",
+    "base_commit": "bfcf0d8db6a5abf36390f0a4ff98f1e0c846719d",
+    "uncommitted_changes": false,
+    "host_tests_passed": 113,
+    "native_lifecycle_tests_passed": 9,
+    "native_invariants_passed": 15,
+    "registry_tests_passed": 6,
+    "sbf_rebuilt": true,
+    "local_gate_passed": true,
+    "sha256": {
+      "Cargo.lock": "15fad447bfc7e2c3c192a533e5c4d34f7d87a1b03d8749daa032f5055685a213",
+      "target/deploy/pair_registry.so": "18bb8b256839e42f3eb2ba871aa7ccd628666d500dcf771adb8c8032a1b11bdd",
+      "target/deploy/example_controller.so": "b2348c11dc718f9369005204e4fc952b372dea115ebdca198894f37023a181d2",
+      "target/deploy/example_policy.so": "e724d022c64b00326ccc69ee10044e02d6a7e36b74ae11af22937f839e0a7678",
+      "target/debug/pairkey-worker": "0ae8194f2b2e06f9f693be73e405d05d1aa5506e587b59600f70ee762f39c1be",
+      "target/debug/pairkey-coordinator": "f330eb6e85af8f39718f535a18b50c904059a14c337d0e58ac2f342dd5914aa5",
+      "target/debug/local_demo": "5280606b240081f27dc20a52c09d2eee87f265911e393877104ab6b99c50d673",
+      "target/silence-dkls23/release/dkls-spike": "4d50ce863f3dccb5d0acc3648cc4ad5223602c13380f3fc6b894a1e8dce4aeaa"
+    },
+    "approval_gates_passed": {
+      "offline-verifier-tests": 1,
+      "hosted-dkls-tests": 1,
+      "hosted-browser-tests": 1,
+      "approval-rules-tests": 4,
+      "controller-download": 4,
+      "program-approval-tests": 4,
+      "program-worker-tests": 3,
+      "hosted-policy-tests": 5,
+      "browser-unit-tests": 45,
+      "hosted-oidc-transport-tests": 2
+    }
+  },
+  "runtime_and_test_source_commit": "3a3fd79",
+  "report_collector_fixes": [
+    "0065b7f",
+    "bfcf0d8"
+  ],
+  "execution_note": "All scripts/ci.sh build and test phases completed. The final collector initially rejected its outdated four-flow/26-case expectation. Only the collector changed; its corrected six-flow/37-case check then passed over the completed run. No executable or test source changed after the run started.",
+  "github_hosted_run": false,
+  "hardware_backed": false,
+  "live_deployment_performed": false,
+  "production_oidc_login_exercised": false,
+  "isolated_oidc_https_signing_and_policy_tests_passed": true,
+  "manual_browser": {
+    "fixture": "hosted_manual_browser_preview",
+    "completed_jobs": 2,
+    "sources": [
+      "account",
+      "program"
+    ],
+    "valid_signature_verified": true,
+    "changed_message_rejected": true,
+    "original_account_job_recovered": true,
+    "fixture_shutdown": true
+  },
+  "ed25519_policy_demo_passed": true,
+  "multi_suite_flows": [
+    {
+      "authorization": "account",
+      "destination_substitution_refused": true,
+      "evm_executed": true,
+      "freeze_refused": true,
+      "missing_approval_refused": true,
+      "mixed_version_refused": true,
+      "payload_substitution_refused": true,
+      "restart_preserved_key": true,
+      "suite": "Dkls23Secp256k1",
+      "tampered_receipt_refused": true,
+      "workers_refused_substitutions": true
+    },
+    {
+      "authorization": "account",
+      "destination_substitution_refused": true,
+      "evm_executed": false,
+      "freeze_refused": true,
+      "missing_approval_refused": true,
+      "mixed_version_refused": true,
+      "payload_substitution_refused": true,
+      "restart_preserved_key": true,
+      "suite": "FrostRedPallas",
+      "tampered_receipt_refused": true,
+      "workers_refused_substitutions": true
+    },
+    {
+      "authorization": "account",
+      "destination_substitution_refused": true,
+      "evm_executed": false,
+      "freeze_refused": true,
+      "missing_approval_refused": true,
+      "mixed_version_refused": true,
+      "payload_substitution_refused": true,
+      "restart_preserved_key": true,
+      "suite": "FrostSecp256k1Tr",
+      "tampered_receipt_refused": true,
+      "workers_refused_substitutions": true
+    },
+    {
+      "authorization": "program_cpi",
+      "destination_substitution_refused": true,
+      "evm_executed": true,
+      "freeze_refused": true,
+      "missing_approval_refused": true,
+      "mixed_version_refused": true,
+      "payload_substitution_refused": true,
+      "restart_preserved_key": true,
+      "suite": "Dkls23Secp256k1",
+      "tampered_receipt_refused": true,
+      "workers_refused_substitutions": true
+    },
+    {
+      "authorization": "program_cpi",
+      "destination_substitution_refused": true,
+      "evm_executed": false,
+      "freeze_refused": true,
+      "missing_approval_refused": true,
+      "mixed_version_refused": true,
+      "payload_substitution_refused": true,
+      "restart_preserved_key": true,
+      "suite": "FrostRedPallas",
+      "tampered_receipt_refused": true,
+      "workers_refused_substitutions": true
+    },
+    {
+      "authorization": "program_cpi",
+      "destination_substitution_refused": true,
+      "evm_executed": false,
+      "freeze_refused": true,
+      "missing_approval_refused": true,
+      "mixed_version_refused": true,
+      "payload_substitution_refused": true,
+      "restart_preserved_key": true,
+      "suite": "FrostSecp256k1Tr",
+      "tampered_receipt_refused": true,
+      "workers_refused_substitutions": true
+    }
+  ],
+  "evm_sessions": [
+    {
+      "authorization": "account",
+      "commit_plus_session_signed": true,
+      "executed_without_commit": true,
+      "limits_refused": true,
+      "policy_version_refused": true,
+      "required_commit_enforced": true,
+      "revocation_refused": true,
+      "transaction_hash": "0xfa688a6df878f6ccaa9b824916c441fe5018fd7a0e3a4340ebab78cfca87050e",
+      "transaction_replay_refused": true
+    },
+    {
+      "authorization": "program_cpi",
+      "commit_plus_session_signed": true,
+      "executed_without_commit": true,
+      "limits_refused": true,
+      "policy_version_refused": true,
+      "required_commit_enforced": true,
+      "revocation_refused": true,
+      "transaction_hash": "0x0bfdd9a0045763969f1b8022a583c9f750bb5ededd370d03c8172b2d7574ffae",
+      "transaction_replay_refused": true
+    }
+  ],
+  "job_lifecycle": {
+    "authorization": "program_cpi",
+    "cases": [
+      {
+        "action": "cancel",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "register",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "coordinator_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "register",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "worker_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "register",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "policy_freeze",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "register",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "cancel",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "prepare",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "coordinator_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "prepare",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "worker_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "prepare",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "policy_freeze",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "prepare",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "cancel",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "sign",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "coordinator_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "sign",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "worker_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "sign",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "policy_freeze",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "sign",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "cancel",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "ecdsa_result",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "coordinator_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "ecdsa_result",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "worker_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "ecdsa_result",
+        "suite": "Dkls23Secp256k1",
+        "terminal_status": "complete_before_crash"
+      },
+      {
+        "action": "cancel",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_begin",
+        "suite": "FrostRedPallas",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "coordinator_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_begin",
+        "suite": "FrostRedPallas",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "worker_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_begin",
+        "suite": "FrostRedPallas",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "policy_freeze",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_begin",
+        "suite": "FrostRedPallas",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "cancel",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_finish",
+        "suite": "FrostRedPallas",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "coordinator_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_finish",
+        "suite": "FrostRedPallas",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "worker_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_finish",
+        "suite": "FrostRedPallas",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "policy_freeze",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_finish",
+        "suite": "FrostRedPallas",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "cancel",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_result",
+        "suite": "FrostRedPallas",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "coordinator_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_result",
+        "suite": "FrostRedPallas",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "worker_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_result",
+        "suite": "FrostRedPallas",
+        "terminal_status": "complete_before_crash"
+      },
+      {
+        "action": "cancel",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_begin",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "coordinator_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_begin",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "worker_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_begin",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "policy_freeze",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_begin",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "cancel",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_finish",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "coordinator_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_finish",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "worker_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_finish",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "policy_freeze",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_finish",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "cancel",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_result",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "coordinator_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_result",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "failed"
+      },
+      {
+        "action": "worker_restart",
+        "cached_result_no_worker_calls": true,
+        "duplicate_submission_deduplicated": true,
+        "explicit_fresh_retry_verified": true,
+        "phase": "red_result",
+        "suite": "FrostSecp256k1Tr",
+        "terminal_status": "complete_before_crash"
+      }
+    ],
+    "completed_results_survive_restart": true,
+    "queued_cancellation_refused_before_start": true,
+    "rate_limit_backoffs": 1,
+    "sse_observed": true
+  }
+}

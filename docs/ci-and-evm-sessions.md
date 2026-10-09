@@ -1,5 +1,10 @@
 # CI and scoped EVM sessions
 
+The session API in this document is the legacy registered-namespace path. Sessions
+are deferred for [hosted approval v2](offchain-approval-api.md), which uses exact
+per-request authorization. The current CI gate tests both paths; newer approval
+implementation and evidence are tracked in the [approval plan](offchain-approval-plan.md).
+
 October 12, 2026. This extends the local multi-suite integration with controller-enrolled EVM sessions and a reproducible CI gate. It does not change the custom DKLS23 construction's review status or add production TEE support.
 
 ## Run the gate

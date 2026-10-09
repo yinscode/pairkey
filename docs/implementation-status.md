@@ -1,5 +1,12 @@
 # Local implementation evidence: Phases 0–3 and Solana 6–7
 
+This page records the earlier registered-namespace implementation and its review
+history. For the registration-free approval flow, bound passkey/OIDC identities,
+program evaluation/commit, hosted SDK and current acceptance gates, see the
+[off-chain approval plan](offchain-approval-plan.md) and
+[hosted API v2 contract](offchain-approval-api.md). The older flows below remain
+compatibility targets; their existence does not imply that v2 enables sessions.
+
 The local software track is implemented and validated. The original Phase 0 hardware exit is **not passed**: Task 5 still requires real Phala and Oyster access. The user has no accounts yet and requested continuing without them. No provider account, paid resource, public deployment, or real-asset wallet has been created.
 
 Architecture v0.4 remains the proposal and the earlier Hyperliquid MVP remains historical context. The platform plan controls sequencing; [ADR 001](adr-001-local-frost-construction.md) authorizes the experimental KDF/FROST construction only for controlled local tests. The October 10 Astra source review and remediation below do not replace independent specialist cryptographic review before real assets.
