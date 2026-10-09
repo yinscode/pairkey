@@ -13,6 +13,8 @@ use pairkey_types::{Attempt, Commit, Namespace, Registration, Role, Scheme};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, time::Instant};
 
+mod offchain;
+
 const MAX_KEYS: usize = 1024;
 const MAX_JOBS: usize = 1024;
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -20,6 +22,8 @@ struct Snapshot {
     context: [u8; 32],
     keys: BTreeMap<String, KeyResponse>,
     jobs: BTreeMap<String, Value>,
+    #[serde(default)]
+    offchain_jobs: BTreeMap<String, offchain::SavedJob>,
 }
 pub struct Store {
     disk: LocalStore,
@@ -43,13 +47,18 @@ impl Store {
             "hosted store identity mismatch"
         );
         ensure!(
-            snapshot.keys.len() <= MAX_KEYS && snapshot.jobs.len() <= MAX_JOBS,
+            snapshot.keys.len() <= MAX_KEYS
+                && snapshot.jobs.len() + snapshot.offchain_jobs.len() <= MAX_JOBS,
             "hosted store capacity"
         );
         for job in snapshot.jobs.values_mut() {
             if job["status"] == "working" {
                 *job = json!({"status":"failed","code":"interrupted","may_have_signed":true,"error":"Service restarted. Reconcile this request; it will not be signed again automatically."});
             }
+        }
+        for (id, job) in &mut snapshot.offchain_jobs {
+            job.validate(id)?;
+            job.interrupt();
         }
         let mut s = Self {
             disk,
@@ -104,6 +113,7 @@ pub fn router() -> Router<Arc<App>> {
         .route("/api/v1/jobs", post(submit))
         .route("/api/v1/jobs/:id", get(job))
         .route("/api/v1/rpc", post(rpc))
+        .merge(offchain::router())
 }
 async fn config(State(app): State<Arc<App>>) -> Json<Value> {
     Json(
@@ -209,6 +219,10 @@ fn cache_id(q: &KeyRequest) -> String {
 }
 async fn enrolled(app: &App, q: &KeyRequest) -> Result<KeyResponse> {
     registered(app, &q.registration).await?;
+    enrolled_metadata(app, q).await
+}
+async fn enrolled_metadata(app: &App, q: &KeyRequest) -> Result<KeyResponse> {
+    context(app, &q.registration)?;
     let account = q.chain.account(q.path.clone())?;
     let id = cache_id(q);
     {
@@ -293,49 +307,7 @@ fn prepared(
     q: &SigningRequest,
     key: &KeyResponse,
 ) -> Result<(Commit, Vec<u8>, Option<pairkey_signing::Intent>)> {
-    ensure!(
-        !q.message.trim().is_empty() && q.message.len() <= 256,
-        "message must contain 1–256 UTF-8 bytes"
-    );
-    ensure!(
-        key.account == q.key.chain.account(q.key.path.clone())?,
-        "key path mismatch"
-    );
-    let intent = key.multi.as_ref().map(|k| pairkey_signing::Intent {
-        version: 1,
-        key: k.key.clone(),
-        payload: match q.key.chain {
-            Chain::Evm => {
-                pairkey_signing::Payload::EvmMessage(pairkey_signing::evm_message::Message {
-                    chain_id: CHAIN,
-                    message: q.message.as_bytes().to_vec(),
-                })
-            }
-            Chain::Bitcoin => {
-                pairkey_signing::Payload::BitcoinMessage(pairkey_signing::bitcoin::Message {
-                    network: pairkey_signing::bitcoin::Network::Testnet,
-                    message: q.message.as_bytes().to_vec(),
-                })
-            }
-            _ => pairkey_signing::Payload::RedPallas {
-                message: q.message.as_bytes().to_vec(),
-            },
-        },
-    });
-    let bytes = match &intent {
-        Some(i) => {
-            i.validate(&q.key.registration)?;
-            i.bytes()?
-        }
-        None => q.message.as_bytes().to_vec(),
-    };
-    let commit = Commit::new(
-        &q.key.registration,
-        q.request_id,
-        key.account.clone(),
-        &bytes,
-    )?;
-    Ok((commit, bytes, intent))
+    pairkey_sdk::hosted::offchain::prepare_message(q, key)
 }
 fn cached(app: &App, q: &KeyRequest) -> Result<KeyResponse> {
     app.hosted
@@ -414,7 +386,7 @@ async fn submit(State(app): State<Arc<App>>, Json(q): Json<SigningRequest>) -> A
     }
     {
         let mut store = app.hosted.lock().unwrap();
-        if store.snapshot.jobs.len() >= MAX_JOBS {
+        if store.snapshot.jobs.len() + store.snapshot.offchain_jobs.len() >= MAX_JOBS {
             return Err(busy());
         }
         store

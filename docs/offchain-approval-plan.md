@@ -150,5 +150,20 @@ all private runtime state. Do not run the migrated local testnet worker state.
   Workspace tests, all-target clippy and formatting pass; the three ignored SBF
   worker tests and doc tests also pass in a serial run. CI runs this integration
   gate after building the programs.
-- Stages 5–6 pending. The new policies are not yet enforced by running signers or
-  exposed through the hosted UI; do not deploy the gateway separately as a feature.
+- Stage 5 in progress: `/api/v2` now supports lazy identity metadata and derived
+  keys without a registration transaction, canonical exact-message preparation,
+  private authentication at both workers, durable hosted jobs, and public-only
+  recovery. Existing `/api/v1` routes and keys remain compatible. No JWT, passkey
+  assertion or caller signature is stored in the hosted job journal. The Rust SDK
+  verifies namespace attestations, key certificates, prepared bytes, and the exact
+  off-chain approval in both result receipts. Real HTTP tests with two workers
+  produce signatures for Solana, NEAR, Zcash and Bitcoin; a separate native-sidecar
+  test produces a DKLS EVM signature. The RPC fixture supplies finalized account
+  reads only and rejects all transaction broadcasts. Tests also cover changed
+  messages, invalid caller proofs, stale rules, same-request retries, recovery,
+  and interrupted hosted persistence. The native hosted test is added to CI.
+  Hosted program/policy convenience endpoints, operator identity configuration,
+  browser SDK, quickstarts and demo still need integration.
+- Stage 6 remains open: complete the hosted program and bound-identity paths,
+  full CI, website checks and deployment readiness review. These changes are not
+  deployed; do not deploy the gateway separately as a feature.

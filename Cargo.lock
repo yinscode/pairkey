@@ -2720,6 +2720,7 @@ dependencies = [
  "pairkey-sdk",
  "pairkey-signing",
  "pairkey-types",
+ "pairkey-worker",
  "rand_core 0.6.4",
  "reqwest 0.12.12",
  "serde",

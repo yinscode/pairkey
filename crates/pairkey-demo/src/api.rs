@@ -35,7 +35,8 @@ fn origin_allowed(
 async fn protect(State(expected): State<String>, req: Request, next: Next) -> Response {
     let h = req.headers();
     let read = |name: &str| h.get(name).and_then(|v| v.to_str().ok());
-    let hosted = req.uri().path().starts_with("/api/v1/");
+    let hosted =
+        req.uri().path().starts_with("/api/v1/") || req.uri().path().starts_with("/api/v2/");
     if hosted {
         return hosted_protect(expected, req, next).await;
     }

@@ -3,6 +3,7 @@ use anyhow::{ensure, Result};
 use pairkey_types::{AccountPath, Commit, Registration};
 use serde::{Deserialize, Serialize};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+pub mod offchain;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, borsh::BorshSerialize)]
 #[serde(rename_all = "snake_case")]
