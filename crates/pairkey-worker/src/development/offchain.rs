@@ -77,6 +77,17 @@ impl Offchain {
                 .build()?,
         })
     }
+    #[cfg(test)]
+    pub(super) fn install_test_issuer(&mut self, config: IssuerConfig, issuer: TrustedIssuer) {
+        self.issuers.get_mut().insert(
+            (config.issuer.clone(), config.audience.clone()),
+            CachedIssuer {
+                issuer: Arc::new(issuer),
+                fetched: Instant::now(),
+            },
+        );
+        self.configs.push(config);
+    }
     fn cache_key(auth: &pairkey_types::policy::Authorization) -> [u8; 32] {
         pairkey_types::digest(b"pairkey/private-approval/v1", auth)
     }
@@ -403,4 +414,38 @@ pub(super) async fn lookup(
         .lookup(q.namespace_digest, q.request_id, q.approval_digest)
         .map(Json)
         .map_err(failure)
+}
+
+pub(super) async fn policy_update(
+    State(w): State<W>,
+    Json(q): Json<pairkey_types::approval::OidcPolicyApproval>,
+) -> Result<Json<Vec<u8>>, Failure> {
+    w.active().map_err(failure)?;
+    let ns = &q.update.namespace;
+    if ns.network != w.trust.network
+        || ns.registry != w.trust.registry.to_bytes()
+        || pair_registry::set_address(&w.trust.registry, &ns.enclave_set).0 != w.trust.enclave_set
+    {
+        return Err(failure(anyhow::anyhow!(
+            "policy update namespace/set mismatch"
+        )));
+    }
+    let issuer = w
+        .offchain
+        .issuer(&q.update.identity)
+        .await
+        .map_err(failure)?
+        .context("OIDC identity required")
+        .map_err(failure)?;
+    let release = w.release.lock().unwrap();
+    if release.incident {
+        return Err(failure(anyhow::anyhow!(
+            "worker incident; policy attestation refused"
+        )));
+    }
+    pairkey_core::approval::verify_oidc_policy_update(&q, &issuer, now()).map_err(failure)?;
+    // This is an owner-intent attestation, not a threshold signing attempt. Retrying
+    // produces the same public Ed25519 signature. The gateway enforces revision,
+    // set retirement and expiry; no JWT or ephemeral binding is put on-chain.
+    Ok(Json(w.channel.sign_public(&q.update.attestation_message())))
 }

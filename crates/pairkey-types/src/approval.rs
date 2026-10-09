@@ -220,6 +220,18 @@ impl Binding {
         }
         Ok(())
     }
+    pub fn validate_policy_update(&self, update: &PolicyUpdate, now: i64) -> Result<(), Error> {
+        interval(self.issued_at, self.expires_at, now, MAX_BINDING_LIFETIME)?;
+        if self.public_key == [0; 32]
+            || self.namespace_digest != update.namespace.digest()
+            || self.identity_digest != update.identity.digest()
+            || update.issued_at < self.issued_at
+            || update.expires_at > self.expires_at
+        {
+            return Err(Error::Metadata);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
@@ -296,6 +308,24 @@ impl PolicyUpdate {
         message.extend_from_slice(&self.challenge());
         message
     }
+    /// Owner's ephemeral key approves this action; signer identities use a separate domain.
+    pub fn signing_message(&self) -> Vec<u8> {
+        let mut message = b"PairKey policy update v1\nUpdate: ".to_vec();
+        for byte in self.challenge() {
+            message.push(b"0123456789abcdef"[(byte >> 4) as usize]);
+            message.push(b"0123456789abcdef"[(byte & 15) as usize]);
+        }
+        message
+    }
+}
+/// Sent privately to each signer. Only their public identity attestations go on-chain.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OidcPolicyApproval {
+    pub update: PolicyUpdate,
+    pub binding: Binding,
+    pub id_token: String,
+    pub signature: Vec<u8>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

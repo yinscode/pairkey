@@ -56,6 +56,23 @@ pub struct Relay {
     config: Config,
 }
 impl Relay {
+    pub async fn approve_oidc_policy(
+        &self,
+        q: &pairkey_types::approval::OidcPolicyApproval,
+    ) -> anyhow::Result<[Vec<u8>; 2]> {
+        let (a, b) = tokio::join!(
+            self.post::<_, Vec<u8>>(0, "/approve/policy", q),
+            self.post::<_, Vec<u8>>(1, "/approve/policy", q)
+        );
+        let signatures = [a?, b?];
+        for (identity, signature) in self.config.identities.iter().zip(&signatures) {
+            ed25519_dalek::VerifyingKey::from_bytes(identity)?.verify_strict(
+                &q.update.attestation_message(),
+                &ed25519_dalek::Signature::from_slice(signature)?,
+            )?;
+        }
+        Ok(signatures)
+    }
     pub async fn approve_offchain(
         &self,
         q: &pairkey_types::approval::Submission,
@@ -392,6 +409,27 @@ async fn approve_offchain(
         )
     })
 }
+async fn approve_oidc_policy(
+    State(s): State<S>,
+    Json(q): Json<pairkey_types::approval::OidcPolicyApproval>,
+) -> Result<Json<[Vec<u8>; 2]>, (StatusCode, Json<Value>)> {
+    let _permit = s.capacity.clone().try_acquire_owned().map_err(|_| {
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({"error":"approval capacity reached"})),
+        )
+    })?;
+    s.relay
+        .approve_oidc_policy(&q)
+        .await
+        .map(Json)
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error":e.to_string()})),
+            )
+        })
+}
 async fn propose(
     State(s): State<S>,
     Json(request): Json<RegistrationRequest>,
@@ -606,6 +644,10 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         .route(
             "/approvals/offchain",
             post(approve_offchain).layer(DefaultBodyLimit::max(64 * 1024)),
+        )
+        .route(
+            "/approvals/policy",
+            post(approve_oidc_policy).layer(DefaultBodyLimit::max(64 * 1024)),
         )
         .with_state(service);
     println!(

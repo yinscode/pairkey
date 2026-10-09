@@ -303,8 +303,12 @@ fn binding_and_request_lifetimes_are_bounded_without_overflow() {
     assert!(b.validate(&reg, b"hello", &Rules::default(), 1000).is_err());
 }
 
-#[test]
-fn oidc_requires_nonce_bound_owner_token_and_ephemeral_request_signature() {
+fn oidc_approval_fixture() -> (
+    Registration,
+    Approval,
+    crate::oidc::TrustedIssuer,
+    SigningKey,
+) {
     use ring::{
         rand::SystemRandom,
         signature::{RsaKeyPair, RSA_PKCS1_SHA256},
@@ -361,6 +365,12 @@ fn oidc_requires_nonce_bound_owner_token_and_ephemeral_request_signature() {
             signature,
         },
     };
+    (reg, a, issuer, ephemeral)
+}
+
+#[test]
+fn oidc_requires_nonce_bound_owner_token_and_ephemeral_request_signature() {
+    let (reg, a, issuer, _) = oidc_approval_fixture();
     let marker = pairkey_types::policy::Authorization::offchain(&a);
     let public = serde_json::to_string(&marker).unwrap();
     assert!(!public.contains("id_token"));
@@ -384,4 +394,75 @@ fn oidc_requires_nonce_bound_owner_token_and_ephemeral_request_signature() {
         binding.public_key = SigningKey::from_bytes(&[45; 32]).verifying_key().to_bytes();
     }
     assert!(verify_with_oidc(&reg, b"hello", &Rules::default(), &b, 1000, Some(&issuer)).is_err());
+}
+
+#[test]
+fn oidc_policy_management_requires_an_exact_action_signature_and_bound_identity() {
+    let (reg, a, issuer, key) = oidc_approval_fixture();
+    let Proof::Oidc {
+        binding,
+        id_token,
+        signature: signing_signature,
+    } = a.proof
+    else {
+        unreachable!()
+    };
+    let update = PolicyUpdate {
+        namespace: reg.namespace,
+        identity: a.request.identity,
+        rules: Rules {
+            revision: 1,
+            destinations: Some(vec![[8; 32]]),
+            ..Rules::default()
+        },
+        issued_at: 1000,
+        expires_at: 1100,
+    };
+    let signature = key.sign(&update.signing_message()).to_bytes().to_vec();
+    let q = OidcPolicyApproval {
+        update,
+        binding,
+        id_token,
+        signature,
+    };
+    verify_oidc_policy_update(&q, &issuer, 1000).unwrap();
+    let mut wrong = q.clone();
+    wrong.signature = signing_signature;
+    assert!(verify_oidc_policy_update(&wrong, &issuer, 1000).is_err());
+    let mut wrong = q.clone();
+    wrong.signature = key
+        .sign(&q.update.attestation_message())
+        .to_bytes()
+        .to_vec();
+    assert!(verify_oidc_policy_update(&wrong, &issuer, 1000).is_err());
+    let mut wrong = q.clone();
+    wrong.update.rules.disabled = true;
+    assert!(verify_oidc_policy_update(&wrong, &issuer, 1000).is_err());
+    let mut wrong = q.clone();
+    wrong.update.namespace.namespace_id[0] ^= 1;
+    wrong.signature = key
+        .sign(&wrong.update.signing_message())
+        .to_bytes()
+        .to_vec();
+    assert!(verify_oidc_policy_update(&wrong, &issuer, 1000).is_err());
+    let mut wrong = q.clone();
+    wrong.binding.public_key = SigningKey::from_bytes(&[45; 32]).verifying_key().to_bytes();
+    wrong.signature = SigningKey::from_bytes(&[45; 32])
+        .sign(&wrong.update.signing_message())
+        .to_bytes()
+        .to_vec();
+    assert!(verify_oidc_policy_update(&wrong, &issuer, 1000).is_err());
+    let mut wrong = q.clone();
+    if let Identity::Oidc { subject, .. } = &mut wrong.update.identity {
+        *subject = "other-user".into();
+    }
+    wrong.update.namespace.derivation_authority = wrong.update.identity.authority();
+    wrong.signature = key
+        .sign(&wrong.update.signing_message())
+        .to_bytes()
+        .to_vec();
+    assert!(verify_oidc_policy_update(&wrong, &issuer, 1000).is_err());
+    for now in [999, 1100, 1200] {
+        assert!(verify_oidc_policy_update(&q, &issuer, now).is_err());
+    }
 }

@@ -102,6 +102,31 @@ fn ed25519(public_key: &[u8; 32], signature: &[u8], message: &[u8]) -> Result<()
         .map_err(|_| Error::Authorization)
 }
 
+/// Attests owner intent only. The gateway separately enforces the current set,
+/// expiry and next policy revision when applying this update atomically.
+pub fn verify_oidc_policy_update(
+    q: &pairkey_types::approval::OidcPolicyApproval,
+    issuer: &crate::oidc::TrustedIssuer,
+    now: i64,
+) -> Result<(), Error> {
+    q.update.validate(now).map_err(|_| Error::Authorization)?;
+    q.binding
+        .validate_policy_update(&q.update, now)
+        .map_err(|_| Error::Authorization)?;
+    issuer.verify(
+        &q.update.identity,
+        &q.binding,
+        &q.id_token,
+        q.update.expires_at,
+        now,
+    )?;
+    ed25519(
+        &q.binding.public_key,
+        &q.signature,
+        &q.update.signing_message(),
+    )
+}
+
 pub fn rules(trust: &Trust, observation: &Observation, reg: &Registration) -> Result<Rules, Error> {
     match &observation.rules {
         None => Ok(Rules::default()),

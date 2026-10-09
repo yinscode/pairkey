@@ -304,7 +304,7 @@ fn oidc_policy_needs_two_distinct_enrolled_attestations_bound_to_update() {
     assert!(f
         .send(vec![proofs[0].clone(), proofs[0].clone(), write.clone()])
         .is_err());
-    let mut changed = update;
+    let mut changed = update.clone();
     changed.rules.disabled = true;
     assert!(f
         .send(vec![
@@ -313,6 +313,13 @@ fn oidc_policy_needs_two_distinct_enrolled_attestations_bound_to_update() {
             pairkey_sdk::approval::set_rules(f.payer.pubkey(), changed, PolicyProof::OidcAttested)
         ])
         .is_err());
-    f.send(vec![proofs[0].clone(), proofs[1].clone(), write])
-        .unwrap();
+    let signatures = f
+        .identities
+        .each_ref()
+        .map(|key| key.sign_message(&message).as_ref().to_vec());
+    let identities = f.identities.each_ref().map(|key| key.pubkey().to_bytes());
+    let instructions =
+        pairkey_sdk::approval::oidc_rules(f.payer.pubkey(), update, signatures, identities)
+            .unwrap();
+    f.send(instructions).unwrap();
 }

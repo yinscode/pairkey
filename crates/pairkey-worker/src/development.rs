@@ -846,6 +846,10 @@ pub async fn run(path: &str) -> anyhow::Result<()> {
             "/approve/offchain",
             post(offchain::approve).layer(DefaultBodyLimit::max(64 * 1024)),
         )
+        .route(
+            "/approve/policy",
+            post(offchain::policy_update).layer(DefaultBodyLimit::max(64 * 1024)),
+        )
         .route("/approve/result", post(offchain::lookup))
         .route("/approve/check", post(offchain::check))
         .layer(axum::middleware::from_fn_with_state(worker.clone(), limit))

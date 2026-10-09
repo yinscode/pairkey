@@ -959,3 +959,129 @@ fn incident_latch_survives_restart_and_unknown_state_fails_closed() {
     std::fs::remove_file(&path).unwrap();
     std::fs::remove_file(format!("{name}.lock")).unwrap();
 }
+
+#[tokio::test]
+async fn oidc_policy_endpoint_authenticates_owner_action_and_never_returns_the_token() {
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use ed25519_dalek::Signer as _;
+    use pairkey_types::approval::{Binding, OidcPolicyApproval, PolicyUpdate, Rules};
+    use ring::{
+        rand::SystemRandom,
+        signature::{RsaKeyPair, RSA_PKCS1_SHA256},
+    };
+    let identity = Identity::Oidc {
+        issuer: "https://issuer.example".into(),
+        audience: "pairkey".into(),
+        subject: "test-owner".into(),
+    };
+    let mut f = Fixture::new_source(false, Some(identity.clone())).await;
+    let time = now();
+    let key = ed25519_dalek::SigningKey::from_bytes(&[46; 32]);
+    let update = PolicyUpdate {
+        namespace: f.begin.registration.namespace.clone(),
+        identity: identity.clone(),
+        rules: Rules {
+            revision: 1,
+            disabled: true,
+            ..Rules::default()
+        },
+        issued_at: time,
+        expires_at: time + 60,
+    };
+    let binding = Binding {
+        namespace_digest: update.namespace.digest(),
+        identity_digest: identity.digest(),
+        public_key: key.verifying_key().to_bytes(),
+        issued_at: time,
+        expires_at: time + 120,
+    };
+    let claims = json!({"iss":"https://issuer.example","aud":"pairkey","sub":"test-owner","iat":time,"exp":time+120,
+        "nonce":URL_SAFE_NO_PAD.encode(binding.challenge())});
+    let message = format!(
+        "{}.{}",
+        URL_SAFE_NO_PAD.encode(br#"{"alg":"RS256","kid":"test-only"}"#),
+        URL_SAFE_NO_PAD.encode(claims.to_string())
+    );
+    let issuer_key = RsaKeyPair::from_pkcs8(include_bytes!(
+        "../../../pairkey-core/src/oidc/fixtures/test-only.pk8"
+    ))
+    .unwrap();
+    let mut signature = vec![0; issuer_key.public().modulus_len()];
+    issuer_key
+        .sign(
+            &RSA_PKCS1_SHA256,
+            &SystemRandom::new(),
+            message.as_bytes(),
+            &mut signature,
+        )
+        .unwrap();
+    let id_token = format!("{message}.{}", URL_SAFE_NO_PAD.encode(signature));
+    let signature = key.sign(&update.signing_message()).to_bytes().to_vec();
+    let q = OidcPolicyApproval {
+        update,
+        binding,
+        id_token,
+        signature,
+    };
+    // A real token from an unconfigured issuer cannot cause network key discovery.
+    assert!(
+        offchain::policy_update(State(f.worker.clone()), Json(q.clone()))
+            .await
+            .is_err()
+    );
+    let issuer = pairkey_core::oidc::TrustedIssuer::from_jwks(
+        "https://issuer.example".into(),
+        "pairkey".into(),
+        include_bytes!("../../../pairkey-core/src/oidc/fixtures/jwks.json"),
+        time,
+    )
+    .unwrap();
+    Arc::get_mut(&mut f.worker)
+        .unwrap()
+        .offchain
+        .install_test_issuer(
+            offchain::IssuerConfig {
+                issuer: "https://issuer.example".into(),
+                audience: "pairkey".into(),
+                jwks_url: "https://issuer.example/jwks".into(),
+            },
+            issuer,
+        );
+    let signature = offchain::policy_update(State(f.worker.clone()), Json(q.clone()))
+        .await
+        .unwrap()
+        .0;
+    ed25519_dalek::VerifyingKey::from_bytes(&f.worker.channel.identity())
+        .unwrap()
+        .verify_strict(
+            &q.update.attestation_message(),
+            &ed25519_dalek::Signature::from_slice(&signature).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(signature.len(), 64);
+    assert!(!serde_json::to_string(&signature)
+        .unwrap()
+        .contains(&q.id_token));
+    let mut wrong = q.clone();
+    wrong.update.rules.disabled = false;
+    assert!(
+        offchain::policy_update(State(f.worker.clone()), Json(wrong))
+            .await
+            .is_err()
+    );
+    let mut wrong = q.clone();
+    wrong.update.namespace.network[0] ^= 1;
+    wrong.signature = key
+        .sign(&wrong.update.signing_message())
+        .to_bytes()
+        .to_vec();
+    assert!(
+        offchain::policy_update(State(f.worker.clone()), Json(wrong))
+            .await
+            .is_err()
+    );
+    f.worker.release.lock().unwrap().incident = true;
+    assert!(offchain::policy_update(State(f.worker.clone()), Json(q))
+        .await
+        .is_err());
+}

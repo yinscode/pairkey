@@ -111,6 +111,20 @@ all private runtime state. Do not run the migrated local testnet worker state.
   and verify matching semantic approvals and a matching receipt pair. Eight
   coordinator tests pass, including real Ed25519/RedPallas recovery, concurrent
   retries, incomplete worker results, tampered receipts and failed persistence.
-  OIDC policy-update attestation endpoints remain to be connected.
+  OIDC policy updates now have private worker/coordinator endpoints and SDK native
+  instruction construction. An owner-bound ephemeral key signs a policy-specific
+  message; both workers independently verify the configured issuer's token and the
+  exact update before attesting. Only public attestations enter the transaction;
+  the gateway checks revision, expiry and set status at execution. Fifteen core
+  tests and sixteen worker tests pass, including real RSA-token policy management,
+  wrong-action signatures, issuer configuration, changed updates and incident
+  refusal. Four policy SBF tests and six legacy registry SBF tests pass against the
+  rebuilt programs. The existing SBF toolchain diagnostics remain as noted above.
+  Remaining integration verification must exercise the full hosted path and all
+  five chain adapters; these foundation tests do not establish that rollout.
 - Stages 4–6 pending. The new policies are not yet enforced by running signers or
   exposed through the hosted UI; do not deploy the gateway separately as a feature.
+  The existing `example-policy` simulation is a legacy, registered-namespace
+  evaluator with a signer-attested input. Stage 4 must add the registration-free
+  program source, authenticated caller context and general approval ABI, rather
+  than treating that legacy evaluator as completion of the new program flow.

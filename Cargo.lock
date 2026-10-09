@@ -2886,6 +2886,7 @@ dependencies = [
  "pairkey-types",
  "rand_core 0.6.4",
  "reqwest 0.12.12",
+ "ring",
  "serde",
  "serde_json",
  "sha2 0.10.9",

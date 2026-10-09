@@ -155,3 +155,60 @@ impl crate::service::Client {
         crate::http::bounded_json(response, crate::http::MAX_SERVICE_RESPONSE).await
     }
 }
+
+impl crate::service::Client {
+    /// Obtain both signer attestations over an OIDC owner's exact policy update.
+    pub async fn approve_oidc_policy(
+        &self,
+        q: &pairkey_types::approval::OidcPolicyApproval,
+        identities: [[u8; 32]; 2],
+    ) -> Result<[Vec<u8>; 2]> {
+        let response = self
+            .http
+            .post(format!("{}/approvals/policy", self.endpoint))
+            .json(q)
+            .send()
+            .await
+            .map_err(reqwest::Error::without_url)?;
+        let signatures: [Vec<u8>; 2] =
+            crate::http::bounded_json(response, crate::http::MAX_SERVICE_RESPONSE).await?;
+        verify_policy_attestations(&q.update, &signatures, identities)?;
+        Ok(signatures)
+    }
+}
+fn verify_policy_attestations(
+    update: &PolicyUpdate,
+    signatures: &[Vec<u8>; 2],
+    identities: [[u8; 32]; 2],
+) -> Result<()> {
+    ensure!(
+        matches!(update.identity, Identity::Oidc { .. }) && identities[0] != identities[1],
+        "two OIDC signer identities required"
+    );
+    for (identity, signature) in identities.iter().zip(signatures) {
+        ed25519_dalek::VerifyingKey::from_bytes(identity)?.verify_strict(
+            &update.attestation_message(),
+            &ed25519_dalek::Signature::from_slice(signature)?,
+        )?;
+    }
+    Ok(())
+}
+/// Two native Ed25519 checks plus the gateway instruction. Contains no ID token.
+pub fn oidc_rules(
+    payer: Pubkey,
+    update: PolicyUpdate,
+    signatures: [Vec<u8>; 2],
+    identities: [[u8; 32]; 2],
+) -> Result<Vec<Instruction>> {
+    verify_policy_attestations(&update, &signatures, identities)?;
+    let mut instructions = vec![];
+    for (identity, signature) in identities.iter().zip(signatures) {
+        instructions.push(crate::ed25519_instruction(
+            *identity,
+            signature.as_slice().try_into()?,
+            &update.attestation_message(),
+        ));
+    }
+    instructions.push(set_rules(payer, update, PolicyProof::OidcAttested));
+    Ok(instructions)
+}
