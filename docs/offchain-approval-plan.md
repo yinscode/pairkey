@@ -214,3 +214,12 @@ all private runtime state. Do not run the migrated local testnet worker state.
 - Stage 6 remains open: complete the hosted program and bound-identity paths,
   full CI, website checks and deployment readiness review. These changes are not
   deployed; do not deploy the gateway separately as a feature.
+  Full CI exposed a legacy concurrent-signing regression: a newer positive policy
+  read invalidated an already in-flight read of the same unchanged policy. The
+  durable store now preserves the latest slot as the lower bound for new reads,
+  while unchanged in-flight reads may finish out of order. Policy changes and
+  negative controls still fence old views, including after restart. The original
+  snapshot's global floor is retained conservatively; no journal reset or format
+  replacement is required. Seven durable-store tests and workspace all-target
+  clippy pass. The validator-backed account/program concurrency and compatibility
+  demo is being rerun with the rebuilt worker executables.

@@ -256,7 +256,14 @@ impl ApprovalStore {
     }
     pub fn minimum_slot(&self) -> io::Result<u64> {
         self.ready()?;
-        Ok(self.snapshot.minimum_slot)
+        // New reads start at the latest observed slot. In-flight reads of the
+        // same policy need not be invalidated merely by a newer positive read.
+        Ok(self
+            .snapshot
+            .policies
+            .values()
+            .map(|p| p.slot)
+            .fold(self.snapshot.minimum_slot, u64::max))
     }
     pub fn knows_policy(&self, namespace: [u8; 32]) -> io::Result<bool> {
         self.ready()?;
@@ -265,7 +272,9 @@ impl ApprovalStore {
             .policies
             .contains_key(&URL_SAFE_NO_PAD.encode(namespace)))
     }
-    /// Caller has already validated the finalized record's ownership and namespace.
+    /// Caller has validated ownership, namespace, freshness and the minimum slot
+    /// captured before starting this RPC read. Same-policy reads may complete out
+    /// of order; changed policy and negative-control fences still invalidate them.
     pub fn observe_policy(
         &mut self,
         namespace: [u8; 32],
@@ -279,13 +288,15 @@ impl ApprovalStore {
             return Err(invalid());
         }
         let key = URL_SAFE_NO_PAD.encode(namespace);
+        let mut latest_slot = slot;
         if let Some(old) = self.snapshot.policies.get(&key) {
             if revision < old.revision
-                || slot < old.slot
+                || (revision > old.revision && slot < old.slot)
                 || (revision == old.revision && digest != old.digest)
             {
                 return Err(io::Error::other("stale or conflicting policy observation"));
             }
+            latest_slot = latest_slot.max(old.slot);
         } else if self.snapshot.policies.len() >= MAX_POLICIES {
             return Err(io::Error::other("policy fence capacity reached"));
         }
@@ -294,10 +305,12 @@ impl ApprovalStore {
             PolicyFence {
                 revision,
                 digest,
-                slot,
+                slot: latest_slot,
             },
         );
-        self.snapshot.minimum_slot = slot;
+        // This field is a durable negative-control fence. Previous snapshots
+        // also advanced it on positive reads; retaining that value on load is
+        // conservative and requires no migration or loss of an existing fence.
         self.snapshot.clock_floor = now;
         self.save()
     }
@@ -317,7 +330,6 @@ impl ApprovalStore {
             Some(p)
                 if p.revision == revision
                     && p.digest == digest
-                    && slot >= p.slot
                     && slot >= self.snapshot.minimum_slot =>
             {
                 Ok(())
@@ -341,17 +353,26 @@ impl ApprovalStore {
         now: i64,
     ) -> io::Result<()> {
         self.clock(now)?;
+        if slot < self.snapshot.minimum_slot {
+            return Err(invalid());
+        }
         let key = URL_SAFE_NO_PAD.encode(key);
+        let mut latest_slot = slot;
         if let Some(old) = self.snapshot.program_states.get(&key) {
-            if slot < old.slot || (slot == old.slot && digest != old.digest) {
+            if slot <= old.slot && digest != old.digest {
                 return Err(invalid());
             }
+            latest_slot = latest_slot.max(old.slot);
         } else if self.snapshot.program_states.len() >= MAX_POLICIES {
             return Err(invalid());
         }
-        self.snapshot
-            .program_states
-            .insert(key, ProgramFence { digest, slot });
+        self.snapshot.program_states.insert(
+            key,
+            ProgramFence {
+                digest,
+                slot: latest_slot,
+            },
+        );
         self.snapshot.clock_floor = now;
         self.save()
     }
@@ -362,7 +383,7 @@ impl ApprovalStore {
             .program_states
             .get(&URL_SAFE_NO_PAD.encode(key))
         {
-            Some(p) if p.digest == digest && slot >= p.slot => Ok(()),
+            Some(p) if p.digest == digest && slot >= self.snapshot.minimum_slot => Ok(()),
             _ => Err(io::Error::other(
                 "program state changed before signing release",
             )),

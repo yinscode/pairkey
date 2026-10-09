@@ -118,7 +118,11 @@ fn policy_clock_and_negative_control_fences_survive_restart() {
     assert!(store
         .observe_policy([1; 32], 2, [4; 32], 101, 1000)
         .is_err());
-    assert!(store.observe_policy([1; 32], 2, [5; 32], 99, 1000).is_err());
+    // An authenticated in-flight read of the unchanged policy may finish after
+    // a newer positive read. Newly started RPC reads still require slot >= 100.
+    store.observe_policy([1; 32], 2, [5; 32], 99, 1000).unwrap();
+    assert_eq!(store.minimum_slot().unwrap(), 100);
+    store.check_policy([1; 32], 2, [5; 32], 99).unwrap();
     store.observe_inactive(101, 1001).unwrap();
     drop(store);
     let mut store = ApprovalStore::open(temp.file(), [9; 32]).unwrap();
@@ -149,6 +153,73 @@ fn persistence_errors_poison_issuance_and_context_cannot_be_replaced() {
     let mut store = ApprovalStore::open(temp.file(), [9; 32]).unwrap();
     // The failed pre-issuance write exposed no nonce and left the durable file empty.
     assert!(store.reserve(claim(), 1000).unwrap());
+}
+
+#[test]
+fn positive_reads_preserve_concurrent_views_but_changes_and_revocation_fence_them() {
+    let temp = Temp::new();
+    let mut store = ApprovalStore::open(temp.file(), [9; 32]).unwrap();
+    store
+        .observe_policy([1; 32], 1, [2; 32], 100, 1000)
+        .unwrap();
+    store
+        .observe_policy([1; 32], 1, [2; 32], 102, 1000)
+        .unwrap();
+    store
+        .observe_policy([3; 32], 1, [4; 32], 103, 1000)
+        .unwrap();
+    store
+        .observe_policy([1; 32], 1, [2; 32], 101, 1000)
+        .unwrap();
+    store.check_policy([1; 32], 1, [2; 32], 100).unwrap();
+    assert_eq!(store.minimum_slot().unwrap(), 103);
+    assert!(store
+        .observe_policy([1; 32], 2, [5; 32], 101, 1000)
+        .is_err());
+    store
+        .observe_policy([1; 32], 2, [5; 32], 104, 1000)
+        .unwrap();
+    assert!(store.check_policy([1; 32], 1, [2; 32], 105).is_err());
+    assert!(store
+        .observe_policy([1; 32], 1, [2; 32], 105, 1000)
+        .is_err());
+    store.observe_program([6; 32], [7; 32], 104, 1000).unwrap();
+    store.observe_program([6; 32], [7; 32], 103, 1000).unwrap();
+    store.check_program([6; 32], [7; 32], 103).unwrap();
+    assert_eq!(store.program_slot([6; 32]).unwrap(), Some(104));
+    store.observe_program([6; 32], [8; 32], 105, 1000).unwrap();
+    assert!(store.check_program([6; 32], [7; 32], 106).is_err());
+    store.observe_inactive(106, 1000).unwrap();
+    assert!(store.check_policy([1; 32], 2, [5; 32], 105).is_err());
+    assert!(store.check_program([6; 32], [8; 32], 105).is_err());
+    drop(store);
+    let store = ApprovalStore::open(temp.file(), [9; 32]).unwrap();
+    assert_eq!(store.minimum_slot().unwrap(), 107);
+    assert!(store.check_policy([1; 32], 2, [5; 32], 105).is_err());
+    assert!(store.check_program([6; 32], [8; 32], 105).is_err());
+}
+
+#[test]
+fn old_snapshot_global_slot_floor_is_never_lowered() {
+    let temp = Temp::new();
+    let mut store = ApprovalStore::open(temp.file(), [9; 32]).unwrap();
+    store
+        .observe_policy([1; 32], 1, [2; 32], 100, 1000)
+        .unwrap();
+    drop(store);
+    let mut snapshot: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(temp.file()).unwrap()).unwrap();
+    snapshot["minimum_slot"] = 120.into();
+    std::fs::write(temp.file(), serde_json::to_vec(&snapshot).unwrap()).unwrap();
+    let mut store = ApprovalStore::open(temp.file(), [9; 32]).unwrap();
+    assert!(store
+        .observe_policy([1; 32], 1, [2; 32], 119, 1001)
+        .is_err());
+    store
+        .observe_policy([1; 32], 1, [2; 32], 120, 1001)
+        .unwrap();
+    assert!(store.check_policy([1; 32], 1, [2; 32], 119).is_err());
+    assert_eq!(store.minimum_slot().unwrap(), 120);
 }
 
 #[test]
