@@ -140,7 +140,7 @@
 <span class="index">01</span>
 <div>
 <h3>Program the permission.</h3>
-<p>Approve an exact operation or grant a scoped session. Bind the recipient, per-operation limits, destination, and expiry to your application’s rules.</p>
+<p>Authorize exact requests and enforce your application’s rules. Choose off-chain evaluation or on-chain approval when a decision must consume state.</p>
 </div>
 </article>
 <article>
@@ -182,10 +182,10 @@
 <div class="path-top">
 <div>
 <p class="eyebrow">03 / TWO WAYS TO AUTHORIZE</p>
-<h2>Approve once.<br>Or approve each action.</h2>
+<h2>Your rules.<br>Two approval paths.</h2>
 </div>
 <div class="tabs" role="tablist" aria-label="Authorization path">
-<button id="session-tab" role="tab" aria-selected="true" aria-controls="session-panel" data-tab="session">Scoped session</button>
+<button id="session-tab" role="tab" aria-selected="true" aria-controls="session-panel" data-tab="session">Off-chain approval</button>
 <button id="onchain-tab" role="tab" aria-selected="false" aria-controls="onchain-panel" tabindex="-1" data-tab="onchain">On-chain approval</button>
 </div>
 </div>
@@ -193,13 +193,13 @@
 <div>
 <span class="pill">OFF-CHAIN SIGNING PATH</span>
 <h3>Zero per-signature<br>Solana transaction fees.</h3>
-<p>Publish a session grant on Solana. Sign eligible requests off-chain within that grant, without a new authorization transaction for each signature.</p>
-<p class="caption">Keep repeat operations moving within your program’s rules. <a href="docs/sessions.html">Session scope &amp; fee details →</a></p>
+<p>Authorize the exact request with your wallet, or evaluate your program’s rules off-chain. Both signers check current permission without broadcasting a new authorization transaction.</p>
+<p class="caption">Keep signing within your rules. <a href="docs/policy.html">Policy and fee details →</a></p>
 </div>
 <ol class="flow">
 <li>
 <span>01</span>
-<div>Grant on Solana<small>Scope · recipient · limits · expiry</small>
+<div>Authorize the request<small>Identity · key · exact message · expiry</small>
 </div>
 </li>
 <li>
@@ -209,7 +209,7 @@
 </li>
 <li>
 <span>03</span>
-<div>Submit to the destination<small>Your application handles execution</small>
+<div>Receive a signature<small>Verify it and use it in your application</small>
 </div>
 </li>
 </ol>
@@ -218,13 +218,13 @@
 <div>
 <span class="pill">EXACT-OPERATION APPROVAL</span>
 <h3>Make every approval<br>part of your program.</h3>
-<p>Publish a COMMIT for the exact operation through Solana CPI. Both signers check finalized authorization before releasing signing output.</p>
+<p>Consume an allowance or update application state while approving the exact request through Solana CPI. Both signers check the finalized decision before releasing output.</p>
 <p class="caption">Make signing authority part of your application’s on-chain logic. <a href="docs/integration.html">Explore program integration →</a></p>
 </div>
 <ol class="flow">
 <li>
 <span>01</span>
-<div>Approve exact bytes<small>Your controller program publishes a COMMIT</small>
+<div>Approve exact bytes<small>Your program commits its decision through CPI</small>
 </div>
 </li>
 <li>
@@ -260,11 +260,11 @@
 </tr>
 </thead>
 <tbody>
-<tr><th scope="row">Authority</th><td class="ours">Solana programs &amp; accounts<br><span class="cell-detail">Exact approvals or scoped sessions</span></td><td>NEAR accounts &amp; contracts</td><td>API credentials &amp; policy engine</td></tr>
+<tr><th scope="row">Authority</th><td class="ours">Solana programs &amp; accounts<br><span class="cell-detail">Off-chain or on-chain approval</span></td><td>NEAR accounts &amp; contracts</td><td>API credentials &amp; policy engine</td></tr>
 <tr><th scope="row">Signing model</th><td class="ours">2 independent TEE signers<br><span class="cell-detail">Separate shares. No full private key.</span></td><td>Threshold MPC node network</td><td>Key inside a Signer enclave<br><span class="cell-detail">Separate policy enclaves</span></td></tr>
-<tr><th scope="row">Request path</th><td class="ours">On-chain approval or off-chain session</td><td>NEAR contract → MPC → response</td><td>Off-chain API</td></tr>
-<tr class="latency-row"><th scope="row">Latency</th><td class="ours"><span class="latency-line"><strong>Session</strong> Checks + signing</span><span class="latency-line"><strong>Approval</strong> Solana finality + signing</span></td><td>NEAR inclusion + MPC + contract response</td><td>50–100 ms signing*<br><span class="cell-detail">Vendor-reported</span></td></tr>
-<tr><th scope="row">Authorization fees</th><td class="ours"><strong>Zero Solana tx fee per session signature</strong><br><span class="cell-detail">On-chain approvals pay Solana fees</span></td><td>NEAR gas for contract requests</td><td>Service pricing<br><span class="cell-detail">No control-chain gas</span></td></tr>
+<tr><th scope="row">Request path</th><td class="ours">Off-chain approval or on-chain commit</td><td>NEAR contract → MPC → response</td><td>Off-chain API</td></tr>
+<tr class="latency-row"><th scope="row">Latency</th><td class="ours"><span class="latency-line"><strong>Off-chain</strong> Checks + signing</span><span class="latency-line"><strong>On-chain</strong> Solana finality + checks + signing</span></td><td>NEAR inclusion + MPC + contract response</td><td>50–100 ms signing*<br><span class="cell-detail">Vendor-reported</span></td></tr>
+<tr><th scope="row">Authorization fees</th><td class="ours"><strong>Zero Solana tx fee for off-chain approval</strong><br><span class="cell-detail">On-chain approvals pay Solana fees</span></td><td>NEAR gas for contract requests</td><td>Service pricing<br><span class="cell-detail">No control-chain gas</span></td></tr>
 </tbody>
 </table>
 </div>
@@ -316,7 +316,7 @@
 </details>
 <details>
 <summary>What can I build with PairKey?</summary>
-<p>Start with program-controlled payments and scoped delegation. Use exact-operation approvals for individual actions, or time-bounded sessions for repeat operations. <a href="docs/quickstart.html">Try the program-controlled demo →</a></p>
+<p>Start with account or program-controlled message signing. Add persistent rules, evaluate application logic, or consume on-chain allowances when your workflow needs them. <a href="docs/quickstart.html">Try the program-controlled demo →</a></p>
 </details>
 </div>
 </section>

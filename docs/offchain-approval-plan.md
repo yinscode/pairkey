@@ -196,8 +196,21 @@ all private runtime state. Do not run the migrated local testnet worker state.
   CI builds and tests that exact archive. Existing dalek/SBF diagnostics remain as
   noted above. The offline verifier now requires the original v2 approval and
   still verifies legacy transcripts. Its regression test and workspace clippy pass.
-  Remaining public docs and the demo still need migration. A configured
-  production OIDC issuer has not been exercised through the hosted HTTP path.
+  The public docs and message demo now use the same v2 lifecycle. The demo connects
+  visitor wallets, supports explicit program setup and approval mode selection,
+  derives all five destination keys, and records public-only tab-local history.
+  Signer cards only show completion after the matching result and receipts return;
+  recovered saved metadata is not presented as fresh verification. The Verify
+  button checks the displayed inputs through the service, and the transcript can
+  be verified independently with the Rust example. Forty-five website tests,
+  generated-site/link checks, and Rust formatting pass. Manual browser QA against
+  two real development workers and actual program SBF on an in-memory chain
+  completed account and program signing, accepted the original signature, rejected
+  a changed message, and recovered the original account job. The fixture completed
+  exactly two jobs and was shut down. Download serving now includes ZIP and Rust
+  source MIME types, exercised by the hosted browser integration test.
+  A configured production OIDC issuer has not been exercised through the hosted
+  HTTP path; complete isolated HTTPS issuer coverage and rollout review remain.
 - Stage 6 remains open: complete the hosted program and bound-identity paths,
   full CI, website checks and deployment readiness review. These changes are not
   deployed; do not deploy the gateway separately as a feature.

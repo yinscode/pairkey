@@ -1,30 +1,186 @@
-import {chainLabels,messageEnvelope,messageFlow} from './message-demo.mjs?v=bitcoin-1';
-const $=id=>document.getElementById(id),newId=()=>crypto.randomUUID().replaceAll('-',''),short=(s,n=10)=>s?`${s.slice(0,n)}…${s.slice(-6)}`:'—';
-let latest,active,selected,currentOp,verifyOp,busy=false,reachable=false,refreshing=false,draftId=newId(),verifying=false;
-const selection=()=>({chain:$('message-chain').querySelector('input:checked').value,authority:$('message-authority').value});
-function selectedKey(){const choice=selection();return latest?.message_keys?.find(k=>k.chain===choice.chain && k.authority===choice.authority);}
-async function api(path,body){const r=await fetch(`/api/${path}`,{cache:'no-store',signal:AbortSignal.timeout(15000),...(body?{method:'POST',headers:{'content-type':'application/json','x-pairkey-demo':'1'},body:JSON.stringify(body)}:{})});if(!r.headers.get('content-type')?.includes('application/json'))throw new Error('Message-signing backend unavailable.');const v=await r.json();if(!r.ok){const e=new Error(v.error||`HTTP ${r.status}`);e.status=r.status;throw e;}return v;}
-function controls(){const key=selectedKey(),message=$('message-text').value,bytes=new TextEncoder().encode(message).length;$('message-form').querySelector('button').disabled=!reachable||!latest?.setup.ready||!key||busy||latest?.blocked||!message.trim()||bytes>256;$('message-authority').disabled=busy;$('message-chain').disabled=busy;$('message-text').disabled=busy;$('message-size').textContent=`${bytes} / 256 UTF-8 bytes`;$('verify-button').disabled=!reachable||!messageFlow(currentOp).assembled||verifying;}
-function draft(){const key=selectedKey(),{chain,authority}=selection();$('authority-help').textContent=authority==='program'?'The demo owner calls a Solana program, which approves through its PDA.':'The dedicated demo account approves directly in the registry. No personal wallet is connected.';$('derived-key').textContent=key?.public_key||'Deriving the message key…';$('derived-scheme').textContent=key?.scheme||'';$('derived-address').hidden=!key?.address;$('derived-address').textContent=key?.address?`${key.address_label||'EVM address'}: ${key.address}`:'';$('controller-address').textContent=key?.controller||'—';$('key-format').textContent=key?.format||'';$('message-preview').textContent=key?messageEnvelope(chain,authority,key.controller,draftId,$('message-text').value):'Waiting for the derived key.';controls();if(!currentOp)renderFlow();}
-function paint(name,state,status,detail){$(`flow-${name}`).dataset.state=state;$(`${name}-status`).textContent=status;$(`${name}-detail`).textContent=detail;}
-function renderFlow(op){const f=messageFlow(op),r=op?.result||{},key=selectedKey(),authority=r.authority||selection().authority;$('authority-title').textContent=authority==='program'?'Your Solana program':'Your Solana account';$('flow-context').textContent=op?`Message ${short(op.id,8)} · ${chainLabels[r.chain]||'Selected chain'} · ${f.working?'Following live approval and signing':'Recorded outcome'}`:'Choose a message and follow its approval and signature.';
-paint('authority',f.approved?'verified':f.working?'active':'waiting',f.approved?'Approved':f.working?'Finalizing':'Waiting',f.approved?'Exact-message approval finalized on Solana. Both signers check it independently.':f.working?'Waiting for this message’s approval to finalize on Solana devnet.':'Approve this exact message through the selected authority.');
-$('flow-notice').hidden=!(f.failed||f.uncertain);$('flow-notice').textContent=f.uncertain?'This operation has an uncertain outcome. Inspect the saved approval and job; do not submit a fresh attempt.':'The request failed before a verified result was returned. Read the audit trail for the actual failure; this is not proof that both signers refused.';
-for(const s of f.signers){const role=s.role.toLowerCase();paint(`signer-${role}`,s.state,s.receipt?'Verified':s.state==='active'?'Signing…':s.state==='uncertain'?'Unknown':'Waiting',s.receipt?'Final signature and this signer’s identity-signed receipt verified.':s.state==='active'?'Checks the finalized approval independently, then participates in joint threshold signing.':'Holds a separate key share. Checks authority before contributing.');$(`signer-${role}-evidence`).textContent=`Identity ${short(latest?.signer_identities?.[s.role==='A'?0:1])} · ${s.receipt?`finalized slot ${s.receipt.finalized_slot}`:'receipt pending'}`;}
-for(const label of document.querySelectorAll('.signer-scheme'))label.textContent=r.scheme||key?.scheme||'Threshold signing';
-paint('assembly',f.assembled?'verified':f.uncertain?'uncertain':'waiting',f.assembled?'Verified by SDK':f.uncertain?'Unknown':'Waiting',f.assembled?'One signature assembled and checked against the message and derived public key. Both signer receipts verified.':'Signing contributions combine. The full private key is never assembled.');$('signature-preview').hidden=!f.assembled;$('signature-preview').textContent=f.assembled?r.signature_hex:'';
-if(verifyOp!==op?.id){verifyOp=op?.id;$('verify-result').textContent='A completed signature will appear here.';delete $('verify-result').dataset.valid;for(const id of ['verify-message','verify-key','verify-signature']){$(id).value='';$(id).disabled=true;}}
-if(f.assembled && $('verify-message').disabled){$('verify-message').value=r.signed_message;$('verify-key').value=r.public_key_hex;$('verify-signature').value=r.signature_hex;for(const id of ['verify-message','verify-key','verify-signature'])$(id).disabled=false;$('verify-result').textContent='Ready for a fresh cryptographic check.';}
+import {PairKey} from './hosted-v2.mjs';
+import {HostedSession} from './hosted-session.mjs';
+import {chainLabels,messageFlowV2} from './message-demo.mjs';
+const $=id=>document.getElementById(id),short=(s,n=10)=>s?`${s.slice(0,n)}…${s.slice(-6)}`:'—';
+const recoveryKey='pairkey-v2-demo-recovery',historyKey='pairkey-v2-demo-history';
+const schemes={solana:'FROST Ed25519',evm:'DKLS23 · secp256k1',zcash:'FROST RedPallas',near:'FROST Ed25519',bitcoin:'FROST secp256k1 · BIP-340'};
+let config,connectedScope,busy=false,verifying=false,currentOp,activeOp,verificationFor;
+let history=[];
+try {history=JSON.parse(sessionStorage.getItem(historyKey)||'[]').slice(-12).filter(o=>o&&typeof o.id==='string'&&Array.isArray(o.events)&&Array.isArray(o.transactions)).map(o=>({...o,validated:false,stage:o.stage==='complete'?'complete':'uncertain'}));} catch {}
+const client=new PairKey({web3:window.solanaWeb3,endpoint:`${location.origin}/api/v2`,onProgress:({message,signature})=>{
+  $('setup-message').textContent=message;
+  if(activeOp){activeOp.events.push(message);if(signature&&!activeOp.transactions.includes(signature))activeOp.transactions.push(signature);renderOperation(activeOp);}
+}});
+const flow=new HostedSession(client,{storageKey:recoveryKey,onStage:(stage,data={})=>{
+  if(!activeOp)return;
+  activeOp.stage=stage;
+  if(data.prepared){activeOp.prepared=data.prepared;activeOp.chain=data.prepared.signing_request.key.chain;}
+  if(data.jobId)activeOp.jobId=data.jobId;
+  if(stage==='authorizing'||stage==='complete'){
+    const saved=JSON.parse(sessionStorage.getItem(recoveryKey));
+    activeOp.recovery=saved;
+  }
+  if(stage==='complete'){activeOp.result=data.result;activeOp.validated=true;}
+  const messages={preparing:'Preparing and checking the exact request.',authorizing:'Waiting for the caller’s wallet message signature.',committing:'Waiting for the program’s on-chain approval and finality.',submitting:'Submitting the authenticated request.',signing:'Job admitted. Waiting for both signers and the final result.',recovering:'Reading the original job and saved receipts; no new signing.',complete:'Signature and both receipts returned. The hosted Rust SDK verified the result.'};
+  if(messages[stage])activeOp.events.push(messages[stage]);
+  saveHistory();renderOperation(activeOp);
+}});
+function selection(){
+  const index=Number($('demo-path').value);
+  if(!Number.isInteger(index)||index<0||index>4294967295)throw new Error('Path index must be an integer from 0 to 4294967295.');
+  return {chain:$('message-chain').querySelector('input:checked').value,path:[index]};
 }
-function renderOperation(op){currentOp=op;const f=messageFlow(op);$('operation-title').textContent=f.working?'Following your signing request.':f.assembled?'One message. One verified signature.':f.uncertain?'Reconcile before continuing.':'Request did not complete.';$('operation-state').textContent=op.status.replaceAll('_',' ');$('operation-events').replaceChildren(...op.events.map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));$('operation-json').textContent=JSON.stringify(op.result,null,2);$('operation-links').replaceChildren();if(op.solana_tx){const a=document.createElement('a');a.href=`https://explorer.solana.com/tx/${encodeURIComponent(op.solana_tx)}?cluster=devnet`;a.textContent='Solana message approval →';a.target='_blank';a.rel='noopener noreferrer';$('operation-links').append(a);}renderFlow(op);controls();}
-async function refresh(){if(refreshing)return;refreshing=true;try{latest=await api('status');reachable=true;$('setup-title').textContent=latest.setup.ready?'Backend connected':'Setting up message keys';$('setup-message').textContent=latest.setup.ready?'Per-message Solana approval · no destination broadcast':latest.setup.message;$('connection-light').dataset.ready=String(!!latest.setup.ready);$('flow-live').textContent='LIVE BACKEND';$('sol-address').textContent=latest.owner;$('sol-balance').textContent=latest.sol_balance_lamports==null?'Balance unavailable':`${Number(latest.sol_balance_lamports)/1e9} devnet SOL`;busy=latest.operations.some(o=>o.status==='working')||!!sessionStorage.getItem('pairkey-message-pending');if(active&&latest.operations.some(o=>o.id===active)){sessionStorage.removeItem('pairkey-message-pending');$('live-resume').hidden=true;busy=latest.operations.some(o=>o.status==='working');}
-const ops=latest.operations.filter(o=>o.action==='sign_message');const op=ops.find(o=>o.id===(selected||active))||ops[0];$('operation-history').replaceChildren(...ops.map(o=>{const option=document.createElement('option');option.value=o.id;option.textContent=`${o.result?.chain||'Message'} · ${short(o.id,6)} · ${o.status.replaceAll('_',' ')}`;return option;}));if(op){$('operation-history').value=op.id;renderOperation(op);}else renderFlow();if(active&&!busy){active=undefined;draftId=newId();}draft();}catch(e){reachable=false;$('setup-title').textContent='Backend unavailable';$('setup-message').textContent=e.message;$('connection-light').dataset.ready='false';$('flow-live').textContent='DISCONNECTED';}finally{refreshing=false;controls();}}
-async function send(request){busy=true;active=request.id;selected=undefined;controls();$('live-error').textContent='';sessionStorage.setItem('pairkey-message-pending',JSON.stringify(request));try{renderOperation(await api('operations',request));sessionStorage.removeItem('pairkey-message-pending');}catch(e){$('live-error').textContent=`${e.message} Request ${request.id}`;if(e.status&&e.status<500){sessionStorage.removeItem('pairkey-message-pending');busy=false;active=undefined;}else $('live-resume').hidden=false;}await refresh();}
-$('message-form').addEventListener('submit',e=>{e.preventDefault();if(!busy)void send({action:'sign_message',id:draftId,...selection(),message:$('message-text').value});});
-for(const id of ['message-authority','message-chain','message-text'])$(id).addEventListener('input',draft);
-$('operation-history').addEventListener('change',e=>{selected=e.target.value;const op=latest.operations.find(o=>o.id===selected);if(op)renderOperation(op);});
+function scope(){return JSON.stringify({source:$('message-authority').value,program:$('demo-program').value.trim(),mode:$('demo-mode').value});}
+function connected(){return !!flow.namespace&&connectedScope===scope();}
+function saveHistory(){
+  if(activeOp&&!history.includes(activeOp))history.push(activeOp);
+  history=history.slice(-12);
+  try{sessionStorage.setItem(historyKey,JSON.stringify(history.map(({validated,...record})=>record)));}
+  catch{$('live-error').textContent='Could not save additional history. Keep the public recovery record and transcript shown below.';}
+  renderHistory();
+}
+function renderHistory(){
+  $('operation-history').replaceChildren(...history.map(o=>{const option=document.createElement('option');option.value=o.id;option.textContent=`${chainLabels[o.chain]||'Message'} · ${short(o.jobId||o.id,6)} · ${o.stage}`;return option;}));
+  if(currentOp)$('operation-history').value=currentOp.id;
+}
+function controls(){
+  for(const control of $('message-form').querySelectorAll('input,select,textarea,button,fieldset'))control.disabled=busy;
+  const program=$('message-authority').value==='program';
+  $('program-controls').hidden=!program;$('program-policy-controls').hidden=!program;
+  $('demo-connect').disabled=busy||!config||config.ready===false;
+  $('demo-example').disabled=busy||!config?.example_program;
+  $('demo-key').disabled=busy||!connected();
+  $('demo-policy').disabled=busy||!connected();
+  let keyMatches=false;try{keyMatches=JSON.stringify(selection())===JSON.stringify(flow.selection);}catch{}
+  const bytes=new TextEncoder().encode($('message-text').value).length;
+  $('message-size').textContent=`${bytes} / 256 UTF-8 bytes`;
+  $('demo-sign').disabled=busy||!connected()||!flow.key||!keyMatches||bytes===0||bytes>256;
+  $('live-resume').disabled=busy;
+  $('operation-history').disabled=busy||verifying;
+  $('verify-button').disabled=busy||verifying||!currentOp?.result?.signature_hex;
+  for(const id of ['verify-message','verify-key','verify-signature'])$(id).disabled=busy||verifying||!currentOp?.result?.signature_hex;
+}
+function draft(){
+  const program=$('message-authority').value==='program';
+  $('authority-help').textContent=program?'Your program evaluates the authenticated caller and its own rules.':'Your connected wallet approves each exact request off-chain.';
+  let q;try{q=selection();}catch{}
+  $('message-preview').textContent=JSON.stringify({source:program?'program':'account',...q,message:$('message-text').value},null,2);
+  controls();if(!currentOp)renderFlow();
+}
+function clearKey(){flow.key=flow.selection=undefined;$('derived-key').textContent='Load the selected chain and path’s key.';$('derived-scheme').textContent='';$('derived-address').hidden=true;$('key-format').textContent='';}
+function clearConnection(){flow.reset();connectedScope=undefined;clearKey();$('demo-wallet').textContent='Connect your wallet for this authority.';$('sol-address').textContent=$('controller-address').textContent='—';}
+async function run(work,onError){
+  if(busy)return;busy=true;$('live-error').textContent='';controls();
+  try{await work();}catch(e){$('live-error').textContent=e.message||String(e);onError?.(e);}
+  finally{activeOp=undefined;busy=false;controls();}
+}
+function paint(name,state,status,detail){$(`flow-${name}`).dataset.state=state;$(`${name}-status`).textContent=status;$(`${name}-detail`).textContent=detail;}
+function renderFlow(op){
+  const view=messageFlowV2(op),identity=op?.prepared?.request.identity,program=identity?!!identity.Program:$('message-authority').value==='program';
+  const onchain=identity?.Program?.mode==='Onchain';
+  $('authority-title').textContent=program?'Your Solana program':'Your Solana account';
+  $('flow-context').textContent=op?`${chainLabels[op.chain]||'Message'} · ${short(op.jobId||op.id,8)} · ${op.stage}`:'Connect your authority, choose a key and follow its signature.';
+  const status={preparing:'Preparing',authorizing:'Wallet approval',committing:'Finalizing',submitting:'Caller approved',signing:'Admitted',complete:'Approved',recovering:'Recovering',uncertain:'Unknown',stopped:'Stopped'}[view.stage]||'Waiting';
+  const detail=view.assembled?(onchain?'Matching on-chain program approval and current policy checked by both signers.':'Exact caller proof and current rules checked by both signers.'):
+    view.stage==='committing'?'The program must consume an allowance and record approval in one finalized transaction.':
+    view.stage==='authorizing'?'Waiting for a wallet message signature over the exact request. No signing result exists yet.':
+    view.stage==='signing'?'The request was admitted. Both signers recheck authorization before releasing their output.':
+    view.uncertain?'No verified outcome is available. Recover the original job before making another request.':
+    view.saved?'Saved request metadata. Recover the job to recheck its original receipt pair.':
+    view.stopped?'The page stopped before submitting a signing job. See the audit trail for the failure.':'The caller authorizes an exact request; the selected policy determines whether it may be signed.';
+  paint('authority',view.assembled?'verified':view.uncertain?'uncertain':['preparing','authorizing','committing','submitting','signing','recovering'].includes(view.stage)?'active':'waiting',status,detail);
+  $('flow-notice').hidden=!(view.uncertain||view.stopped||view.saved);
+  $('flow-notice').textContent=view.uncertain?'Outcome unresolved. Recovery only reads the original attempt; it does not sign again.':view.saved?'Saved result shown without a fresh receipt check. The Verify button checks the signature; recovery checks the original hosted job.':'No signing job was submitted by this page. A program approval transaction may still need reconciliation.';
+  for(const signer of view.signers){
+    const role=signer.role.toLowerCase(),identities=op?.recovery?.deployment?.signer_identities||config?.signer_identities;
+    const identityText=identities?.[role==='a'?0:1]?client.pubkey(identities[role==='a'?0:1]).toBase58():undefined;
+    paint(`signer-${role}`,signer.state,signer.receipt?'Receipt verified':signer.state==='active'?'Signing…':signer.state==='uncertain'?'Unknown':'Waiting',signer.receipt?'The hosted Rust SDK verified this identity-signed receipt and the final signature.':signer.state==='active'?'Checks authorization independently and participates in threshold signing. Individual completion is not reported.':'Holds a separate key share and independently enforces authorization.');
+    $(`signer-${role}-evidence`).textContent=`Identity ${short(identityText)} · ${signer.receipt?`finalized slot ${signer.receipt.finalized_slot}`:'receipt pending'}`;
+  }
+  for(const label of document.querySelectorAll('.signer-scheme'))label.textContent=schemes[op?.chain||$('message-chain').querySelector('input:checked').value];
+  paint('assembly',view.assembled?'verified':view.uncertain?'uncertain':'waiting',view.assembled?'Verified by service':view.saved?'Saved signature':view.uncertain?'Unknown':'Waiting',view.assembled?'One signature and both matching receipts returned. Verify the displayed message below.':'Signing contributions combine. The full private key is never assembled.');
+  $('signature-preview').hidden=!op?.result?.signature_hex;$('signature-preview').textContent=op?.result?.signature_hex||'';
+  if(verificationFor!==op?.id||!op?.result){
+    verificationFor=op?.id;
+    $('verify-message').value=op?.result?.signed_message||'';$('verify-key').value=op?.result?.public_key_hex||'';$('verify-signature').value=op?.result?.signature_hex||'';
+    $('verify-result').textContent=op?.result?'Ready for fresh service-side signature verification.':'A completed signature will appear here.';delete $('verify-result').dataset.valid;
+  }else if(op?.result&&!$('verify-signature').value){
+    $('verify-message').value=op.result.signed_message;$('verify-key').value=op.result.public_key_hex;$('verify-signature').value=op.result.signature_hex;
+    $('verify-result').textContent='Ready for fresh service-side signature verification.';
+  }
+}
+function renderOperation(op){
+  currentOp=op;const view=messageFlowV2(op);
+  $('operation-title').textContent=view.assembled?'One message. One verified signature.':view.uncertain?'Reconcile the original request.':view.saved?'Saved signing result.':'Follow your signing request.';
+  $('operation-state').textContent=op.stage;
+  $('operation-events').replaceChildren(...op.events.map(message=>{const li=document.createElement('li');li.textContent=message;return li;}));
+  const recovery=op.recovery;
+  $('operation-json').textContent=JSON.stringify(op.result&&recovery?{request:recovery.prepared.signing_request,approval:recovery.prepared.request,key:recovery.key,result:op.result,identities:recovery.deployment.signer_identities}:{job_id:op.jobId,prepared:op.prepared},null,2);
+  $('operation-links').replaceChildren(...op.transactions.map(signature=>{const a=document.createElement('a');a.href=`https://explorer.solana.com/tx/${encodeURIComponent(signature)}?cluster=devnet`;a.textContent='Solana program approval →';a.target='_blank';a.rel='noopener noreferrer';return a;}));
+  renderFlow(op);renderHistory();controls();
+}
+function failed(error){
+  if(!activeOp)return;
+  activeOp.stage=['submitting','signing','recovering'].includes(activeOp.stage)?'uncertain':'stopped';
+  activeOp.events.push(error.message||String(error));saveHistory();renderOperation(activeOp);
+}
+$('demo-example').addEventListener('click',()=>{clearConnection();$('demo-program').value=config.example_program;$('demo-mode').value='Onchain';draft();});
+$('demo-connect').addEventListener('click',()=>run(async()=>{
+  clearConnection();currentOp=undefined;renderFlow();
+  const wallet=window.phantom?.solana||window.solflare||window.solana;
+  const program=$('message-authority').value==='program';
+  const options=program?{program:$('demo-program').value.trim(),mode:$('demo-mode').value}:{};
+  if(program&&!options.program)throw new Error('Choose the hosted example or enter a v2 program ID.');
+  const namespace=await flow.connect(wallet,options);connectedScope=scope();
+  $('demo-wallet').textContent=`Connected: ${short(wallet.publicKey.toBase58())}`;$('sol-address').textContent=wallet.publicKey.toBase58();
+  $('controller-address').textContent=client.pubkey(namespace.registration.namespace.derivation_authority).toBase58();
+  $('setup-message').textContent='Namespace ready without a registration transaction. Load a derived key.';draft();
+}));
+$('demo-key').addEventListener('click',()=>run(async()=>{
+  if(!connected())throw new Error('Source changed. Connect again.');
+  clearKey();const q=selection(),key=await flow.loadKey(q.chain,q.path);
+  $('derived-key').textContent=key.public_key_hex;$('derived-scheme').textContent=schemes[q.chain];
+  $('derived-address').hidden=!key.address;$('derived-address').textContent=key.address||'';
+  $('key-format').textContent=q.chain==='zcash'?'RedPallas verification key; not a complete shielded address.':q.chain==='bitcoin'?'32-byte x-only Taproot output key; custom PairKey message format.':'Derived signing public key for the selected destination.';
+  $('setup-message').textContent='Key ready. Approve an exact message to request signing.';draft();
+}));
+$('demo-policy').addEventListener('click',()=>run(async()=>{
+  if(!connected()||!flow.namespace.identity.Program)throw new Error('Connect your program authority first.');
+  client.checkWallet(flow.namespace,flow.wallet);
+  if(!flow.wallet.signTransaction)throw new Error('Policy updates require wallet transaction signing and devnet SOL.');
+  const q=selection(),program=$('demo-program').value.trim(),remaining=Number($('demo-allowance').value);
+  if(!Number.isSafeInteger(remaining)||remaining<0)throw new Error('Allowance must be a nonnegative safe integer.');
+  const current=await client.programPolicy(program,flow.wallet.publicKey);
+  await client.setProgramPolicy(flow.wallet,{program,owner:flow.wallet.publicKey.toBase58(),revision:(current?.revision||0)+1,enabled:true,chain:q.chain,path_prefix:q.path,max_payload_bytes:1232,require_commit:$('demo-mode').value==='Onchain',remaining_approvals:remaining});
+  clearKey();$('setup-message').textContent='Program policy finalized. Load the selected key before signing.';
+}));
+$('message-form').addEventListener('submit',event=>{event.preventDefault();void run(async()=>{
+  if(!connected())throw new Error('Connect the selected authority first.');
+  activeOp={id:crypto.randomUUID(),chain:selection().chain,stage:'preparing',events:[],transactions:[]};
+  verificationFor=undefined;await flow.sign({...selection(),message:$('message-text').value});
+},failed);});
+$('live-resume').addEventListener('click',()=>run(async()=>{
+  const saved=JSON.parse(sessionStorage.getItem(recoveryKey)||'null');
+  if(!saved)throw new Error('No v2 demo job is saved in this tab.');
+  activeOp=history.find(o=>o.jobId===saved.job_id)||{id:crypto.randomUUID(),jobId:saved.job_id,chain:saved.prepared.signing_request.key.chain,prepared:saved.prepared,recovery:saved,events:[],transactions:[]};
+  activeOp.result=undefined;activeOp.validated=false;verificationFor=undefined;await flow.recover();
+},failed));
+for(const id of ['message-authority','demo-program','demo-mode'])$(id).addEventListener('input',()=>{clearConnection();draft();});
+for(const id of ['message-chain','demo-path'])$(id).addEventListener('input',()=>{clearKey();draft();});
+$('message-text').addEventListener('input',draft);
+$('operation-history').addEventListener('change',()=>{const op=history.find(o=>o.id===$('operation-history').value);if(op){verificationFor=undefined;renderOperation(op);}});
 for(const id of ['verify-message','verify-key','verify-signature'])$(id).addEventListener('input',()=>{$('verify-result').textContent='Inputs changed. Verify again.';delete $('verify-result').dataset.valid;});
-$('verify-button').addEventListener('click',async()=>{if(!currentOp)return;verifying=true;controls();const opId=currentOp.id;const request={chain:currentOp.result.chain,public_key_hex:$('verify-key').value,signed_message:$('verify-message').value,signature_hex:$('verify-signature').value};$('verify-result').textContent='Checking the signature…';try{const r=await api('verify',request);if(currentOp?.id===opId && $('verify-message').value===request.signed_message && $('verify-key').value===request.public_key_hex && $('verify-signature').value===request.signature_hex){$('verify-result').dataset.valid=String(r.valid);$('verify-result').textContent=r.valid?'✓ Valid signature for these exact inputs. Fresh cryptographic verification passed.':'✕ Invalid signature. The message, public key, or signature does not match.';}}catch(e){if(currentOp?.id===opId){$('verify-result').dataset.valid='false';$('verify-result').textContent=e.message;}}finally{verifying=false;controls();}});
-const pending=sessionStorage.getItem('pairkey-message-pending');if(pending){try{active=JSON.parse(pending).id;busy=true;$('live-resume').hidden=false;}catch{sessionStorage.removeItem('pairkey-message-pending');}}
-$('live-resume').addEventListener('click',()=>{const saved=sessionStorage.getItem('pairkey-message-pending');if(saved)void send(JSON.parse(saved));});
-await refresh();async function poll(){await refresh();setTimeout(poll,busy?1000:5000);}setTimeout(poll,1000);
+$('verify-button').addEventListener('click',async()=>{
+  if(!currentOp?.result)return;
+  verifying=true;controls();const id=currentOp.id,request={chain:currentOp.result.chain,public_key_hex:$('verify-key').value,signed_message:$('verify-message').value,signature_hex:$('verify-signature').value};
+  $('verify-result').textContent='Checking the signature…';
+  try{const checked=await client.verify(request);if(currentOp?.id===id){$('verify-result').dataset.valid=String(checked.valid);$('verify-result').textContent=checked.valid?'Valid signature for these exact inputs. Fresh service-side verification passed.':'Invalid signature: message, public key or signature does not match.';}}
+  catch(error){if(currentOp?.id===id){$('verify-result').textContent=error.message;delete $('verify-result').dataset.valid;}}
+  finally{verifying=false;controls();}
+});
+try{
+  config=await client.config();$('setup-title').textContent=config.ready===false?'Backend is initializing':'Hosted v2 connected';
+  $('setup-message').textContent='Connect your own wallet. Off-chain account approval sends no transaction.';
+  $('connection-light').dataset.ready=String(config.ready!==false);$('flow-live').textContent=config.hardware_backed?'HOSTED SIGNERS':'DEVELOPMENT SIGNERS';
+}catch(error){$('setup-title').textContent='Hosted v2 unavailable';$('setup-message').textContent='This page needs the coordinated v2 backend. Check the deployment or retry after it is available.';$('flow-live').textContent='DISCONNECTED';}
+renderHistory();if(history.length)renderOperation(history.at(-1));draft();

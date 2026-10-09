@@ -1,7 +1,7 @@
 # Hosted approval API v2
 
-This is the implementation-branch API contract. The browser SDK, public quickstarts
-and live deployment still need migration. The existing `/api/v1` API remains
+This is the implementation-branch API contract. The browser SDK, quickstarts and demo use this contract.
+Live rollout still requires a coordinated deployment. The existing `/api/v1` API remains
 available for previously registered namespaces and COMMIT requests.
 
 Use `/api/v2` as the base URL. POST JSON with `X-PairKey-Client: 1`. Every mutation
@@ -11,7 +11,7 @@ wallet's funds on behalf of a developer.
 ## Message signing
 
 1. `GET /config` returns the gateway, network, signer identities, enclave-set ID,
-   supported chains, and configured OIDC issuer/audience pairs. Pin deployment
+   supported chains, the configured example program, and OIDC issuer/audience pairs. Pin deployment
    identity in your application. This deployment uses development workers.
 2. `POST /namespaces` with `{identity, namespace_id}` obtains public derivation
    metadata and two signer attestations. No registration transaction is created.

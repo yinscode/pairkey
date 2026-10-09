@@ -239,6 +239,8 @@ fn serve_asset(app: &App, path: &str) -> Response {
         Some("svg") => "image/svg+xml",
         Some("png") => "image/png",
         Some("woff2") => "font/woff2",
+        Some("zip") => "application/zip",
+        Some("rs") => "text/plain; charset=utf-8",
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
     let base = app.root.join("website");

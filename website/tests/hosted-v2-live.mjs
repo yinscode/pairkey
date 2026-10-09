@@ -10,6 +10,11 @@ const prefix=Uint8Array.from([0x30,0x2e,0x02,0x01,0x00,0x30,0x05,0x06,0x03,0x2b,
 const key=await crypto.subtle.importKey('pkcs8',c.concat(prefix,Uint8Array.from(q.seed)),'Ed25519',false,['sign']);
 const pair=web3.Keypair.fromSeed(Uint8Array.from(q.seed));let prompts=0;
 const wallet={connect:async()=>{},publicKey:pair.publicKey,signMessage:async bytes=>{prompts++;return {signature:new Uint8Array(await crypto.subtle.sign('Ed25519',key,bytes))};}};
+for(const [asset,type] of [['examples/hosted-client-v2.zip','application/zip'],['examples/hosted-controller.zip','application/zip'],['examples/verify_hosted.rs','text/plain']]){
+  const response=await fetch(q.endpoint.replace(/\/api\/v2$/,'/')+asset);
+  assert.equal(response.status,200);assert.ok(response.headers.get('content-type').startsWith(type));
+  assert.ok((await response.arrayBuffer()).byteLength>0);
+}
 const client=new PairKey({web3,endpoint:q.endpoint});
 const saved=new Map(),storage={setItem:(k,v)=>saved.set(k,v),getItem:k=>saved.get(k)};
 const flow=new HostedSession(client,{storage});

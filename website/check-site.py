@@ -19,7 +19,9 @@ class Page(HTMLParser):
 subprocess.run([sys.executable,str(ROOT/'build-docs.py'),'--check'],check=True)
 pages={}
 for path in [ROOT/'index.html',ROOT/'demo.html',ROOT/'docs.html',*sorted((ROOT/'docs').glob('*.html'))]:
-    page=Page();page.feed(path.read_text());pages[path.resolve()]=page
+    source=path.read_text()
+    assert '\0' not in source,f'NUL byte in HTML: {path}'
+    page=Page();page.feed(source);pages[path.resolve()]=page
     assert len(page.ids)==len(set(page.ids)),f'Duplicate ID: {path}'
     assert page.headings==1,f'Expected one h1: {path}'
     assert all(label in page.ids for label in page.labels),f'Missing form control: {path}'

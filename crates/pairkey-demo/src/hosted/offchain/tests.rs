@@ -168,7 +168,10 @@ impl Fixture {
         ready(&format!("http://{coordinator}"), "/health").await;
         let app = Arc::new(App {
             oidc_issuers: vec![],
-            root: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."),
+            root: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .canonicalize()
+                .unwrap(),
             dir: dir.clone(),
             journal,
             hosted: Mutex::new(Store::open(&dir.join("hosted.json"), [9; 32]).unwrap()),
@@ -522,4 +525,108 @@ fn hosted_restart_preserves_public_jobs_and_marks_inflight_uncertain() {
     }
     std::fs::remove_file(&path).unwrap();
     std::fs::remove_file(format!("{}.lock", path.display())).unwrap();
+}
+
+/// Manual browser QA uses only generated test workers and an in-memory chain.
+/// It never loads .local/testnet-demo or sends a transaction to a public network.
+#[tokio::test]
+#[ignore = "manual browser preview; set PAIRKEY_BROWSER_STOP to a new stop-file path"]
+async fn hosted_manual_browser_preview() {
+    let stop =
+        PathBuf::from(std::env::var("PAIRKEY_BROWSER_STOP").expect("explicit stop path required"));
+    assert!(!stop.exists(), "use a new stop-file path");
+    let f = Fixture::new().await;
+    let mut vm = litesvm::LiteSVM::new();
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/deploy");
+    vm.add_program_from_file(pair_registry::id(), root.join("pair_registry.so"))
+        .unwrap();
+    vm.add_program_from_file(example_controller::id(), root.join("example_controller.so"))
+        .unwrap();
+    let set_id = f.app.journal.read().set_id;
+    let set = pair_registry::set_address(&pair_registry::id(), &set_id).0;
+    let record = f.accounts.lock().unwrap()[&set.to_string()].clone();
+    vm.set_account(
+        set,
+        solana_sdk::account::Account {
+            lamports: 10_000_000,
+            data: STANDARD
+                .decode(record["data"][0].as_str().unwrap())
+                .unwrap(),
+            owner: pair_registry::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+    // Public, test-only wallet seed. No real network assets or operator material.
+    let owner =
+        Pubkey::new_from_array(SigningKey::from_bytes(&[61; 32]).verifying_key().to_bytes());
+    let policy = example_controller::approval::AppPolicy {
+        owner: owner.to_bytes(),
+        enclave_set: set_id,
+        revision: 1,
+        enabled: true,
+        destination: Chain::Solana.account(vec![0]).unwrap().destination,
+        path_prefix: vec![0],
+        max_payload_bytes: 1232,
+        require_commit: false,
+        remaining_approvals: 2,
+    };
+    vm.set_account(
+        example_controller::approval::policy_address(&example_controller::id(), &owner).0,
+        solana_sdk::account::Account {
+            lamports: 10_000_000,
+            data: borsh::to_vec(&policy).unwrap(),
+            owner: example_controller::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+    for identity in f.app.identities {
+        vm.airdrop(&Pubkey::new_from_array(identity), 1_000_000_000)
+            .unwrap();
+    }
+    *f.rpc_state.vm.lock().unwrap() = Some(vm);
+    for asset in [
+        "examples/hosted-client-v2.zip",
+        "examples/hosted-controller.zip",
+        "examples/verify_hosted.rs",
+    ] {
+        let response = reqwest::get(format!(
+            "{}/{asset}",
+            f.endpoint.trim_end_matches("/api/v2")
+        ))
+        .await
+        .unwrap();
+        assert!(
+            response.status().is_success(),
+            "download unavailable: {asset}"
+        );
+    }
+    println!(
+        "PAIRKEY_BROWSER_PREVIEW={}/demo",
+        f.endpoint.trim_end_matches("/api/v2")
+    );
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(3600);
+    while !stop.exists() && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    assert!(stop.exists(), "browser preview timed out");
+    let completed = f
+        .app
+        .hosted
+        .lock()
+        .unwrap()
+        .snapshot
+        .offchain_jobs
+        .values()
+        .filter(|j| matches!(j.state, JobState::Complete(_)))
+        .count();
+    assert!(
+        completed >= 2,
+        "exercise account and program signing before stopping"
+    );
+    println!("Browser preview completed {completed} real signing jobs on the in-memory chain.");
+    f.close().await;
 }
