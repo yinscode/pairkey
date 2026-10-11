@@ -1,15 +1,49 @@
-<div class="docs-note"><p>For the hosted service, start with the <a href="docs/quickstart-program.html">Solana program Quickstart</a>. The lower-level Rust example below is for custom or self-hosted integrations.</p></div>
-<h2 id="integration">Connect your controller program</h2>
-<ol>
-<li>
-<strong>Register a namespace.</strong> Make your controller program’s PDA the authority and enroll the signer identities.</li>
-<li>
-<strong>Enroll the signing key.</strong> For DKLS23 or RedPallas, use <code>Client::signing_key</code> and verify both pinned identities and the returned certificate.</li>
-<li>
-<strong>Approve the operation.</strong> Construct a canonical intent and COMMIT. Your controller publishes the exact approval through registry CPI, then the application waits for finalization.</li>
-<li>
-<strong>Request a signature.</strong> Call <code>Client::submit_intent</code>, then <code>poll_intent</code> or <code>wait_intent</code>. The SDK verifies signatures and both identity receipts against your request.</li>
-<li>
-<strong>Execute separately.</strong> Submit the signed transaction to its destination. The coordinator does not broadcast it for you.</li>
-</ol>
-<p>A runnable Rust client lives in <code>sdk/examples/program_jobs.rs</code>. It takes a JSON configuration for endpoints, identity pins, a key request, payload, and fresh attempt ID; it assumes an already registered program-controlled namespace.</p><h2 id="approval">Bind the exact operation</h2><p>Construct a canonical <code>Intent</code> containing the enrolled key and payload. Create the registry <code>Commit</code> over <code>intent.bytes()</code>. The controller program uses registry CPI to publish that approval; a plain HTTP request cannot grant authority.</p><p>Wait for finalized Solana approval and check that the transaction succeeded before submitting the signing job. Changing the payload, destination nonce, or signing bytes requires the corresponding authorization.</p><h2 id="example">Use the Rust example</h2><p><a href="examples/program_jobs.rs">Read or download program_jobs.rs →</a>. Run it from the repository with an application configuration:</p><pre><code>cargo run -p pairkey-sdk --example program_jobs --locked -- APP_CONFIG.json</code></pre><p>The example assumes a registered namespace controlled by the example-controller PDA. It enrolls a key, builds a COMMIT, submits a CPI approval, waits for finalization, submits a durable job, and verifies the returned signature.</p><dl class="concept-list"><dt>coordinator / solana_rpc</dt><dd>Endpoints of your local coordinator and Solana RPC.</dd><dt>owner_keypair</dt><dd>Local path to the enrolled example-controller owner keypair. Keep the file private.</dd><dt>identities</dt><dd>The two pinned signer public identities, represented as 32-byte arrays.</dd><dt>key / payload</dt><dd>A serialized <code>KeyRequest</code> for the existing registration, account path, and suite, plus the suite-specific payload.</dd><dt>request_id / attempt_id</dt><dd>32-byte identifiers. Use a fresh unpredictable attempt ID for each explicit retry.</dd></dl><p>This is an application configuration contract, not a universal ready-made JSON file: registration values, identities, and key paths must come from your enrolled local environment.</p><h2 id="verify">Verify before use</h2><p>The SDK verifies the returned key certificate, signature, and both identity-signed receipts against the original request. The current receipts are development assertions, not hardware attestation. Destination submission remains the application’s responsibility.</p><h2 id="authority">Keep Solana as the control plane</h2><p>The current application path uses a Solana controller program. Wallet accounts are also first-class authorities; see the <a href="docs/quickstart-account.html">account Quickstart</a>. Solidity integration is planned; an EVM contract is not currently a direct PairKey controller. See <a href="docs/sessions.html">scoped sessions</a> for delegate access.</p>
+<p class="lead">Keep your application’s rules in a Solana program. Authorize the PairKey gateway through a PDA, then retrieve a signature from our hosted signers.</p>
+<h2 id="integration">Start with the hosted flow</h2>
+<p>The <a href="docs/quickstart-program.html">Quickstart: Program</a> provides a deployed example, its complete Rust source, and an interactive signing flow. Try it with your wallet, then deploy a controller containing your own application logic. You do not need to run PairKey workers or a coordinator.</p>
+<ol><li><strong>Choose your authority PDA.</strong> The example uses <code>["controller", owner_public_key]</code> under your program ID. Your program may use different seeds.</li><li><strong>Register its namespace.</strong> The hosted API prepares registration and both signer-identity verification instructions. Your program authorizes registration through CPI.</li><li><strong>Choose a destination and path.</strong> Enroll a derived public key through the hosted API. The namespace belongs to the PDA, not to the wallet paying its transaction fees.</li><li><strong>Approve an exact message.</strong> Your program checks its rules and invokes the gateway’s Commit instruction with the PDA as signer.</li><li><strong>Retrieve and verify.</strong> After Solana finality, submit the prepared request, poll its job, and verify the signature and receipts.</li></ol>
+<h2 id="example">Connect the example controller</h2>
+<p>This browser excerpt uses the deployed owner-gated example and the <a href="hosted-client.mjs">hosted client</a>. The wallet approves each Solana transaction; PairKey performs signing after the approval finalizes.</p>
+<pre><code>import * as web3 from '@solana/web3.js';
+import { PairKey } from './hosted-client.mjs';
+
+const pairkey = new PairKey({ web3 });
+const wallet = window.phantom.solana;
+await wallet.connect();
+
+const programId = 'AwALEPCSMeeK1HXhK9e1TTKQVZqAxp7EkzxAStqsY4Kz';
+const controller = pairkey.controller(programId, wallet.publicKey);
+const namespace = await pairkey.onboard(wallet, controller);
+const key = await pairkey.key(namespace, 'evm', [0]);
+const approval = await pairkey.prepare(namespace, wallet, {
+  chain: 'evm', path: [0], message: 'Approved by my program.'
+});
+await pairkey.approve(namespace, wallet, approval);
+const { job_id } = await pairkey.submit(approval);
+// Persist approval, key and job_id before waiting.
+const result = await pairkey.wait(job_id);
+const { valid } = await pairkey.verify(result);</code></pre>
+<h2 id="adapter">Connect a different program</h2>
+<p>The supplied <code>controller()</code> adapter only implements the example template’s account layout and instruction format. For your own program, derive its authority PDA and supply <code>{ authority, wrapInstruction }</code> to <code>onboard</code>. The wrapper receives a gateway instruction and returns the instruction that calls your program with the required application accounts and data.</p>
+<pre><code>// Application-specific adapter: implement these using your program's ABI.
+const namespace = await pairkey.onboard(wallet, {
+  authority: applicationAuthorityPda,
+  wrapInstruction: gatewayInstruction =&gt;
+    buildApplicationInstruction(gatewayInstruction, applicationState)
+});</code></pre>
+<p>Your program must validate the supplied state accounts, their ownership, PDA seeds, caller permissions, and the expected gateway. It then constructs the gateway CPI and uses <code>invoke_signed</code> with its authority seeds. Merely putting a program ID or PDA into an HTTP request grants no authority.</p>
+<p>Keep the two Ed25519 signer-identity verification instructions at the transaction’s top level before registration CPI. The hosted client preserves them and sets the compute budget. Only the gateway registration or approval instruction is wrapped.</p>
+<h2 id="approval">Bind your rules to the exact request</h2>
+<p>A Commit binds the registration digest, request ID, destination/path, message hash and byte length. Ed25519 approvals bind the signing bytes directly; multi-suite approvals bind the canonical signing intent containing the key and payload. Use the prepared approval for the request you intend to sign.</p>
+<p>For application-specific rules, your program must independently construct or validate these fields against its own authenticated state and expected operation. A check such as “the caller supplied a hash” does not enforce an amount limit, recipient allowlist, or governance decision. The <a href="docs/policy.html#program">program policy guide</a> explains where these checks belong.</p>
+<p>The public template deliberately implements an owner-approval rule: an owner may register and approve messages for their own PDA. It is not a treasury policy, voting program, or policy administrator. Deploy a controller implementing those rules when your application needs them.</p>
+<h2 id="verify">Finality, recovery, and verification</h2>
+<p>The hosted API requires finalized approval before it admits a signing job. Save the prepared request and returned job ID. Poll or resubmit that identical request after a transport timeout; do not generate a new approval just because the response was lost. Interrupted jobs may have signed and require reconciliation.</p>
+<p>The browser Verify button recomputes signature verification on the hosted service. For independent verification, save the request, key response, completed result and pinned identities, then use the <a href="examples/verify_hosted.rs">offline Rust verifier</a>. It checks the signature and both signer receipts. Current identities are development assertions; hardware deployment status is documented in <a href="docs/security.html">Security &amp; status</a>.</p>
+<p>Message signing does not broadcast a destination transaction. A relying application can verify a message off-chain. For transaction execution, construct and authorize the appropriate chain-specific payload and handle submission separately.</p>
+<h2 id="authority">Manage authority and policy</h2>
+<p>Solana is the control plane for both program-PDA and wallet-account authorities. Read <a href="docs/policy.html">Policy &amp; rules</a> for program checks, account-controlled registered policies, and the distinction between per-message approvals and session grants. EVM is a signing destination; Solidity contracts are not currently direct controllers.</p>
+<h2 id="advanced">Advanced: self-hosted Rust integrations</h2>
+<p><a href="examples/program_jobs.rs">program_jobs.rs</a> demonstrates the lower-level coordinator interface with canonical intents, explicit attempts, and receipt verification. It uses an already registered namespace, the repository example-controller ABI, a local owner keypair, identity pins, and coordinator/RPC endpoints. It is distinct from the hosted template above and is not required for hosted onboarding.</p>
+<pre><code>cargo run -p pairkey-sdk --example program_jobs --locked -- APP_CONFIG.json</code></pre>
+<p>Use <a href="docs/api.html#internal-api">the self-hosted API reference</a> and <a href="docs/local-development.html">local development guide</a> for that configuration.</p>

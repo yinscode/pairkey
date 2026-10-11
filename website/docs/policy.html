@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Make permission programmable. PairKey developer documentation: Policy &amp; rules.">
+<title>Policy &amp; rules — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
+<body><a class="skip" href="#main">Skip to content</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
+<nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
+<a class="button small" href="../docs/quickstart.html">Get started →</a></header>
+<div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
+<a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/quickstart-account.html">Quickstart: Account</a>
+<a href="../docs/quickstart-program.html">Quickstart: Program</a>
+<a href="../docs/demo.html">Interactive demo</a>
+<a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/policy.html" aria-current="page">Policy &amp; rules</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
+<a href="../docs/signing.html">Signing integrations</a>
+<a href="../docs/api.html">SDK &amp; API reference</a>
+<a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/local-development.html">Local development</a>
+<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
+<main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / POLICY &amp; RULES</p>
+<h1>Make permission programmable.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#layers">Two places to enforce rules</a><a href="#hosted">Start with per-message approval</a><a href="#program">Set rules in a Solana program</a><a href="#account">Set rules for a Solana account</a><a href="#fields">Registered policy fields</a><a href="#sessions">Delegation and spending limits</a><a href="#lifecycle">Change, revoke, or stop permission</a><a href="#next">Put the rules into your flow</a></nav>
+<p class="lead">Define who may sign, what they may sign, and which approvals are required. Solana records the authority; both PairKey signers check it before participating.</p>
+<h2 id="layers">Two places to enforce rules</h2>
+<table><thead><tr><th>Rule layer</th><th>Where it runs</th><th>What it controls</th></tr></thead><tbody><tr><td>Your application program</td><td>A Solana instruction before gateway CPI</td><td>Business logic: owner approval, governance, allowed operations, application state, and the exact request it will authorize.</td></tr><tr><td>Registered PairKey policy</td><td>Stored in the gateway; evaluated independently by both signers</td><td>Required Commit approval, eligible sessions, additional credentials, and supported simulation checks.</td></tr></tbody></table>
+<p>A program can use both layers. An account can approve requests directly and administer a registered policy. A browser check alone is not an enforced signing rule: another client can skip it.</p>
+<h2 id="hosted">Start with per-message approval</h2>
+<p>Both hosted quickstarts use the default rule: every message needs a finalized Solana Commit. An account authorizes it with its wallet signature; a program authorizes it through a PDA after its own checks. No separate policy transaction is needed for this default.</p>
+<p>The public hosted API currently prepares registrations and exact-message approvals. It does not offer a policy editor, session-grant API, or request fields for session/access proofs. Custom program checks before Commit work with the hosted flow today. Advanced registered requirements must be paired with a signing interface that supplies their proofs; the quickstart does not bypass them.</p>
+<h2 id="program">Set rules in a Solana program</h2>
+<ol><li><strong>Define the authority.</strong> Derive a PDA under your program and register it as the namespace controller.</li><li><strong>Authenticate the caller and state.</strong> Verify required transaction signers, program ownership of state accounts, and the expected state PDAs.</li><li><strong>Validate the operation.</strong> Derive or check the expected destination, path and exact message or canonical intent from authenticated application state. Apply your business rules before approving that request.</li><li><strong>Commit through CPI.</strong> Pass only the validated Commit to the pinned gateway, using <code>invoke_signed</code> with your PDA seeds.</li></ol>
+<p>For example, a governance program can store an approved Commit in its own state, then permit CPI only when the proposal has passed and the supplied Commit matches it. This illustrative check belongs inside the program, after validating the proposal account and vote result:</p>
+<pre><code>// Excerpt: proposal is authenticated, program-owned application state.
+// expected_commit was constructed from the operation approved by governance.
+if !proposal.passed || requested_commit != proposal.expected_commit {
+    return Err(ProgramError::InvalidArgument);
+}
+// Construct the gateway Commit instruction with requested_commit,
+// then invoke_signed using this program's authority PDA seeds.</code></pre>
+<p>Do not populate <code>expected_commit</code> from an unchecked caller argument. If the rule is about a recipient or amount, parse and validate the typed operation and bind its exact signing bytes. Arbitrary message text such as “send 1 ETH” is not a transfer payload and does not provide a spending policy.</p>
+<p>The <a href="../docs/quickstart-program.html#program-code">quickstart controller</a> demonstrates the simplest rule: the wallet that scopes the PDA must approve each call. Its instruction allowlist contains only Register and Commit. To administer registered policies, grants, revocation or freezing from a PDA, implement explicit authenticated management instructions in your own controller. Do not simply open the forwarding allowlist to every caller.</p>
+<h2 id="account">Set rules for a Solana account</h2>
+<p>With an account-controlled namespace, your wallet is the controller. By default, it signs each exact-message approval directly. The wallet also authorizes policy updates and supported session grants on Solana. The wallet paying rent may be separate from the controller; paying a fee does not grant signing authority.</p>
+<p>The Rust SDK exposes gateway instruction builders. This excerpt constructs the first explicit Commit-only policy for an already registered account namespace. It does not submit a transaction:</p>
+<pre><code>use pairkey_types::policy::Policy;
+
+let policy = Policy {
+    version: 1, // First stored policy; later updates use previous version + 1.
+    allow_session: false,
+    require_commit: true,
+    require_session: false,
+    access: None,
+    simulation: None,
+};
+let instruction = pairkey_sdk::set_policy(
+    payer_public_key,
+    controller_wallet_public_key,
+    &amp;registration,
+    policy,
+);
+// Put instruction into a Solana transaction for the intended gateway deployment.
+// The payer and controller sign (one signature if they are the same wallet).
+// Submit on Solana devnet and wait for successful finalization.</code></pre>
+<p>The SDK’s gateway program ID must match the namespace and <a href="https://pairkey.com/api/v1/config">hosted deployment configuration</a>. Build your application’s transaction with the SDK or an equivalent instruction adapter; no PairKey worker needs to run on the developer’s machine. The hosted browser helper currently has no <code>setPolicy()</code> method.</p>
+<p>To enforce application rules such as a governance decision or a custom allowlist before every approval, use a program-controlled namespace. A direct account signature proves that the controller approved the request; it does not cause the gateway to execute arbitrary application logic. This program namespace derives different keys from the account namespace.</p>
+<h2 id="fields">Registered policy fields</h2>
+<table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>version</code></td><td>The implicit default is version 0. The first stored policy is version 1; every update must increment by exactly one.</td></tr><tr><td><code>require_commit</code></td><td>Require finalized approval of the exact operation. A request without a session still needs Commit even if this flag is false.</td></tr><tr><td><code>allow_session</code></td><td>Permit a supported, valid session grant. This does not create a grant.</td></tr><tr><td><code>require_session</code></td><td>Require a session as well. This may only be true when sessions are allowed.</td></tr><tr><td><code>access</code></td><td>Optional additional service-key or passkey credential proof, bound to the operation and policy version.</td></tr><tr><td><code>simulation</code></td><td>Optional constrained Solana native-transfer simulation against a pinned immutable executable. Not a general-purpose predicate engine.</td></tr></tbody></table>
+<p>A valid stored policy cannot disable Commit while also disallowing sessions. Required proofs compose: selecting another client or endpoint does not waive them. Passkey assertion verification exists in the core; hosted passkey onboarding and OAuth/OIDC delegation are separate integration work.</p>
+<h2 id="sessions">Delegation and spending limits</h2>
+<p>For supported Solana and EVM native-transfer adapters, a session grant binds a delegate credential, destination/path, recipient, per-operation amount cap, validity window and policy version. EVM grants also pin the enrolled key, chain ID, gas-price cap and total-fee cap. Current grant validity windows are at most 24 hours.</p>
+<p>Use <code>pairkey_sdk::grant_session</code> or <code>grant_evm_session</code> after enabling sessions in the policy. Accounts authorize these instructions directly; program controllers invoke them through authenticated management CPI. The delegate must provide an operation-bound proof with each signing request.</p>
+<p>These are transfer sessions, not arbitrary-message sessions. They do not cover every chain or the hosted message quickstarts. Amount limits apply to each operation; cumulative budgets and general EVM contract-call policies are not implemented. See <a href="../docs/sessions.html">Scoped sessions</a> for the supported combinations.</p>
+<h2 id="lifecycle">Change, revoke, or stop permission</h2>
+<p>Publish policy changes with the next version and wait for finality. Signers require the current policy version; old grants and proofs no longer match it. To revoke a grant, use <code>revoke_session</code> or <code>revoke_evm_session</code>. Revocation is permanent for that grant ID. To stop the namespace, use <code>freeze</code> with the controller’s authorization.</p>
+<p>For program authorities, each management action needs a corresponding controller instruction; the public quickstart example does not expose these. The current controller governs policy updates, so a wallet-controlled policy is not an immutable restriction against that same wallet. Put stricter change-control rules in a program if you need them.</p>
+<p>Freezing, revocation, or a policy change affects subsequent authorization checks. It cannot retract a signature already issued. An exact Commit is not a guarantee of one destination execution: use appropriate destination nonces and replay rules.</p>
+<h2 id="next">Put the rules into your flow</h2>
+<p>Start with <a href="../docs/quickstart-account.html#policy">Quickstart: Account</a> or <a href="../docs/quickstart-program.html#policy">Quickstart: Program</a>. For a custom controller, continue to <a href="../docs/integration.html#approval">binding the exact operation</a>.</p>
+
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/integration.html"><span>Previous</span><strong>Solana program integration →</strong></a><a href="../docs/sessions.html"><span>Next</span><strong>Scoped sessions →</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

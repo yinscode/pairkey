@@ -16,6 +16,7 @@ PAGES = [
     ('demo', 'Interactive demo', 'See the rules in action.'),
     ('architecture', 'Architecture', 'One authority. Two signers.'),
     ('integration', 'Solana program integration', 'Make your program the authority.'),
+    ('policy', 'Policy & rules', 'Make permission programmable.'),
     ('sessions', 'Scoped sessions', 'Delegate within your rules.'),
     ('signing', 'Signing integrations', 'One protocol. Multiple destinations.'),
     ('api', 'SDK & API reference', 'Request, verify, and deliver.'),
