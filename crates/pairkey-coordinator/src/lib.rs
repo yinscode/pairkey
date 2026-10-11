@@ -2,6 +2,14 @@
 mod jobs;
 mod multi;
 mod offchain_jobs;
+#[derive(Debug)]
+struct PreSignFailure(String);
+impl std::fmt::Display for PreSignFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl std::error::Error for PreSignFailure {}
 use anyhow::{ensure, Context};
 use axum::{
     extract::{DefaultBodyLimit, Path, State},
@@ -267,7 +275,17 @@ impl Relay {
                 self.post::<_, Envelope>(0, "/begin", &begins[0]),
                 self.post::<_, Envelope>(1, "/begin", &begins[1])
             );
-            let rounds = [a?, b?];
+            // No second round is sent if either first-round admission fails.
+            let rounds = match (a, b) {
+                (Ok(a), Ok(b)) => [a, b],
+                (a, b) => {
+                    return Err(PreSignFailure(format!(
+                        "first signing round refused: {}",
+                        a.err().or_else(|| b.err()).unwrap()
+                    ))
+                    .into())
+                }
+            };
             let finishes = [
                 Finish {
                     begin: begins[0].clone(),
@@ -546,6 +564,24 @@ async fn poll(State(s): State<S>, Path(id): Path<String>) -> Result<Json<Value>,
         .map(|e| Json(serde_json::to_value(&e.job).unwrap()))
         .ok_or(StatusCode::NOT_FOUND)
 }
+/// Hold a bounded loopback request until the job finishes, avoiding gateway polling delay.
+async fn wait_job(State(s): State<S>, Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let _permit = s
+        .subscriptions
+        .clone()
+        .try_acquire_owned()
+        .map_err(|_| StatusCode::TOO_MANY_REQUESTS)?;
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        let Json(value) = poll(State(s.clone()), Path(id.clone())).await?;
+        if matches!(value["status"].as_str(), Some("complete" | "failed"))
+            || Instant::now() >= deadline
+        {
+            return Ok(Json(value));
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
 async fn events(
     State(s): State<S>,
     Path(id): Path<String>,
@@ -637,6 +673,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         .route("/registrations", post(propose))
         .route("/jobs", post(enqueue))
         .route("/jobs/:id", get(poll))
+        .route("/jobs/:id/wait", get(wait_job))
         .route("/jobs/:id/events", get(events))
         .route("/jobs/:id/cancel", post(jobs::cancel))
         .route("/jobs/:id/recover", post(offchain_jobs::recover))

@@ -92,8 +92,15 @@ impl Relay {
             self.empty(0, "/multi/d/start", &commands[0]),
             self.empty(1, "/multi/d/start", &commands[1])
         );
-        a?;
-        b?;
+        if matches!(&commands[0].operation, mw::DOperation::Sign { .. }) {
+            if let Err(error) = a.and(b) {
+                // No exchange frame has been sent to either signer yet.
+                return Err(PreSignFailure(format!("DKLS signing start refused: {error}")).into());
+            }
+        } else {
+            a?;
+            b?;
+        }
         let broker = SimpleMessageRelay::new();
         let mut relays = [broker.connect(), broker.connect()];
         let mut input: [Vec<dkls::Frame>; 2] = [vec![], vec![]];
@@ -348,7 +355,16 @@ impl Relay {
                         self.post::<_, Envelope>(0, "/multi/r/begin", &begins[0]),
                         self.post::<_, Envelope>(1, "/multi/r/begin", &begins[1])
                     );
-                    let rounds = [a?, b?];
+                    let rounds = match (a, b) {
+                        (Ok(a), Ok(b)) => [a, b],
+                        (a, b) => {
+                            return Err(PreSignFailure(format!(
+                                "FROST signing start refused: {}",
+                                a.err().or_else(|| b.err()).unwrap()
+                            ))
+                            .into())
+                        }
+                    };
                     let finishes = std::array::from_fn::<_, 2, _>(
                         |i| json!({"authorized":auths[i],"rounds":rounds}),
                     );

@@ -473,6 +473,58 @@ async fn hosted_current_rules_override_prepared_approvals_and_cannot_be_treated_
     f.close().await;
 }
 #[tokio::test]
+async fn policy_change_after_submission_is_rejected_before_signing() {
+    let f = Fixture::new().await;
+    let owner = SigningKey::from_bytes(&fresh());
+    let ns = f.metadata(&owner).await;
+    let (prepared, _) = f.prepared(&ns, Chain::Solana).await;
+    let submission = signed(&prepared, &owner);
+    let registration = &prepared.signing_request.key.registration;
+    let authorization = f
+        .app
+        .sdk
+        .approve_offchain(&pairkey_types::approval::Submission {
+            registration: registration.clone(),
+            payload: prepared.payload.clone(),
+            approval: submission.approval,
+        })
+        .await
+        .unwrap();
+    f.accounts.lock().unwrap().insert(
+        pair_registry::approval::rules_address(
+            &pair_registry::id(),
+            &registration.namespace.digest(),
+        )
+        .0
+        .to_string(),
+        account(&pair_registry::approval::RulesRecord {
+            namespace_digest: registration.namespace.digest(),
+            rules: Rules {
+                revision: 1,
+                disabled: true,
+                ..Rules::default()
+            },
+        }),
+    );
+    let id = f
+        .app
+        .sdk
+        .submit_authorized(
+            registration,
+            &prepared.request.commit,
+            &prepared.payload,
+            &authorization,
+        )
+        .await
+        .unwrap();
+    let status = f.app.sdk.wait(&id).await.unwrap();
+    assert_eq!(status["status"], "failed");
+    assert_eq!(status["code"], "admission_failed");
+    assert_eq!(status["may_have_signed"], false);
+    assert_eq!(f.app.sdk.recover_job(&id).await.unwrap(), status);
+    f.close().await;
+}
+#[tokio::test]
 #[ignore = "requires the native DKLS sidecar built by scripts/ci.sh"]
 async fn hosted_evm_offchain_approval_runs_real_dkls_signing() {
     async fn donor_status(workers: &[String; 2]) -> [pairkey_signing::wire::DStatus; 2] {

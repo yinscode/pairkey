@@ -118,6 +118,20 @@ impl Client {
             .map_err(reqwest::Error::without_url)?;
         crate::http::bounded_json(response, crate::http::MAX_SERVICE_RESPONSE).await
     }
+    /// Wait up to 15 seconds for a terminal coordinator job, then return its current state.
+    pub async fn wait(&self, id: &str) -> anyhow::Result<Value> {
+        ensure!(
+            id.parse::<solana_sdk::pubkey::Pubkey>().is_ok(),
+            "invalid job id"
+        );
+        let response = self
+            .http
+            .get(format!("{}/jobs/{id}/wait", self.endpoint))
+            .send()
+            .await
+            .map_err(reqwest::Error::without_url)?;
+        crate::http::bounded_json(response, crate::http::MAX_SERVICE_RESPONSE).await
+    }
     /// Response body is SSE; callers consume incremental events with `chunk().await`.
     pub async fn subscribe(&self, id: &str) -> anyhow::Result<reqwest::Response> {
         ensure!(

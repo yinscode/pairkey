@@ -142,6 +142,7 @@ impl Output {
 #[serde(deny_unknown_fields)]
 enum StateKind {
     Working,
+    Rejected(String),
     Uncertain(String),
     Complete(Output),
 }
@@ -155,6 +156,8 @@ impl Record {
     fn public(&self) -> Value {
         match &self.state {
             StateKind::Working => json!({"status":"working"}),
+            StateKind::Rejected(error) => json!({"status":"failed", "code":"admission_failed",
+                "error":error, "may_have_signed":false}),
             StateKind::Uncertain(error) => {
                 json!({"status":"failed", "code":"uncertain", "error":error,
                 "may_have_signed":true})
@@ -259,7 +262,7 @@ impl Store {
         );
         Ok(false)
     }
-    /// Called only after both workers revalidate their private authentication.
+    /// Persist pending admission before workers can allocate signing nonces.
     fn reserve(&mut self, input: Input) -> anyhow::Result<bool> {
         if self.existing(&input)? {
             return Ok(false);
@@ -288,6 +291,19 @@ impl Store {
             .context("unknown off-chain job")?;
         if matches!(record.state, StateKind::Working) {
             record.state = StateKind::Uncertain(error);
+            self.save()?;
+        }
+        Ok(())
+    }
+    fn reject(&mut self, id: &str, error: String) -> anyhow::Result<()> {
+        self.ready()?;
+        let record = self
+            .snapshot
+            .records
+            .get_mut(id)
+            .context("unknown off-chain job")?;
+        if matches!(record.state, StateKind::Working) {
+            record.state = StateKind::Rejected(error);
             self.save()?;
         }
         Ok(())
@@ -335,14 +351,6 @@ pub(super) async fn enqueue(s: S, input: Input) -> Result<Json<Value>, (StatusCo
         .clone()
         .try_acquire_owned()
         .map_err(|_| error("job capacity reached"))?;
-    let check = input.check();
-    let (a, b) = tokio::join!(
-        s.relay.post::<_, bool>(0, "/approve/check", &check),
-        s.relay.post::<_, bool>(1, "/approve/check", &check)
-    );
-    if !a.map_err(error)? || !b.map_err(error)? {
-        return Err(error("worker approval refused"));
-    }
     if !s
         .offchain_jobs
         .lock()
@@ -406,7 +414,10 @@ pub(super) async fn enqueue(s: S, input: Input) -> Result<Json<Value>, (StatusCo
         let mut store = s.offchain_jobs.lock().unwrap();
         let saved = match outcome {
             Ok(r) => store.complete(&job_id, r, s.relay.config.identities),
-            Err(e) => store.uncertain(&job_id, e.to_string()),
+            Err(e) => match e.downcast_ref::<PreSignFailure>() {
+                Some(rejected) => store.reject(&job_id, rejected.0.clone()),
+                None => store.uncertain(&job_id, e.to_string()),
+            },
         };
         if let Err(e) = saved {
             eprintln!("off-chain job persistence failed: {e}");
@@ -428,7 +439,10 @@ pub(super) async fn recover(
         .record(&id)
         .map_err(error)?
         .ok_or_else(|| error("unknown off-chain job"))?;
-    if matches!(record.state, StateKind::Working | StateKind::Complete(_)) {
+    if matches!(
+        record.state,
+        StateKind::Working | StateKind::Complete(_) | StateKind::Rejected(_)
+    ) {
         return Ok(Json(record.public()));
     }
     let _permit = s
@@ -774,6 +788,23 @@ mod tests {
         let store = Store::open(&path, [1; 32]).unwrap();
         assert_eq!(store.get(&id).unwrap().unwrap()["status"], "complete");
         assert!(store.existing(&input).unwrap());
+    }
+    #[test]
+    fn pre_signing_rejection_is_terminal_and_restart_safe() {
+        let (input, _, _) = fixture();
+        let path = path();
+        let id = input.validate().unwrap();
+        let mut store = Store::open(&path, [1; 32]).unwrap();
+        store.reserve(input.clone()).unwrap();
+        store.reject(&id, "policy changed".into()).unwrap();
+        assert_eq!(store.get(&id).unwrap().unwrap()["may_have_signed"], false);
+        drop(store);
+        let mut reopened = Store::open(&path, [1; 32]).unwrap();
+        assert_eq!(
+            reopened.get(&id).unwrap().unwrap()["code"],
+            "admission_failed"
+        );
+        assert!(!reopened.reserve(input).unwrap());
     }
     #[test]
     fn retries_cannot_replace_request_but_may_renew_private_evidence() {

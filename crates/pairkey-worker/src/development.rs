@@ -962,7 +962,6 @@ async fn run_inner(
             post(offchain::policy_update).layer(DefaultBodyLimit::max(64 * 1024)),
         )
         .route("/approve/result", post(offchain::lookup))
-        .route("/approve/check", post(offchain::check))
         .layer(axum::middleware::from_fn_with_state(worker.clone(), limit))
         .with_state(worker.clone());
     tokio::spawn(async move {

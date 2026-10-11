@@ -496,20 +496,6 @@ pub(super) async fn approve(
     Ok(Json(auth))
 }
 
-pub(super) async fn check(
-    State(w): State<W>,
-    Json(q): Json<ApprovalCheck>,
-) -> Result<Json<bool>, Failure> {
-    let proof = w
-        .offchain
-        .proof(&q.attempt.authorization)
-        .map_err(failure)?;
-    w.offchain_view(&q.registration, &q.attempt, &q.payload, proof)
-        .await
-        .map_err(failure)?;
-    Ok(Json(true))
-}
-
 pub(super) async fn lookup(
     State(w): State<W>,
     Json(q): Json<ApprovalLookup>,

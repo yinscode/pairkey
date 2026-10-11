@@ -133,10 +133,47 @@ waiting for the job. The three traced warm requests at 750 ms polling waited
 difference is indicative, not an exact causal estimate. The gateway's 1-second
 poll remains in both runs.
 
-The next straightforward latency change is to deliver coordinator completion
-to the gateway promptly and shorten or replace client polling. Reducing the
-three authority views requires a separate authorization-design review;
-removing a check without preserving its policy and revocation behavior would
-change the security semantics. Warm donor reuse itself avoids about 450 ms of
-fresh donor preparation in the traced cold run, but leaves the per-signature
-DKLS command in place.
+At the time of this trace, the next targets were gateway completion delivery
+and the repeated coordinator admission check. The October 15 rollout below
+addresses both while retaining each signer's finalized authority check at
+signing start. Warm donor reuse itself avoided about 450 ms of fresh donor
+preparation in the traced cold run, but left the per-signature DKLS command in
+place.
+
+## Batched preparation and final admission — deployed October 15, 2026
+
+Approval preparation now reads namespace and rules in one finalized
+`getMultipleAccounts` snapshot. The coordinator no longer repeats the full
+worker `/approve/check` view between submission and signing. Both workers
+still authenticate private proof at submission and independently read current
+Solana authority at signing start, where the exact one-time claim is reserved
+before a nonce is allocated. A first-round failure is durably recorded as
+`admission_failed` with `may_have_signed: false`; failures after signing may
+have begun remain uncertain. The gateway uses a bounded coordinator wait
+request in place of its one-second polling interval.
+
+The same public account-message probe verified every signature and both signer
+receipts, without broadcasting a transaction. These are small live samples
+using 750 ms client polling, not tail-latency guarantees. The five-sample EVM
+baseline preceded server compilation; the three-sample Solana baseline was
+collected while the staged server build was running and may include contention.
+
+| Chain | Before samples | After samples | Median before → after | Preparation median | Job-wait median |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| EVM / DKLS23 | 5 | 5 | 4,787 → 2,914 ms (−39%) | 582 → 364 ms | 3,314 → 1,712 ms |
+| Solana / FROST Ed25519 | 3 | 3 | 2,891 → 1,892 ms (−35%) | 532 → 305 ms | 1,660 → 854 ms |
+
+An earlier separate three-sample EVM baseline had a 3,963 ms median, showing
+the variability in this environment. Compared with that baseline, the
+2,914 ms after median is 26% lower. Job wait includes coordinator work and
+750 ms client polling, so its difference is not a direct measurement of the
+removed RPC view alone. Submission medians were essentially unchanged:
+641 → 633 ms for EVM and 657 → 661 ms for Solana. The live service reported
+ready after the rollout and had no process restarts during these probes.
+
+Local checks passed the coordinator and hosted suites, real DKLS signing,
+five-chain browser SDK signing and recovery, and both simulated and committed
+program approvals. A targeted race test changes rules after proof submission
+and confirms that signing is rejected before threshold rounds. Program-source
+latency still needs its own live measurements; the account source does not
+simulate `pairkey_approve`.

@@ -1,6 +1,7 @@
 //! Hosted v2 never persists JWTs, passkey assertions or caller signatures.
 //! A saved public job can only be recovered, never assigned fresh randomness.
 use super::*;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use pairkey_sdk::hosted::offchain as wire;
 use pairkey_types::{
     approval::{Identity, Request, Rules},
@@ -21,9 +22,18 @@ pub(super) struct SavedJob {
 #[serde(deny_unknown_fields)]
 enum JobState {
     Working,
+    Rejected(String),
     Uncertain(String),
     Complete(Value),
 }
+#[derive(Debug)]
+struct AdmissionRejected(String);
+impl std::fmt::Display for AdmissionRejected {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl std::error::Error for AdmissionRejected {}
 impl SavedJob {
     pub(super) fn validate(&self, id: &str) -> Result<()> {
         ensure!(
@@ -64,6 +74,9 @@ impl SavedJob {
     fn public(&self) -> Value {
         match &self.state {
             JobState::Working => json!({"status":"working"}),
+            JobState::Rejected(error) => {
+                json!({"status":"failed","code":"admission_failed","may_have_signed":false,"error":error})
+            }
             JobState::Uncertain(error) => {
                 json!({"status":"failed","code":"uncertain","may_have_signed":true,"error":error})
             }
@@ -201,21 +214,75 @@ async fn rules(app: &App, reg: &Registration) -> Result<Rules> {
         Ok(Rules::default())
     }
 }
+/// Read the namespace and rules at one finalized Solana context slot.
+async fn preparation_rules(app: &App, reg: &Registration) -> Result<Rules> {
+    context(app, reg)?;
+    let namespace = pair_registry::namespace_address(&pair_registry::id(), reg).0;
+    let rules_address =
+        pair_registry::approval::rules_address(&pair_registry::id(), &reg.namespace.digest()).0;
+    let response = app
+        .sol
+        .call(
+            "getMultipleAccounts",
+            json!([[namespace.to_string(), rules_address.to_string()],
+            {"encoding":"base64","commitment":"finalized"}]),
+        )
+        .await?;
+    ensure!(
+        response["context"]["slot"].as_u64().is_some(),
+        "missing preparation slot"
+    );
+    let accounts = response["value"]
+        .as_array()
+        .context("missing preparation accounts")?;
+    ensure!(accounts.len() == 2, "preparation account count");
+    let decode = |index: usize| -> Result<Option<Vec<u8>>> {
+        let account = &accounts[index];
+        if account.is_null() {
+            return Ok(None);
+        }
+        ensure!(
+            account["owner"] == pair_registry::id().to_string(),
+            "unexpected account owner"
+        );
+        ensure!(account["data"][1] == "base64", "invalid account encoding");
+        Ok(Some(STANDARD.decode(
+            account["data"][0].as_str().context("account bytes")?,
+        )?))
+    };
+    if let Some(bytes) = decode(0)? {
+        let record: pair_registry::NamespaceRecord = borsh::from_slice(&bytes)?;
+        ensure!(
+            record.registration == *reg
+                && !record.frozen
+                && record.controller == reg.namespace.derivation_authority,
+            "namespace is frozen or controlled by another authority"
+        );
+    }
+    if let Some(bytes) = decode(1)? {
+        let record: pair_registry::approval::RulesRecord = borsh::from_slice(&bytes)?;
+        ensure!(
+            record.namespace_digest == reg.namespace.digest() && record.rules.revision > 0,
+            "rules account context mismatch"
+        );
+        record.rules.validate()?;
+        Ok(record.rules)
+    } else {
+        Ok(Rules::default())
+    }
+}
 async fn prepare(
     State(app): State<Arc<App>>,
     Json(q): Json<wire::PrepareRequest>,
 ) -> ApiResult<wire::Prepared> {
     async {
         identity(&q.identity).context("approval identity")?;
-        available(&app, &q.signing_request.key.registration)
+        let rules = preparation_rules(&app, &q.signing_request.key.registration)
             .await
-            .context("approval namespace availability")?;
+            .context("approval namespace and rules")?;
         let key = cached(&app, &q.signing_request.key).context("approval cached key")?;
         let (commit, payload, _) =
             prepared(&q.signing_request, &key).context("approval payload")?;
-        let rules = rules(&app, &q.signing_request.key.registration)
-            .await
-            .context("approval rules")?;
         let now = crate::chain::now()?;
         let request = Request {
             version: 1,
@@ -360,16 +427,23 @@ async fn run(
     ensure!(returned == id, "coordinator job identity changed");
     let deadline = Instant::now() + Duration::from_secs(180);
     loop {
-        let status = app.sdk.poll(id).await?;
+        let status = app.sdk.wait(id).await?;
         if status["status"] == "complete" {
             return result(saved, key, status["result"].clone(), app.identities);
         }
-        ensure!(
-            status["status"] != "failed",
-            "coordinator could not complete this job; recover the same request"
-        );
+        if status["status"] == "failed" {
+            if status["may_have_signed"] == false && status["code"] == "admission_failed" {
+                return Err(AdmissionRejected(
+                    status["error"]
+                        .as_str()
+                        .unwrap_or("signing admission failed")
+                        .to_owned(),
+                )
+                .into());
+            }
+            anyhow::bail!("coordinator could not complete this job; recover the same request");
+        }
         ensure!(Instant::now() < deadline, "timed out; recover the same job");
-        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
 fn result(
@@ -405,11 +479,14 @@ fn result(
 fn finish(app: &App, id: &str, result: Result<Value>) {
     let mut store = app.hosted.lock().unwrap();
     if let Some(saved) = store.snapshot.offchain_jobs.get_mut(id) {
-        // Never downgrade a complete result if a concurrent recovery finishes later.
-        if !matches!(saved.state, JobState::Complete(_)) {
+        // Never downgrade a terminal result if a concurrent recovery finishes later.
+        if !matches!(saved.state, JobState::Complete(_) | JobState::Rejected(_)) {
             saved.state = match result {
                 Ok(value) => JobState::Complete(value),
-                Err(error) => JobState::Uncertain(error.to_string()),
+                Err(error) => match error.downcast_ref::<AdmissionRejected>() {
+                    Some(rejected) => JobState::Rejected(rejected.0.clone()),
+                    None => JobState::Uncertain(error.to_string()),
+                },
             };
         }
     }
@@ -441,6 +518,21 @@ async fn recover(State(app): State<Arc<App>>, UrlPath(id): UrlPath<String>) -> A
     if status["status"] == "complete" {
         let value = result(&saved, &key, status["result"].clone(), app.identities).map_err(fail)?;
         finish(&app, &id, Ok(value));
+    } else if status["status"] == "failed"
+        && status["code"] == "admission_failed"
+        && status["may_have_signed"] == false
+    {
+        finish(
+            &app,
+            &id,
+            Err(AdmissionRejected(
+                status["error"]
+                    .as_str()
+                    .unwrap_or("signing admission failed")
+                    .to_owned(),
+            )
+            .into()),
+        );
     }
     job(State(app), UrlPath(id)).await
 }
