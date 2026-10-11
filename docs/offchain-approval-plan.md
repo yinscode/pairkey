@@ -3,6 +3,10 @@
 Branch: `codex/offchain-approval`. Commits are intentionally dated October 9–10,
 2026, at the user's request. Existing unrelated working-tree changes are excluded.
 
+Merged into `main` and deployed on October 13, 2026 (Asia/Bangkok). The
+[deployment record](offchain-approval-deployment.md) separates public-testnet
+checks from the implementation and local acceptance evidence below.
+
 ## Decisions
 
 - No registration transaction in the new signing flow. Workers still construct

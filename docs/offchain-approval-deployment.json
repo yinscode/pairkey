@@ -1,0 +1,100 @@
+{
+  "release_commit": "4cb2a5f",
+  "branch": "main",
+  "verified_at_utc": "2026-10-12T22:12:34.830049+00:00",
+  "origin": "https://pairkey.com",
+  "network": "solana-devnet",
+  "evm_chain_id": 84532,
+  "hardware_backed": false,
+  "oidc_issuer_count": 0,
+  "programs": [
+    {
+      "name": "pair_registry",
+      "id": "rsYu5jyioN9YjWcj58houJ4AYnWKWwjTtpG8hSMw1QZ",
+      "sha256": "18bb8b256839e42f3eb2ba871aa7ccd628666d500dcf771adb8c8032a1b11bdd",
+      "upgrade_transaction": "4kgGAZiFbZ8HtYwGKSydqatAzbHAV9AY24ZgYbQEFyx958PLj89zCTizouin6FVPyhfXzmKTS7FJLfXVSX3ggQEJ"
+    },
+    {
+      "name": "example_controller",
+      "id": "EQJ78XYJXQL4bLchc45yhHhZhYjArkpkfcFGhydHKZJW",
+      "sha256": "c0f8abceb35f368f0bf105cb20bf0d7f3a0b2ef1042cfb9c1adb55bde320b91d",
+      "upgrade_transaction": "3ynDbMYudWNUNMKnZ3vehxFcXToZi9gjApbW5BxaVCJ1H8EB7aQbehbkXyAx72iJj4yRNR1kbuqN8RCSS1KgooYb"
+    }
+  ],
+  "smoke_cases": [
+    {
+      "case": "account-solana",
+      "job_id": "26oJAJh7Da3JAQFeJiMpnuhTaQJGfBiqoz9XQ9pShUKA",
+      "independent_signature_and_receipts_verified": true,
+      "recovered_same_signature_after_restart": true,
+      "commit_transaction": null
+    },
+    {
+      "case": "account-evm",
+      "job_id": "AVPNqh13inR19GFnwERVa6Gnew9Yg6qTaFiPA351QSrD",
+      "independent_signature_and_receipts_verified": true,
+      "recovered_same_signature_after_restart": true,
+      "commit_transaction": null
+    },
+    {
+      "case": "account-zcash",
+      "job_id": "4aoi8DtMfwmKuvee1dy7tNGtS6fh5iBTe3Uq4YSW9C3X",
+      "independent_signature_and_receipts_verified": true,
+      "recovered_same_signature_after_restart": true,
+      "commit_transaction": null
+    },
+    {
+      "case": "account-near",
+      "job_id": "7AyiUTX1nCAh2v8cWfLUUcMZE5Lo91f5VumjhbvdEFsB",
+      "independent_signature_and_receipts_verified": true,
+      "recovered_same_signature_after_restart": true,
+      "commit_transaction": null
+    },
+    {
+      "case": "account-bitcoin",
+      "job_id": "BFCB7aFbjdvRNumo46Cr9ncsCH4MYz2VXwdXhRCi9iUx",
+      "independent_signature_and_receipts_verified": true,
+      "recovered_same_signature_after_restart": true,
+      "commit_transaction": null
+    },
+    {
+      "case": "program-solana",
+      "job_id": "FdUsybGnPWALuoE5YQ5uKWb4zJrzCx2xpiXb4snXF2yB",
+      "independent_signature_and_receipts_verified": true,
+      "recovered_same_signature_after_restart": true,
+      "commit_transaction": "622FsDGnCGpvb3Psox8ktEo1cuGnDBeoraZW7fU3RhgC83iNUq4D6nYQsmSwibgT8EEf45hABdtnN4V5uXSe3Nde"
+    },
+    {
+      "case": "policy-solana",
+      "job_id": "4i6h6ZebXXDogqw21HMgkG3sipgcHpWgnHYb8bo3hxgG",
+      "independent_signature_and_receipts_verified": true,
+      "recovered_same_signature_after_restart": true,
+      "commit_transaction": null
+    }
+  ],
+  "account_approval_transactions": 0,
+  "account_sol_balance_unchanged": true,
+  "program_allowance_before": 2,
+  "program_allowance_after": 1,
+  "program_allowance_after_restart_recovery": 1,
+  "policy_update_transaction": "2BUrGuWgvijvQnSTTqjV1oh6ehaitoAtnUaPCXYutBkocNsehaQgLKhN4E6ZwfGKdvvHfN9VnRWu7f91EoabDRET",
+  "program_policy_transaction": "2bp7kKXHeHJJwqZcPmWKNGaL458NGwxGA5wvL6E29yzoKeNR2L3NXrv8Sxw9B1BSxsZkxpVMiDXDzYCeqFbYyacE",
+  "stale_policy_rejected_http": 400,
+  "stale_request_not_admitted": true,
+  "disallowed_path_rejected": true,
+  "continuity": {
+    "existing_hosted_certificates": 16,
+    "message_key_contexts": 10,
+    "legacy_evm_key": true,
+    "private_roots_and_identities": true,
+    "incident_latches": true,
+    "historical_uncertain_job": true
+  },
+  "rollout_checks": {
+    "sbf_tests": 14,
+    "linux_host_tests": 20,
+    "linux_ignored_tests_not_counted_as_passes": 8,
+    "browser_unit_tests": 45,
+    "static_pages": 16
+  }
+}

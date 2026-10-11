@@ -1,7 +1,9 @@
 # Hosted approval API v2
 
-This is the implementation-branch API contract. The browser SDK, quickstarts and demo use this contract.
-Live rollout still requires a coordinated deployment. The existing `/api/v1` API remains
+The hosted browser SDK, quickstarts and demo use this contract. API v2 was deployed
+to `https://pairkey.com/api/v2` on October 13, 2026 (Asia/Bangkok), with the existing
+Solana devnet gateway and controller IDs. See the [deployment record](offchain-approval-deployment.md)
+for live verification and remaining boundaries. The existing `/api/v1` API remains
 available for previously registered namespaces and COMMIT requests.
 
 Use `/api/v2` as the base URL. POST JSON with `X-PairKey-Client: 1`. Every mutation
@@ -178,8 +180,9 @@ coordinated change. Never reset runtime state to make a failed test pass.
 
 ## Coordinated rollout checklist
 
-This branch is an implementation candidate, not evidence of a live upgrade or
-production TEE deployment. Keep OIDC disabled until the intended issuer, client
+The [deployment record](offchain-approval-deployment.md) covers the testnet upgrade;
+it is not evidence of production TEE deployment. For subsequent upgrades, follow
+this checklist. Keep OIDC disabled until the intended issuer, client
 audience, nonce flow and each worker's HTTPS key retrieval have been tested.
 
 1. Record the deployed gateway/controller program IDs, enclave set and signer
