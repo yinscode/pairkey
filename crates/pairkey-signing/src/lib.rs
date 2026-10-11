@@ -6,6 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use pairkey_dkls23_research as dkls;
 use pairkey_types::{AccountPath, Registration};
 use serde::{Deserialize, Serialize};
+pub mod bitcoin;
 pub mod evm;
 pub mod evm_message;
 pub mod redpallas;
@@ -16,6 +17,7 @@ pub mod redpallas;
 pub enum Suite {
     Dkls23Secp256k1,
     FrostRedPallas,
+    FrostSecp256k1Tr,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(deny_unknown_fields)]
@@ -39,6 +41,7 @@ impl Key {
             Suite::Dkls23Secp256k1 => {
                 dkls::point(&self.public_key)?;
             }
+            Suite::FrostSecp256k1Tr => bitcoin::validate_key(&self.public_key)?,
             Suite::FrostRedPallas => {
                 redpallas::validate_key(&self.public_key)?;
             }
@@ -66,6 +69,8 @@ pub enum Payload {
     },
     /// Appended to preserve existing Borsh payload discriminants.
     EvmMessage(evm_message::Message),
+    /// Appended to preserve all existing payload discriminants.
+    BitcoinMessage(bitcoin::Message),
 }
 pub const INTENT_PREFIX: &[u8] = b"pairkey/signing-intent/v1\0";
 impl Intent {
@@ -103,6 +108,17 @@ impl Intent {
                     "EVM message destination mismatch"
                 );
             }
+            (Suite::FrostSecp256k1Tr, Payload::BitcoinMessage(message)) => {
+                message.validate()?;
+                ensure!(
+                    self.key.account.destination == bitcoin::destination(message.network),
+                    "Bitcoin destination/network mismatch"
+                );
+                ensure!(
+                    self.key.public_key.len() == 32,
+                    "x-only Bitcoin public key required"
+                );
+            }
             (Suite::FrostRedPallas, Payload::RedPallas { message }) => {
                 ensure!(
                     !message.is_empty() && message.len() <= 512,
@@ -118,6 +134,7 @@ impl Intent {
         match &self.payload {
             Payload::EvmTransfer(tx) => evm::verify(&self.key.public_key, tx, signature),
             Payload::EvmMessage(message) => message.verify(&self.key.public_key, signature),
+            Payload::BitcoinMessage(message) => message.verify(&self.key.public_key, signature),
             Payload::RedPallas { message } => {
                 redpallas::verify(&self.key.public_key, message, signature)
             }

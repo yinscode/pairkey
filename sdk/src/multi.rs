@@ -50,6 +50,20 @@ pub fn verify_key(q: &KeyRequest, r: &KeyResponse, identities: [[u8; 32]; 2]) ->
             c.record.wallet.identities == r.infos.clone().map(|i| i.dkls_identity),
             "DKLS enrollment mismatch"
         ),
+        Certificate::Bitcoin(p) => {
+            for i in 0..2 {
+                ensure!(
+                    serde_json::to_vec(&p.proofs[i])?
+                        == serde_json::to_vec(
+                            &r.infos[i]
+                                .bitcoin
+                                .as_ref()
+                                .ok_or_else(|| anyhow::anyhow!("missing Bitcoin proof"))?
+                        )?,
+                    "Bitcoin enrollment mismatch"
+                );
+            }
+        }
         Certificate::RedPallas(p) => {
             for i in 0..2 {
                 ensure!(

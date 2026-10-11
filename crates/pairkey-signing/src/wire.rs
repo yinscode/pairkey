@@ -1,5 +1,5 @@
 pub const PROTOCOL_VERSION: u16 = 2;
-use crate::{dkls, redpallas, Intent, Key, Suite};
+use crate::{bitcoin, dkls, redpallas, Intent, Key, Suite};
 use pairkey_types::{attestation::Attestation, AccountPath, Attempt, Registration, Role};
 use serde::{Deserialize, Serialize};
 #[derive(Clone, Serialize, Deserialize)]
@@ -18,6 +18,8 @@ pub struct Info {
     pub boot: [u8; 32],
     pub dkls_identity: [u8; 32],
     pub redpallas: Option<redpallas::Proof>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bitcoin: Option<bitcoin::Proof>,
     pub signature: Vec<u8>,
 }
 impl Info {
@@ -34,6 +36,10 @@ impl Info {
             ))
             .unwrap(),
         );
+        if let Some(proof) = &self.bitcoin {
+            b.extend(b"/bitcoin-bip340/v1");
+            b.extend(serde_json::to_vec(proof).unwrap());
+        }
         b
     }
     pub fn verify(&self, identity: [u8; 32]) -> anyhow::Result<()> {
@@ -53,6 +59,7 @@ impl Info {
 pub enum Certificate {
     Dkls(Box<dkls::d::Certificate>),
     RedPallas(redpallas::Public),
+    Bitcoin(bitcoin::Public),
 }
 impl Certificate {
     pub fn key(&self, req: &KeyRequest) -> anyhow::Result<Key> {
@@ -77,6 +84,10 @@ impl Certificate {
                     public_key: c.record.public_key.clone(),
                     registration: c.record.digest(),
                 }
+            }
+            Self::Bitcoin(p) => {
+                anyhow::ensure!(req.suite == Suite::FrostSecp256k1Tr, "suite mismatch");
+                p.key(&req.registration, &req.account)?
             }
             Self::RedPallas(p) => {
                 anyhow::ensure!(req.suite == Suite::FrostRedPallas, "suite mismatch");
@@ -115,11 +126,11 @@ impl SignRequest {
             self.attempt.commit.account == self.intent.key.account,
             "account path mismatch"
         );
-        // Only the EVM adapter accepts sessions; RedPallas still requires exact COMMIT.
+        // Only the EVM adapter accepts sessions; FROST adapters require exact COMMIT.
         anyhow::ensure!(
             self.attempt.authorization.session_id.is_none()
                 || self.intent.key.suite == Suite::Dkls23Secp256k1,
-            "RedPallas requires COMMIT"
+            "FROST requires COMMIT"
         );
         let key = self.certificate.key(&KeyRequest {
             registration: self.registration.clone(),

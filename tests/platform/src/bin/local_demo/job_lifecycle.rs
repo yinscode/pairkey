@@ -224,7 +224,9 @@ pub(super) async fn run(
     for template in requests {
         let phases: &[&str] = match template.intent.key.suite {
             Suite::Dkls23Secp256k1 => &["register", "prepare", "sign", "ecdsa_result"],
-            Suite::FrostRedPallas => &["red_begin", "red_finish", "red_result"],
+            Suite::FrostRedPallas | Suite::FrostSecp256k1Tr => {
+                &["red_begin", "red_finish", "red_result"]
+            }
         };
         for phase in phases {
             for action in [

@@ -1,7 +1,7 @@
 //! Local multi-suite bridge. Native D workers own their roots and donor lifecycle.
 //! Every outgoing signing frame is checked against current Solana authority.
 use super::*;
-use pairkey_signing::{self as signing, dkls, redpallas, wire as mw, Payload, Suite};
+use pairkey_signing::{self as signing, bitcoin, dkls, redpallas, wire as mw, Payload, Suite};
 use std::process::Stdio;
 #[derive(Debug)]
 struct BackendRateLimit;
@@ -25,8 +25,20 @@ pub(super) struct Multi {
     d: tokio::sync::Mutex<Option<DChild>>,
     red: Mutex<BTreeMap<[u8; 32], RedAttempt>>,
 }
+enum FrostPending {
+    RedPallas(redpallas::Pending),
+    Bitcoin(bitcoin::Pending),
+}
+impl FrostPending {
+    fn finish(self, rounds: &[Vec<u8>; 2]) -> anyhow::Result<Vec<u8>> {
+        match self {
+            Self::RedPallas(p) => p.finish(rounds),
+            Self::Bitcoin(p) => p.finish(rounds),
+        }
+    }
+}
 struct RedAttempt {
-    pending: Option<redpallas::Pending>,
+    pending: Option<FrostPending>,
     created: Instant,
     peer_boot: [u8; 32],
     lease: Arc<AttemptLease>,
@@ -39,7 +51,7 @@ impl Drop for RedAttempt {
 struct RedFlight {
     worker: W,
     id: [u8; 32],
-    pending: Option<redpallas::Pending>,
+    pending: Option<FrostPending>,
     peer_boot: [u8; 32],
     deadline: Instant,
     lease: Arc<AttemptLease>,
@@ -174,6 +186,16 @@ pub(super) async fn info(
                 .to_bytes(),
             redpallas: if q.suite == Suite::FrostRedPallas {
                 Some(redpallas::proof(
+                    &w.multi.root,
+                    &q.registration,
+                    &q.account,
+                    role(&w),
+                )?)
+            } else {
+                None
+            },
+            bitcoin: if q.suite == Suite::FrostSecp256k1Tr {
+                Some(bitcoin::proof(
                     &w.multi.root,
                     &q.registration,
                     &q.account,
@@ -515,28 +537,39 @@ pub(super) async fn rbegin(
         let a = &q.authorized;
         let (b, v) = view(&w, a).await?;
         let _release = w.release_guard(&b, &v)?;
-        let mw::Certificate::RedPallas(public) = &a.request.certificate else {
-            anyhow::bail!("RedPallas certificate")
-        };
-        let Payload::RedPallas { message } = &a.request.intent.payload else {
-            anyhow::bail!("RedPallas payload")
-        };
         let id = b.attempt.digest();
         let mut pending = w.multi.red.lock().unwrap();
         pending.retain(|_, p| p.created.elapsed() < ATTEMPT_TTL);
         ensure!(
             pending.len() < 64 && !pending.contains_key(&id),
-            "RedPallas capacity or duplicate attempt"
+            "FROST capacity or duplicate attempt"
         );
         let permit = w.nonce_capacity.clone().try_acquire_owned()?;
-        let (round, owned) = redpallas::Pending::begin(
-            &w.multi.root,
-            &b.registration,
-            &a.request.intent.key.account,
-            public,
-            role(&w),
-            message,
-        )?;
+        let (round, owned) = match (&a.request.certificate, &a.request.intent.payload) {
+            (mw::Certificate::RedPallas(public), Payload::RedPallas { message }) => {
+                let (r, p) = redpallas::Pending::begin(
+                    &w.multi.root,
+                    &b.registration,
+                    &a.request.intent.key.account,
+                    public,
+                    role(&w),
+                    message,
+                )?;
+                (r, FrostPending::RedPallas(p))
+            }
+            (mw::Certificate::Bitcoin(public), Payload::BitcoinMessage(message)) => {
+                let (r, p) = bitcoin::Pending::begin(
+                    &w.multi.root,
+                    &b.registration,
+                    &a.request.intent.key.account,
+                    public,
+                    role(&w),
+                    &message.prehash()?,
+                )?;
+                (r, FrostPending::Bitcoin(p))
+            }
+            _ => anyhow::bail!("FROST certificate/payload mismatch"),
+        };
         let envelope = w.channel.seal(&b.peer, id, 11, &round)?;
         pending.insert(
             id,
@@ -610,7 +643,7 @@ pub(super) async fn rfinish(
             let _release = w.release_guard(&b, &v)?;
             ensure!(
                 !owned.lease.cancelled.load(Ordering::SeqCst),
-                "cancelled RedPallas attempt"
+                "cancelled FROST attempt"
             );
             let share = owned
                 .pending
@@ -643,24 +676,34 @@ pub(super) async fn rresult(
         let transcript = pairkey_types::digest(b"pairkey/redpallas/rounds/v1", &(id, &rounds));
         for (i, e) in q.shares.iter().enumerate() {
             let (t, s): ([u8; 32], Vec<u8>) = w.channel.open(&b.peer, id, 12, e)?;
-            ensure!(t == transcript, "stale RedPallas transcript");
+            ensure!(t == transcript, "stale FROST transcript");
             shares[i] = s;
         }
-        let mw::Certificate::RedPallas(public) = &a.request.certificate else {
-            anyhow::bail!("certificate")
-        };
-        let Payload::RedPallas { message } = &a.request.intent.payload else {
-            anyhow::bail!("payload")
-        };
         let mut release = w.release_guard(&b, &v)?;
-        let sig = match redpallas::aggregate(
-            &b.registration,
-            &a.request.intent.key.account,
-            public,
-            message,
-            &rounds,
-            &shares,
-        ) {
+        let result = match (&a.request.certificate, &a.request.intent.payload) {
+            (mw::Certificate::RedPallas(public), Payload::RedPallas { message }) => {
+                redpallas::aggregate(
+                    &b.registration,
+                    &a.request.intent.key.account,
+                    public,
+                    message,
+                    &rounds,
+                    &shares,
+                )
+            }
+            (mw::Certificate::Bitcoin(public), Payload::BitcoinMessage(message)) => {
+                bitcoin::aggregate(
+                    &b.registration,
+                    &a.request.intent.key.account,
+                    public,
+                    &message.prehash()?,
+                    &rounds,
+                    &shares,
+                )
+            }
+            _ => anyhow::bail!("FROST certificate/payload mismatch"),
+        };
+        let sig = match result {
             Ok(s) => s,
             Err(e) => {
                 release.record_incident()?;

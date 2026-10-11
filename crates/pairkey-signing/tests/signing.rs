@@ -236,3 +236,88 @@ fn evm_message_intent_binds_destination_and_exact_approval() {
     }
     assert!(intent.validate(&reg).is_err());
 }
+
+#[test]
+fn bitcoin_two_party_bip340_signing_and_exact_approval() {
+    use pairkey_signing::{bitcoin as btc, wire};
+    let reg = reg();
+    let path = AccountPath {
+        destination: btc::destination(btc::Network::Testnet),
+        path: vec![7, 4],
+    };
+    let public = btc::Public {
+        proofs: [
+            btc::proof(&[11; 32], &reg, &path, Role::A).unwrap(),
+            btc::proof(&[12; 32], &reg, &path, Role::B).unwrap(),
+        ],
+    };
+    let key = public.key(&reg, &path).unwrap();
+    assert_eq!(key.public_key.len(), 32);
+    let message = btc::Message {
+        network: btc::Network::Testnet,
+        message: b"PairKey Bitcoin message".to_vec(),
+    };
+    let digest = message.prehash().unwrap();
+    let (a, pa) = btc::Pending::begin(&[11; 32], &reg, &path, &public, Role::A, &digest).unwrap();
+    let (b, pb) = btc::Pending::begin(&[12; 32], &reg, &path, &public, Role::B, &digest).unwrap();
+    let rounds = [a, b];
+    let shares = [pa.finish(&rounds).unwrap(), pb.finish(&rounds).unwrap()];
+    let sig = btc::aggregate(&reg, &path, &public, &digest, &rounds, &shares).unwrap();
+    assert_eq!(sig.len(), 64);
+    message.verify(&key.public_key, &sig).unwrap(); // independent k256 BIP-340 verification
+    let intent = Intent {
+        version: 1,
+        key,
+        payload: Payload::BitcoinMessage(message.clone()),
+    };
+    let request = wire::SignRequest {
+        protocol: wire::PROTOCOL_VERSION,
+        registration: reg.clone(),
+        attempt: Attempt {
+            commit: Commit::new(&reg, [17; 32], path.clone(), &intent.bytes().unwrap()).unwrap(),
+            random_id: [18; 32],
+            authorization: Default::default(),
+        },
+        intent,
+        certificate: wire::Certificate::Bitcoin(public.clone()),
+    };
+    request.validate().unwrap();
+    let mut wrong = request.clone();
+    wrong.intent.key.suite = Suite::Dkls23Secp256k1;
+    assert!(wrong.validate().is_err());
+    let mut changed = message.clone();
+    changed.message.push(b'!');
+    assert!(changed
+        .verify(&request.intent.key.public_key, &sig)
+        .is_err());
+    wrong = request.clone();
+    wrong.intent.payload = Payload::BitcoinMessage(changed);
+    assert!(wrong.validate().is_err());
+    let mut changed = message;
+    changed.network = btc::Network::Mainnet;
+    assert!(changed
+        .verify(&request.intent.key.public_key, &sig)
+        .is_err());
+    wrong = request.clone();
+    wrong.attempt.authorization.session_id = Some([1; 32]);
+    assert!(wrong.validate().is_err());
+    let mut wrong_path = path.clone();
+    wrong_path.path.push(1);
+    assert!(public.key(&reg, &wrong_path).is_err());
+    let mut wrong_proof = public.clone();
+    wrong_proof.proofs.swap(0, 1);
+    assert!(wrong_proof.key(&reg, &path).is_err());
+    let fresh = btc::Public {
+        proofs: [
+            btc::proof(&[11; 32], &reg, &path, Role::A).unwrap(),
+            btc::proof(&[12; 32], &reg, &path, Role::B).unwrap(),
+        ],
+    };
+    assert_eq!(fresh.key(&reg, &path).unwrap(), request.intent.key);
+    assert!(btc::Pending::begin(&[13; 32], &reg, &path, &public, Role::A, &digest).is_err());
+    let (_, pa) = btc::Pending::begin(&[11; 32], &reg, &path, &public, Role::A, &digest).unwrap();
+    assert!(pa.finish(&rounds).is_err()); // old/substituted nonce commitment refused
+    let mut bad_shares = shares;
+    bad_shares[0][0] ^= 1;
+    assert!(btc::aggregate(&reg, &path, &public, &digest, &rounds, &bad_shares).is_err());
+}

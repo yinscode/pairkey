@@ -56,7 +56,7 @@ async fn workers_refuse(
                     },
                 })?,
             ),
-            Suite::FrostRedPallas => (
+            Suite::FrostRedPallas | Suite::FrostSecp256k1Tr => (
                 "/multi/r/begin",
                 serde_json::to_value(multi::RBegin { authorized: auth })?,
             ),
@@ -161,10 +161,18 @@ pub async fn run(
         });
         send(rpc, payer, ixs).await?;
         let mut authorized_requests = vec![];
-        for suite in [Suite::Dkls23Secp256k1, Suite::FrostRedPallas] {
+        for suite in [
+            Suite::Dkls23Secp256k1,
+            Suite::FrostRedPallas,
+            Suite::FrostSecp256k1Tr,
+        ] {
             let account = AccountPath {
                 destination: if suite == Suite::Dkls23Secp256k1 {
                     multi::evm::destination(31337)
+                } else if suite == Suite::FrostSecp256k1Tr {
+                    pairkey_signing::bitcoin::destination(
+                        pairkey_signing::bitcoin::Network::Testnet,
+                    )
                 } else {
                     [82; 32]
                 },
@@ -197,6 +205,12 @@ pub async fn run(
                 key: key.key.clone(),
                 payload: match suite {
                     Suite::Dkls23Secp256k1 => Payload::EvmTransfer(tx.clone()),
+                    Suite::FrostSecp256k1Tr => {
+                        Payload::BitcoinMessage(pairkey_signing::bitcoin::Message {
+                            network: pairkey_signing::bitcoin::Network::Testnet,
+                            message: b"PairKey Solana-authorized Bitcoin".to_vec(),
+                        })
+                    }
                     Suite::FrostRedPallas => Payload::RedPallas {
                         message: b"PairKey Solana-authorized RedPallas".to_vec(),
                     },
@@ -238,6 +252,7 @@ pub async fn run(
                 Payload::EvmTransfer(t) => t.value += 1,
                 Payload::RedPallas { message } => message.push(0),
                 Payload::EvmMessage(m) => m.message.push(0),
+                Payload::BitcoinMessage(m) => m.message.push(0),
             };
             ensure!(
                 sdk.sign_intent(&wrong, identities).await.is_err(),

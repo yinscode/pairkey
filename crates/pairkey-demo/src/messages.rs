@@ -21,6 +21,7 @@ pub enum Chain {
     Evm,
     Zcash,
     Near,
+    Bitcoin,
 }
 impl Chain {
     pub fn label(self) -> &'static str {
@@ -29,19 +30,24 @@ impl Chain {
             Self::Evm => "EVM / Base Sepolia 84532",
             Self::Zcash => "Zcash / RedPallas",
             Self::Near => "NEAR",
+            Self::Bitcoin => "Bitcoin / BIP-340",
         }
     }
     fn destination(self) -> [u8; 32] {
         match self {
             Self::Evm => multi::evm::destination(CHAIN),
+            Self::Bitcoin => {
+                pairkey_signing::bitcoin::destination(pairkey_signing::bitcoin::Network::Testnet)
+            }
             _ => pairkey_types::digest(b"pairkey/demo-message-destination/v1", &self.label()),
         }
     }
     pub fn scheme(self) -> &'static str {
         match self {
             Self::Evm => "DKLS23 · secp256k1 / EIP-191",
-            Self::Zcash => "FROST · RedPallas",
-            _ => "FROST · Ed25519",
+            Self::Zcash => "FROST RedPallas",
+            Self::Bitcoin => "FROST secp256k1 · BIP-340",
+            _ => "FROST Ed25519",
         }
     }
     fn path(self) -> AccountPath {
@@ -84,8 +90,9 @@ pub fn public_keys(s: &Snapshot) -> Vec<Value> {
         "controller":Pubkey::new_from_array(ns.registration.namespace.derivation_authority).to_string(),
         "public_key":display_key(key.chain,&key.public_key).unwrap_or_default(),
         "public_key_hex":format!("0x{}",hex(&key.public_key)),
-        "address":if key.chain==Chain::Evm {multi::evm::address(&key.public_key).ok().map(|a|format!("0x{}",hex(&a)))} else {None},
-        "path":"7 / 4","format":match key.chain {Chain::Evm=>"EIP-191 personal_sign over the displayed UTF-8 envelope",Chain::Zcash=>"Raw RedPallas message signature; not an Orchard transaction",_=>"Ed25519 over the displayed UTF-8 envelope; not a chain transaction"}
+        "address":match key.chain {Chain::Evm=>multi::evm::address(&key.public_key).ok().map(|a|format!("0x{}",hex(&a))),_=>None},
+        "address_label":"EVM address",
+        "path":"7 / 4","format":match key.chain {Chain::Bitcoin=>"BIP-340 Schnorr over the PairKey tagged message digest · x-only Taproot output key",Chain::Evm=>"EIP-191 personal_sign over the displayed UTF-8 envelope",Chain::Zcash=>"Raw RedPallas message signature; not an Orchard transaction",_=>"Ed25519 over the displayed UTF-8 envelope; not a chain transaction"}
     }))).collect()
 }
 pub fn envelope(
@@ -230,7 +237,13 @@ impl App {
                 )
                 .await?;
             }
-            for chain in [Chain::Solana, Chain::Evm, Chain::Zcash, Chain::Near] {
+            for chain in [
+                Chain::Solana,
+                Chain::Evm,
+                Chain::Zcash,
+                Chain::Near,
+                Chain::Bitcoin,
+            ] {
                 if self
                     .journal
                     .read()
@@ -262,10 +275,10 @@ impl App {
                                 &KeyRequest {
                                     registration: registration.clone(),
                                     account: chain.path(),
-                                    suite: if chain == Chain::Evm {
-                                        Suite::Dkls23Secp256k1
-                                    } else {
-                                        Suite::FrostRedPallas
+                                    suite: match chain {
+                                        Chain::Evm => Suite::Dkls23Secp256k1,
+                                        Chain::Bitcoin => Suite::FrostSecp256k1Tr,
+                                        _ => Suite::FrostRedPallas,
                                     },
                                 },
                                 self.identities,
@@ -318,6 +331,11 @@ impl App {
             payload: if chain == Chain::Evm {
                 Payload::EvmMessage(pairkey_signing::evm_message::Message {
                     chain_id: CHAIN,
+                    message: text.as_bytes().to_vec(),
+                })
+            } else if chain == Chain::Bitcoin {
+                Payload::BitcoinMessage(pairkey_signing::bitcoin::Message {
+                    network: pairkey_signing::bitcoin::Network::Testnet,
                     message: text.as_bytes().to_vec(),
                 })
             } else {
@@ -466,6 +484,18 @@ impl App {
             o.result["signature_verified"] = json!(true);
             o.result["receipts_verified"] = json!(2);
             o.result["signature_hex"] = json!(verification.signature_hex);
+            if chain == Chain::Bitcoin {
+                o.result["signature_format"] = json!("BIP-340 Schnorr: 32-byte r || 32-byte s");
+                o.result["message_digest_hex"] = json!(format!(
+                    "0x{}",
+                    hex(&pairkey_signing::bitcoin::Message {
+                        network: pairkey_signing::bitcoin::Network::Testnet,
+                        message: text.as_bytes().to_vec(),
+                    }
+                    .prehash()
+                    .expect("validated message"))
+                ));
+            }
             o.result["receipts"] = receipts;
             o.result["signers"] = json!(summaries);
         })?;
@@ -514,6 +544,12 @@ impl Verification {
             }
             Chain::Evm => pairkey_signing::evm_message::Message {
                 chain_id: CHAIN,
+                message: self.signed_message.as_bytes().to_vec(),
+            }
+            .verify(&public, &sig)
+            .is_ok(),
+            Chain::Bitcoin => pairkey_signing::bitcoin::Message {
+                network: pairkey_signing::bitcoin::Network::Testnet,
                 message: self.signed_message.as_bytes().to_vec(),
             }
             .verify(&public, &sig)

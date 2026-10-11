@@ -149,6 +149,12 @@ impl Relay {
         let work = async {
             let infos = self.multi_info(&q).await?;
             let certificate = match q.suite {
+                Suite::FrostSecp256k1Tr => mw::Certificate::Bitcoin(signing::bitcoin::Public {
+                    proofs: [
+                        infos[0].bitcoin.clone().context("Bitcoin proof A")?,
+                        infos[1].bitcoin.clone().context("Bitcoin proof B")?,
+                    ],
+                }),
                 Suite::FrostRedPallas => mw::Certificate::RedPallas(signing::redpallas::Public {
                     proofs: [
                         infos[0].redpallas.clone().context("proof A")?,
@@ -249,7 +255,7 @@ impl Relay {
                         .try_into()
                         .map_err(|_| anyhow::anyhow!("receipt count"))?
                 }
-                Suite::FrostRedPallas => {
+                Suite::FrostRedPallas | Suite::FrostSecp256k1Tr => {
                     let begins = [
                         mw::RBegin {
                             authorized: auths[0].clone(),
