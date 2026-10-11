@@ -1,6 +1,7 @@
 //! Loopback-bound testnet demo; hosted access uses an HTTPS reverse proxy.
 mod api;
 mod chain;
+mod hosted;
 mod messages;
 mod state;
 use anyhow::{ensure, Context, Result};
@@ -34,6 +35,7 @@ struct App {
     root: PathBuf,
     dir: PathBuf,
     journal: Journal,
+    hosted: Mutex<hosted::Store>,
     payer: Keypair,
     delegate: SigningKey,
     identities: [[u8; 32]; 2],
@@ -279,7 +281,15 @@ async fn main() -> Result<()> {
     } else {
         SOLANA.into()
     };
+    let hosted = Mutex::new(hosted::Store::open(
+        &dir.join("hosted.json"),
+        pairkey_types::digest(
+            b"pairkey/hosted-store/v1",
+            &(identities, journal.read().set_id),
+        ),
+    )?);
     let app = Arc::new(App {
+        hosted,
         root,
         dir,
         journal,

@@ -35,6 +35,10 @@ fn origin_allowed(
 async fn protect(State(expected): State<String>, req: Request, next: Next) -> Response {
     let h = req.headers();
     let read = |name: &str| h.get(name).and_then(|v| v.to_str().ok());
+    let hosted = req.uri().path().starts_with("/api/v1/");
+    if hosted {
+        return hosted_protect(expected, req, next).await;
+    }
     if !origin_allowed(
         &expected,
         read("host"),
@@ -73,7 +77,13 @@ pub fn router(app: Arc<App>, origin: String) -> Router {
             get(|| async { Redirect::permanent("/demo") }),
         )
         .route("/*path", get(asset))
-        .layer(DefaultBodyLimit::max(4096))
+        .merge(
+            crate::hosted::router().layer(middleware::from_fn_with_state(
+                app.clone(),
+                hosted_admission,
+            )),
+        )
+        .layer(DefaultBodyLimit::max(32 * 1024))
         .layer(middleware::from_fn_with_state(origin, protect))
         .with_state(app)
 }
@@ -242,6 +252,81 @@ fn serve_asset(app: &App, path: &str) -> Response {
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
 }
+
+pub(crate) async fn verify_message(Json(request): Json<crate::messages::Verification>) -> Response {
+    match request.check() {
+        Ok(valid) => Json(json!({"valid":valid,"verification":"fresh cryptographic verification"}))
+            .into_response(),
+        Err(e) => error(StatusCode::BAD_REQUEST, e),
+    }
+}
+
+async fn hosted_protect(expected: String, req: Request, next: Next) -> Response {
+    if req.headers().get("host").and_then(|h| h.to_str().ok())
+        != expected.split_once("://").map(|(_, h)| h)
+    {
+        return error(StatusCode::FORBIDDEN, "unexpected host");
+    }
+    let mut response = if req.method() == "OPTIONS" {
+        StatusCode::NO_CONTENT.into_response()
+    } else {
+        if req.method() == "POST"
+            && (req
+                .headers()
+                .get("x-pairkey-client")
+                .and_then(|h| h.to_str().ok())
+                != Some("1")
+                || !req
+                    .headers()
+                    .get("content-type")
+                    .and_then(|h| h.to_str().ok())
+                    .is_some_and(|s| s.starts_with("application/json")))
+        {
+            return error(
+                StatusCode::FORBIDDEN,
+                "JSON and X-PairKey-Client: 1 required",
+            );
+        }
+        next.run(req).await
+    };
+    for (name, value) in [
+        ("access-control-allow-origin", "*"),
+        ("access-control-allow-methods", "GET, POST, OPTIONS"),
+        (
+            "access-control-allow-headers",
+            "content-type,x-pairkey-client",
+        ),
+        ("cache-control", "no-store"),
+        ("x-content-type-options", "nosniff"),
+    ] {
+        response.headers_mut().insert(
+            header::HeaderName::from_static(name),
+            header::HeaderValue::from_static(value),
+        );
+    }
+    response
+}
+
+async fn hosted_admission(State(app): State<Arc<App>>, req: Request, next: Next) -> Response {
+    if req.method() != "OPTIONS" && !app.hosted.lock().unwrap().admit() {
+        let mut response = error(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Hosted devnet rate limit; retry after 60 seconds",
+        );
+        response
+            .headers_mut()
+            .insert("retry-after", header::HeaderValue::from_static("60"));
+        return response;
+    }
+    if req.method() == "POST" && app.stage.lock().unwrap()["ready"] != true {
+        return error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Hosted signers are starting; retry shortly",
+        );
+    }
+    next.run(req).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,13 +408,5 @@ mod tests {
         ] {
             assert!(configured_origin(invalid).is_err(), "accepted {invalid}");
         }
-    }
-}
-
-async fn verify_message(Json(request): Json<crate::messages::Verification>) -> Response {
-    match request.check() {
-        Ok(valid) => Json(json!({"valid":valid,"verification":"fresh cryptographic verification"}))
-            .into_response(),
-        Err(e) => error(StatusCode::BAD_REQUEST, e),
     }
 }

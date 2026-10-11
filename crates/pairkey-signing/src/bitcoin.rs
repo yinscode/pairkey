@@ -261,6 +261,8 @@ pub fn aggregate(
 /// Independent BIP-340 verifier. `message` is the already-computed 32-byte digest.
 pub fn verify(public: &[u8], message: &[u8], signature: &[u8]) -> Result<()> {
     ensure!(message.len() == 32, "Bitcoin digest length");
+    ensure!(public.len() == 32, "Bitcoin public key length");
+    ensure!(signature.len() == 64, "Bitcoin signature length");
     k256::schnorr::VerifyingKey::from_bytes(public)?
         .verify_raw(message, &k256::schnorr::Signature::try_from(signature)?)?;
     Ok(())
@@ -303,5 +305,17 @@ impl Message {
     }
     pub fn verify(&self, public: &[u8], signature: &[u8]) -> Result<()> {
         verify(public, &self.prehash()?, signature)
+    }
+}
+
+#[cfg(test)]
+mod malformed_tests {
+    use super::*;
+    #[test]
+    fn invalid_signature_lengths_are_errors_not_panics() {
+        for len in [0, 1, 31, 32, 63, 65, 128] {
+            assert!(verify(&[1; 32], &[2; 32], &vec![3; len]).is_err());
+        }
+        assert!(verify(&[], &[2; 32], &[3; 64]).is_err());
     }
 }
