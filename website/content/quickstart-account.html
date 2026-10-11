@@ -1,0 +1,33 @@
+<p class="lead">Your Solana wallet controls the keys. PairKey’s hosted signers produce signatures after you approve each message.</p>
+<h2 id="start">Try it with your wallet</h2><p>Connect Phantom or Solflare in devnet mode. This creates a namespace controlled by <strong>your connected account</strong>. It does not use the shared demo authority.</p><div class="hosted-quickstart" data-hosted-quickstart="account">
+<p>Use a devnet wallet with about 0.05 devnet SOL for registration and several approvals. Your wallet will ask you to sign Solana transactions.</p>
+<button class="button" id="hosted-connect" type="button">Connect wallet &amp; register</button>
+<pre id="hosted-output" role="status" aria-live="polite">Connect your wallet to begin.</pre><div id="hosted-links"></div>
+<div class="hosted-fields"><div><label for="hosted-chain">Destination</label><select id="hosted-chain"><option value="solana">Solana · FROST Ed25519</option><option value="evm">EVM · DKLS23 secp256k1</option><option value="zcash">Zcash · FROST RedPallas</option><option value="near">NEAR · FROST Ed25519</option><option value="bitcoin">Bitcoin · FROST BIP-340</option></select></div><div><label for="hosted-path">Key path index</label><input id="hosted-path" type="number" min="0" max="4294967295" step="1" value="0"></div></div>
+<button class="button secondary" id="hosted-key" type="button" disabled>Load derived key</button>
+<p>Derived public key</p><code class="hosted-value" id="hosted-public-key">Your key will appear here.</code>
+<label for="hosted-message">Message to sign</label><textarea id="hosted-message" rows="3" maxlength="256">Hello from my PairKey namespace.</textarea>
+<button class="button" id="hosted-sign" type="button" disabled>Approve &amp; sign message</button>
+<p>Signature</p><code class="hosted-value" id="hosted-signature">Your signature will appear here.</code>
+<div class="hosted-actions"><button class="button secondary" id="hosted-verify" type="button" disabled>Verify signature</button><button class="button secondary" id="hosted-recover" type="button">Recover last job</button></div>
+</div>
+<script src="/assets/vendor/solana-web3-1.98.4.min.js"></script><script type="module" src="/hosted-quickstart.mjs?v=wallet-compatibility-2"></script>
+<h2 id="application">Use it in your application</h2><p>Copy the <a href="hosted-client.mjs">browser client</a> into your application and provide <code>@solana/web3.js</code> v1. No PairKey processes run in your application.</p>
+<pre><code>import * as web3 from '@solana/web3.js';
+import { PairKey } from './hosted-client.mjs';
+
+const pairkey = new PairKey({ web3 });
+const wallet = window.phantom.solana;
+await wallet.connect();
+
+const namespace = await pairkey.onboard(wallet);
+const key = await pairkey.key(namespace, 'solana', [0]);
+const approval = await pairkey.prepare(namespace, wallet, {
+  chain: 'solana', path: [0], message: 'Hello from my application.'
+});
+await pairkey.approve(namespace, wallet, approval);
+const { job_id } = await pairkey.submit(approval);
+const result = await pairkey.wait(job_id);
+console.log(key.public_key_hex, result.signature_hex);</code></pre>
+<h2 id="approval">What your wallet authorizes</h2><p>The first transaction registers your namespace. Subsequent signing approvals bind the namespace, destination, path, request ID and exact message bytes. Our gateway requires your wallet’s signature; an HTTP request or knowledge of your address does not authorize signing.</p><p>You do not need to deploy a Solana program. Signing and finality take place asynchronously; your application receives the signature after both signers finish.</p><h2 id="verify">Verify and keep the request</h2><p>The browser’s Verify button asks the service to recompute verification using the returned public key, exact message, and signature. The API also returns both signer receipts. Applications can independently verify Ed25519, EIP-191, RedPallas, or the PairKey BIP-340 message format using the <a href="docs/signing.html">signing integrations</a> and Rust SDK. The <a href="examples/verify_hosted.rs">offline Rust verifier</a> checks the signature and both signer receipts using a saved transcript.</p><p>Save the namespace registration, chain, path, approval request and job ID. Poll the same job after a timeout; do not automatically create a new signing request. “Recover last job” retrieves the saved job or resubmits the identical prepared request if its response was lost. The gateway checks finality and returns the existing job when one already exists.</p>
+<h2 id="derivation">How addresses are scoped</h2><p>Your authority scopes a namespace. Within it, the destination, signature scheme, and numeric path select the key. The default namespace ID is 32 zero bytes; specify another 32-byte ID when your application needs separate namespaces. Keep the same deployment and namespace metadata when recovering a key.</p><p>The UI displays a Solana public key, a NEAR <code>ed25519:</code> public-key identifier, or an EVM address where applicable. Zcash and Bitcoin display signing public keys; this guide does not construct shielded addresses, NEAR named accounts, or transaction payloads.</p>

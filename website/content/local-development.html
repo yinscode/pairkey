@@ -1,0 +1,13 @@
+<h2 id="local-development">Run the local program demo</h2>
+<p>From the PairKey repository root, use Rust 1.88.0 with rustfmt and Clippy, Python 3.12+, and curl. The installer supplies the pinned Solana, Anvil, and SBF tools locally.</p>
+<pre>
+<code>python3 scripts/install-ci-tools.py
+source .local/ci-tools/env.sh
+bash experiments/silence-dkls23/bootstrap.sh build --release --locked
+cargo fetch --locked
+bash scripts/build-programs.sh
+cargo build --workspace --features pairkey-worker/dev-simulation --locked
+bash scripts/demo-program-jobs.sh</code>
+</pre>
+<p>The demo starts local services, exercises program-authorized signing and EVM sessions, and runs restart, cancellation, and freeze cases. Expect several minutes, including deliberate rate-limit waits. A complete validation gate is available through <code>bash scripts/ci.sh</code>.</p>
+<p>Public evidence is written beneath <code>.local/</code>. That directory also contains private development roots and identity material; only selected public reports are suitable for sharing.</p><h2 id="outcome">What success looks like</h2><p>The harness exits successfully after completing the program-controlled flows. It starts a local Solana validator, Anvil, two workers, and a coordinator, funds only local accounts, and stops its child processes on exit. Public results include multi-suite signing, EVM transfer execution, session revocation, and the job-lifecycle matrix.</p><p>The latest recorded full gate covered 48 host tests, six SBF runtime tests, 15 native invariants, nine native lifecycle tests, and 26 program-controlled process cases. These are saved repository results, not a live status badge for your run.</p><h2 id="troubleshooting">If the demo refuses to run</h2><ul><li><strong>Missing tools:</strong> source <code>.local/ci-tools/env.sh</code> in your current shell after installation.</li><li><strong>Missing native DKLS source:</strong> run the pinned bootstrap before root-workspace Cargo commands.</li><li><strong>Missing program artifacts:</strong> run <code>scripts/build-programs.sh</code>; a host test alone does not compile SBF programs.</li><li><strong>A deliberate native abort limit:</strong> the lifecycle harness may wait 61 seconds before an explicit fresh attempt. Do not weaken the limit to speed up the demo.</li><li><strong>An incident or ambiguous timeout:</strong> inspect the failure and reconcile state. Do not clear incident files or automatically retry a destination transaction.</li></ul><h2 id="next">Use your own application</h2><p>Continue to <a href="docs/integration.html">Solana program integration</a>. The browser demo teaches the flow; this local harness runs real signing code.</p>

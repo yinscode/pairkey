@@ -1,37 +1,34 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Your first local signing flow. PairKey developer documentation: Quickstart.">
-<title>Quickstart — PairKey docs</title><link rel="icon" href="../mark.svg?v=2" type="image/svg+xml">
-<link rel="stylesheet" href="../style.css"><script src="../docs.js" defer></script></head>
+<meta name="description" content="Build with hosted signers. PairKey developer documentation: Quickstart.">
+<title>Quickstart — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
-<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=2" width="30" height="30" alt="">PairKey</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
-<a class="button small" href="../docs/quickstart.html">Run locally ↗</a></header>
+<a class="button small" href="../docs/quickstart.html">Get started →</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
 <a href="../docs/quickstart.html" aria-current="page">Quickstart</a>
+<a href="../docs/quickstart-account.html">Quickstart: Account</a>
+<a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/demo.html">Interactive demo</a>
-<a href="../docs/testnet.html">Live testnet setup</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/signing.html">Signing integrations</a>
 <a href="../docs/api.html">SDK &amp; API reference</a>
-<a href="../docs/security.html">Security &amp; status</a></nav></aside>
+<a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/local-development.html">Local development</a>
+<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / QUICKSTART</p>
-<h1>Your first local signing flow.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#quickstart">Run the local program demo</a><a href="#outcome">What success looks like</a><a href="#troubleshooting">If the demo refuses to run</a><a href="#next">Use your own application</a></nav>
-<h2 id="quickstart">Run the local program demo</h2>
-<p>From the PairKey repository root, use Rust 1.88.0 with rustfmt and Clippy, Python 3.12+, and curl. The installer supplies the pinned Solana, Anvil, and SBF tools locally.</p>
-<pre>
-<code>python3 scripts/install-ci-tools.py
-source .local/ci-tools/env.sh
-bash experiments/silence-dkls23/bootstrap.sh build --release --locked
-cargo fetch --locked
-bash scripts/build-programs.sh
-cargo build --workspace --features pairkey-worker/dev-simulation --locked
-bash scripts/demo-program-jobs.sh</code>
-</pre>
-<p>The demo starts local services, exercises program-authorized signing and EVM sessions, and runs restart, cancellation, and freeze cases. Expect several minutes, including deliberate rate-limit waits. A complete validation gate is available through <code>bash scripts/ci.sh</code>.</p>
-<p>Public evidence is written beneath <code>.local/</code>. That directory also contains private development roots and identity material; only selected public reports are suitable for sharing.</p><h2 id="outcome">What success looks like</h2><p>The harness exits successfully after completing the program-controlled flows. It starts a local Solana validator, Anvil, two workers, and a coordinator, funds only local accounts, and stops its child processes on exit. Public results include multi-suite signing, EVM transfer execution, session revocation, and the job-lifecycle matrix.</p><p>The latest recorded full gate covered 48 host tests, six SBF runtime tests, 15 native invariants, nine native lifecycle tests, and 26 program-controlled process cases. These are saved repository results, not a live status badge for your run.</p><h2 id="troubleshooting">If the demo refuses to run</h2><ul><li><strong>Missing tools:</strong> source <code>.local/ci-tools/env.sh</code> in your current shell after installation.</li><li><strong>Missing native DKLS source:</strong> run the pinned bootstrap before root-workspace Cargo commands.</li><li><strong>Missing program artifacts:</strong> run <code>scripts/build-programs.sh</code>; a host test alone does not compile SBF programs.</li><li><strong>A deliberate native abort limit:</strong> the lifecycle harness may wait 61 seconds before an explicit fresh attempt. Do not weaken the limit to speed up the demo.</li><li><strong>An incident or ambiguous timeout:</strong> inspect the failure and reconcile state. Do not clear incident files or automatically retry a destination transaction.</li></ul><h2 id="next">Use your own application</h2><p>Continue to <a href="../docs/integration.html">Solana program integration</a>. The browser demo teaches the flow; this local harness runs real signing code.</p>
-
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs.html"><span>Previous</span><strong>Overview ↗</strong></a><a href="../docs/demo.html"><span>Next</span><strong>Interactive demo ↗</strong></a></nav></main></div>
-<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=2" width="26" height="26" alt="">PairKey</a><p>Programmable keys. Governed on Solana.</p><a href="../docs/security.html">Security &amp; status ↗</a></footer></body></html>
+<h1>Build with hosted signers.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#quickstart">Choose your authority</a><a href="#hosted">PairKey runs the signers</a><a href="#flow">One approval, one signing job</a><a href="#deployment">Current hosted deployment</a></nav>
+<p class="lead">Use your own Solana authority with PairKey’s hosted signers. Register a namespace, choose a chain and path, approve a message, and receive a verifiable signature.</p>
+<h2 id="quickstart">Choose your authority</h2>
+<div class="doc-link-grid"><a href="../docs/quickstart-account.html"><strong>Solana account →</strong><span>Connect a wallet. Authorize each message directly through the PairKey gateway.</span></a><a href="../docs/quickstart-program.html"><strong>Solana program →</strong><span>Enforce your application’s rules, then authorize through a program PDA.</span></a></div>
+<h2 id="hosted">PairKey runs the signers</h2><p>Both guides use <code>https://pairkey.com/api/v1</code> and our deployed Solana devnet gateway. You do not need a validator, signing workers, coordinator, or signer secrets. Your wallet pays the devnet fees and account rent for registration and message approvals.</p>
+<h2 id="flow">One approval, one signing job</h2><ol><li><strong>Register:</strong> bind a namespace to your wallet or program PDA.</li><li><strong>Choose a key:</strong> select Solana, EVM, Zcash, NEAR, or Bitcoin and a derivation path.</li><li><strong>Approve:</strong> authorize the exact message and key on Solana.</li><li><strong>Sign:</strong> the hosted signers independently check finalized authorization and jointly produce the signature.</li><li><strong>Verify:</strong> check the signature against the message and public key.</li></ol>
+<p>The signature is returned asynchronously. These guides sign messages; they do not broadcast destination transactions.</p>
+<h2 id="deployment">Current hosted deployment</h2><p>The service uses Solana devnet, Base Sepolia for the EVM message context, and Bitcoin testnet for the Bitcoin context. Hosted signers currently run in development mode. See <a href="../docs/security.html#hosted-onboarding">hosted service status and limits</a> for the trust model and recovery behavior.</p>
+<p>Operating your own infrastructure? See <a href="../docs/local-development.html">local development</a> and <a href="../docs/testnet.html">operator testnet setup</a>.</p>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs.html"><span>Previous</span><strong>Overview →</strong></a><a href="../docs/quickstart-account.html"><span>Next</span><strong>Quickstart: Account →</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

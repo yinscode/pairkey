@@ -1,25 +1,28 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="See the rules in action. PairKey developer documentation: Interactive demo.">
-<title>Interactive demo — PairKey docs</title><link rel="icon" href="../mark.svg?v=2" type="image/svg+xml">
-<link rel="stylesheet" href="../style.css"><script src="../docs.js" defer></script></head>
+<title>Interactive demo — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
-<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=2" width="30" height="30" alt="">PairKey</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
-<a class="button small" href="../docs/quickstart.html">Run locally ↗</a></header>
+<a class="button small" href="../docs/quickstart.html">Get started →</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
 <a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/quickstart-account.html">Quickstart: Account</a>
+<a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/demo.html" aria-current="page">Interactive demo</a>
-<a href="../docs/testnet.html">Live testnet setup</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/signing.html">Signing integrations</a>
 <a href="../docs/api.html">SDK &amp; API reference</a>
-<a href="../docs/security.html">Security &amp; status</a></nav></aside>
+<a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/local-development.html">Local development</a>
+<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / INTERACTIVE DEMO</p>
 <h1>See the rules in action.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#walkthrough">Sign your first message</a><a href="#authority">Program or account authority</a><a href="#chains">Five destinations, four signing schemes</a><a href="#flow">Evidence-driven progress</a><a href="#verify">Fresh verification</a><a href="#use">Use your signature</a><a href="#deployment">Deployment</a></nav>
-<p class="lead">Choose a Solana authority, select a signing destination, and produce a real threshold signature over a message you can inspect and verify.</p><a class="button" href="/demo">Open the message-signing demo ↗</a>
+<p class="lead">Choose a Solana authority, select a signing destination, and produce a real threshold signature over a message you can inspect and verify.</p><a class="button" href="/demo">Open the message-signing demo →</a>
 <h2 id="walkthrough">Sign your first message</h2><ol><li>Select <strong>Solana program</strong> or <strong>Demo Solana account</strong>. Both paths use the dedicated demo owner; no visitor wallet is connected.</li><li>Choose Solana, EVM, Zcash, NEAR, or Bitcoin. Inspect the derived public key and signature scheme.</li><li>Enter up to 256 UTF-8 bytes and expand <strong>Exact signing envelope</strong>. The envelope binds destination, authority, controller address and a unique request ID alongside your text.</li><li>Select <strong>Approve &amp; sign</strong>. The selected authority approves the exact signing operation on Solana devnet. Signing starts only after finalization.</li><li>Watch the two signers check authority and cooperate in threshold signing. The output is a signature, not a broadcast transaction.</li><li>Select <strong>Verify signature</strong>. Change a character in the editable verification envelope and verify again to see the mismatch.</li></ol>
 <h2 id="authority">Program or account authority</h2><p>The program path invokes the registry through the example controller's PDA. The account path uses the dedicated demo owner's Solana transaction signature directly. Each authority has its own message-signing namespace and keys. These are separate from the older transfer-session namespace.</p><p>This version uses per-message COMMIT approval. There is no session bypass: every new request needs a new finalized Solana approval. Message sessions, visitor wallet connection, and OAuth delegation are future integration work. The core's existing native-transfer sessions do not authorize arbitrary messages.</p>
 <h2 id="chains">Five destinations, four signing schemes</h2><ul><li><strong>Solana:</strong> FROST Ed25519 over the displayed UTF-8 envelope; a base58 public key.</li><li><strong>EVM:</strong> DKLS23 secp256k1 ECDSA using <a href="https://eips.ethereum.org/EIPS/eip-191">EIP-191 personal_sign</a>. The worker hashes the prefix and exact message bytes itself. The demo binds Base Sepolia chain ID 84532 in the approved intent and displayed envelope. The output uses a 65-byte compact signature with recovery ID 0 or 1; tools expecting 27 or 28 must convert that final byte. The page shows the public key and corresponding EVM address.</li><li><strong>Zcash:</strong> FROST RedPallas over the displayed envelope. The displayed key is a verification key, not a complete Zcash wallet address or an Orchard spend authorization.</li><li><strong>NEAR:</strong> FROST Ed25519 with a destination-separated derived key, shown with its <code>ed25519:</code> prefix. The envelope is a PairKey demonstration format, not NEP-413, a registered NEAR account or a NEAR transaction.</li><li><strong>Bitcoin:</strong> FROST secp256k1 using the Taproot-compatible <code>frost-secp256k1-tr</code> suite. The page shows a 32-byte x-only output key and a 64-byte BIP-340 Schnorr signature. Both shares receive the BIP-341 no-script TapTweak. Workers sign a tagged SHA-256 digest of the network and displayed envelope. This is a PairKey message format, not BIP-322, Bitcoin Core <code>signmessage</code>, or a transaction sighash. No Bitcoin RPC or test BTC is needed.</li></ul><p>Changing destination or authority changes the derivation context. Solana and NEAR share a signature algorithm but use distinct derived keys. All raw Ed25519 and RedPallas inputs are explicitly visible. These envelopes cannot be treated as chain-native transactions.</p>
@@ -28,5 +31,5 @@
 <h2 id="use">Use your signature</h2><p>Your application may verify a message off-chain, share it with a relying application, or use an appropriate chain-specific transaction flow. Arbitrary message signatures do not need broadcasting. This demo does not construct or broadcast destination transactions and spends only devnet SOL for setup and approvals.</p>
 <h2 id="deployment">Deployment</h2><p>The demo runs two development signer processes, with <code>hardware_backed: false</code>. Independent TEE deployment remains separate. The hosted demo is public and uses shared, operator-funded development accounts. The migrated local state is an offline backup; never start it while the hosted instance runs.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/quickstart.html"><span>Previous</span><strong>Quickstart ↗</strong></a><a href="../docs/testnet.html"><span>Next</span><strong>Live testnet setup ↗</strong></a></nav></main></div>
-<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=2" width="26" height="26" alt="">PairKey</a><p>Programmable keys. Governed on Solana.</p><a href="../docs/security.html">Security &amp; status ↗</a></footer></body></html>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/quickstart-program.html"><span>Previous</span><strong>Quickstart: Program →</strong></a><a href="../docs/architecture.html"><span>Next</span><strong>Architecture →</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

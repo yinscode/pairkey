@@ -1,24 +1,27 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Understand the trust model. PairKey developer documentation: Security &amp; status.">
-<title>Security &amp; status — PairKey docs</title><link rel="icon" href="../mark.svg?v=2" type="image/svg+xml">
-<link rel="stylesheet" href="../style.css"><script src="../docs.js" defer></script></head>
+<title>Security &amp; status — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
-<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=2" width="30" height="30" alt="">PairKey</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
-<a class="button small" href="../docs/quickstart.html">Run locally ↗</a></header>
+<a class="button small" href="../docs/quickstart.html">Get started →</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
 <a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/quickstart-account.html">Quickstart: Account</a>
+<a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/demo.html">Interactive demo</a>
-<a href="../docs/testnet.html">Live testnet setup</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/signing.html">Signing integrations</a>
 <a href="../docs/api.html">SDK &amp; API reference</a>
-<a href="../docs/security.html" aria-current="page">Security &amp; status</a></nav></aside>
+<a href="../docs/security.html" aria-current="page">Security &amp; status</a>
+<a href="../docs/local-development.html">Local development</a>
+<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / SECURITY &amp; STATUS</p>
-<h1>Understand the trust model.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#status">What is available?</a><a href="#trust">Separate the trust boundaries</a><a href="#hardware">TEE deployment and recovery</a><a href="#incidents">Nonce and incident lifecycle</a><a href="#evidence">Read the evidence at the right scope</a><a href="#sources">Read the architecture</a><a href="#comparison">Comparison: latency and fees</a></nav>
+<h1>Understand the trust model.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#status">What is available?</a><a href="#trust">Separate the trust boundaries</a><a href="#hardware">TEE deployment and recovery</a><a href="#incidents">Nonce and incident lifecycle</a><a href="#evidence">Read the evidence at the right scope</a><a href="#sources">Read the architecture</a><a href="#comparison">Comparison: latency and fees</a><a href="#hosted-onboarding">Hosted onboarding status</a></nav>
 <h2 id="status">What is available?</h2>
 <ul>
 <li>
@@ -45,5 +48,6 @@
 
 <h2 id="comparison">Comparison: latency and fees</h2><p>The homepage compares request paths, not measured end-to-end performance. PairKey’s exact-approval path waits for Solana finalization before authorization checks and threshold signing. An eligible pre-approved session avoids a new Solana transaction but still requires fresh state checks, RPC access, coordination, and signing. The public message demo uses exact approvals. Signature scheme, queueing, deployment, and network conditions affect latency; no production latency guarantee is published.</p><p><a href="https://docs.near.org/chain-abstraction/chain-signatures">NEAR’s standard flow</a> submits a contract request, waits for MPC signing, and returns the result through contract execution. NEAR block time alone is not the total signature latency. <a href="https://www.turnkey.com/company-wallets">Turnkey reports 50–100 ms signing latency</a>; this is its own published figure, not an equivalent benchmark of PairKey or NEAR, nor destination confirmation time. Its <a href="https://whitepaper.turnkey.com/architecture">architecture</a> uses a Signer enclave and separate policy services.</p><p>PairKey’s zero-fee statement means zero new Solana authorization transaction fees per eligible session signature. Session setup, new exact approvals, RPC/service costs, and destination execution are separate. NEAR contract requests incur chain gas; Turnkey’s API is subject to service pricing and does not require a control-chain transaction. Sources checked October 12, 2026.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/api.html"><span>Previous</span><strong>SDK &amp; API reference ↗</strong></a></nav></main></div>
-<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=2" width="26" height="26" alt="">PairKey</a><p>Programmable keys. Governed on Solana.</p><a href="../docs/security.html">Security &amp; status ↗</a></footer></body></html>
+<h2 id="hosted-onboarding">Hosted onboarding status</h2><p>The public devnet gateway supports developer-owned wallet and program-PDA namespaces. It uses our existing development signers on one host; <code>hardware_backed: false</code> is returned explicitly. This is not yet a deployment with two hardware-attested independent TEEs.</p><p>Each request needs a finalized Solana COMMIT. The API has a shared limit of 120 calls per minute, one signing or enrollment operation at a time, 16 enrolled keys per namespace, 1,024 keys total, and 1,024 retained hosted jobs. HTTP 429 means retry the same request later. The service can reach capacity and require operator attention; it has no production availability guarantee.</p><p>Job IDs bind the exact approval. Completed results are persisted, and repeating a submitted job returns its existing ID. Interrupted jobs fail closed with <code>may_have_signed: true</code>; restart does not automatically sign again. The public API does not expose internal worker endpoints, secrets, sessions, or demo fee sponsorship.</p><p>Onboarding metadata, message contents, job IDs and signatures are public to anyone who has their identifiers. Do not use this demonstration service for confidential messages or valuable funds. Backup and recovery remain operator responsibilities; persistence is not a cryptographic guarantee of rollback resistance.</p>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/api.html"><span>Previous</span><strong>SDK &amp; API reference →</strong></a><a href="../docs/local-development.html"><span>Next</span><strong>Local development →</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

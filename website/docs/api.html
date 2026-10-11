@@ -1,24 +1,28 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Request, verify, and deliver. PairKey developer documentation: SDK &amp; API reference.">
-<title>SDK &amp; API reference — PairKey docs</title><link rel="icon" href="../mark.svg?v=2" type="image/svg+xml">
-<link rel="stylesheet" href="../style.css"><script src="../docs.js" defer></script></head>
+<title>SDK &amp; API reference — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
-<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=2" width="30" height="30" alt="">PairKey</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
-<a class="button small" href="../docs/quickstart.html">Run locally ↗</a></header>
+<a class="button small" href="../docs/quickstart.html">Get started →</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
 <a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/quickstart-account.html">Quickstart: Account</a>
+<a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/demo.html">Interactive demo</a>
-<a href="../docs/testnet.html">Live testnet setup</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/signing.html">Signing integrations</a>
 <a href="../docs/api.html" aria-current="page">SDK &amp; API reference</a>
-<a href="../docs/security.html">Security &amp; status</a></nav></aside>
+<a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/local-development.html">Local development</a>
+<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / SDK &amp; API REFERENCE</p>
-<h1>Request, verify, and deliver.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#sdk">Rust SDK</a><a href="#http">HTTP routes</a><a href="#request">Request context and versions</a><a href="#jobs">Handle results, retries, and cancellation</a><a href="#errors">Interpret failures</a><a href="#retention">Durability and retention</a></nav>
+<h1>Request, verify, and deliver.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#hosted-api">Hosted devnet API</a><a href="#internal-api">Self-hosted coordinator API</a><a href="#sdk">Rust SDK</a><a href="#http">HTTP routes</a><a href="#request">Request context and versions</a><a href="#jobs">Handle results, retries, and cancellation</a><a href="#errors">Interpret failures</a><a href="#retention">Durability and retention</a></nav>
+<h2 id="hosted-api">Hosted devnet API</h2><p>Base URL: <code>https://pairkey.com/api/v1</code>. POST JSON with <code>X-PairKey-Client: 1</code>. Browser CORS is supported without cookies. This header is not authentication: signing authority comes from finalized Solana transactions.</p><table><thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead><tbody><tr><td>GET /config</td><td>Deployment, gateway address, signer identities and limits.</td></tr><tr><td>POST /namespaces</td><td>Prepare registration for an authority and wallet payer; returns signed proposal and transaction instructions.</td></tr><tr><td>POST /keys</td><td>Enroll a chain/path key in an already finalized namespace.</td></tr><tr><td>POST /approvals</td><td>Prepare an exact-message COMMIT and the corresponding signing request.</td></tr><tr><td>POST /jobs</td><td>Submit the signing request after approval finality. Returns a stable job ID.</td></tr><tr><td>GET /jobs/:id</td><td>Read working, complete, or failed status.</td></tr><tr><td>POST /verify</td><td>Recompute signature verification.</td></tr><tr><td>POST /rpc</td><td>Bounded devnet RPC access for blockhashes, accounts, balances, transaction submission and status.</td></tr></tbody></table><p>See the <a href="../docs/quickstart-account.html">account</a> and <a href="../docs/quickstart-program.html">program</a> Quickstarts for complete examples. API types are defined in <code>sdk/src/hosted.rs</code>; the <a href="../hosted-client.mjs">browser client</a> constructs transactions using a wallet adapter. Set the transaction compute-unit limit to 1,400,000 when submitting the returned instructions; the browser client includes this automatically. Never send a wallet secret to the API.</p><h2 id="internal-api">Self-hosted coordinator API</h2><p>The endpoints below describe the internal coordinator. They are not directly exposed by the hosted service.</p>
 <p class="lead">Use the Rust SDK to bind a request to its approval and verify the signature and signer receipts. The multi-suite API covers DKLS23, FROST RedPallas, and Bitcoin FROST secp256k1.</p>
 <h2 id="sdk">Rust SDK</h2><p>The following excerpt assumes an already constructed, authorized <code>SignRequest</code>, a <code>Client</code>, and two pinned signer identities. It is a usage excerpt, not a standalone program.</p><pre><code>use std::time::Duration;
 
@@ -44,5 +48,5 @@ let signed = client.wait_intent(
 <p>The repository guide <code>docs/program-jobs-and-lifecycle.md</code> specifies retention, admission bounds, rate-limit handling, persisted incident latches, and restart semantics.</p>
 <h2 id="errors">Interpret failures</h2><p>Failures include <code>code</code>, <code>error</code>, <code>may_have_signed</code>, and optional <code>retry_after_secs</code>. Interrupted, timed-out, or failed signing may still have produced output. A queued cancellation before work starts can report <code>may_have_signed: false</code>.</p><p>For native <code>rate_limited</code> responses, respect the returned delay (currently 61 seconds). Reconcile state before deciding to submit a fresh attempt. The client never automatically retries a destination operation.</p><h2 id="retention">Durability and retention</h2><p>The multi-suite coordinator stores at most 256 retained records, with completed records eligible for removal after 24 hours when admitting new work. After eviction, identical bytes can initiate signing again. Persist verified results in your application.</p><p>Single-host file locking and atomic snapshots do not prevent rollback, cloning, or coordination across replicas. Interrupted jobs are failed after restart and never silently resumed.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/signing.html"><span>Previous</span><strong>Signing integrations ↗</strong></a><a href="../docs/security.html"><span>Next</span><strong>Security &amp; status ↗</strong></a></nav></main></div>
-<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=2" width="26" height="26" alt="">PairKey</a><p>Programmable keys. Governed on Solana.</p><a href="../docs/security.html">Security &amp; status ↗</a></footer></body></html>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/signing.html"><span>Previous</span><strong>Signing integrations →</strong></a><a href="../docs/security.html"><span>Next</span><strong>Security &amp; status →</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

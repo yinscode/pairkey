@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#f4f5ef">
 <meta name="description" content="Programmable keys. Two independent TEE signers. Multichain signing governed by your Solana program. Explore the PairKey protocol.">
 <title>PairKey — The programmable key protocol</title>
-<link rel="icon" href="mark.svg?v=2" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=journey-1">
+<link rel="icon" href="mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="style.css?v=source-icons-2">
 <script src="main.js" defer>
 </script>
 </head>
@@ -15,14 +15,14 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="nav wrap">
 <a class="brand" href="index.html" aria-label="PairKey home">
-<img src="mark.svg?v=2" width="30" height="30" alt="">PairKey</a>
+<img src="mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation">
 <a href="/demo">Demo</a>
 <a href="#protocol">Protocol</a>
 <a href="#compare">Compare</a>
 <a href="docs.html">Docs</a>
 </nav>
-<a class="button small" href="docs/quickstart.html">Start building <span aria-hidden="true">↗</span>
+<a class="button small" href="docs/quickstart.html">Start building <span aria-hidden="true">→</span>
 </a>
 </header>
 <main id="main">
@@ -36,12 +36,12 @@
 </h1>
 <p class="intro">PairKey is a programmable key protocol built around <strong>2 independent TEE signers</strong>. Define signing permissions in Solana programs and bring your application’s authority across chains.</p>
 <div class="actions">
-<a class="button" href="docs/quickstart.html">Explore the protocol <span aria-hidden="true">↗</span>
+<a class="button" href="docs/quickstart.html">Explore the protocol <span aria-hidden="true">→</span>
 </a>
-<a class="text-link" href="/demo">Try it yourself <span aria-hidden="true">↗</span>
+<a class="text-link" href="/demo">Try it yourself <span aria-hidden="true">→</span>
 </a>
 </div>
-<p class="caption">Developer preview · <a href="docs/security.html">Explore the architecture &amp; availability ↗</a></p>
+<p class="caption">Developer preview · <a href="docs/security.html">Explore the architecture &amp; availability →</a></p>
 </div>
 <div class="hero-art" role="img" aria-label="A Solana program authorizes two independent TEE signers. Each holds a separate key share. Their outputs combine into a signature, not a complete private key.">
 <div class="diagram-top">
@@ -52,7 +52,7 @@
 <span class="program-icon">{ }</span>
 <span>Your program<small>Permissions, written in code.</small>
 </span>
-<span class="checked">↗</span>
+<span class="checked">→</span>
 </div>
 <div class="branch-lines">
 <span>
@@ -119,13 +119,13 @@
 <div class="journey-heading"><div><p class="eyebrow">01 / HOW PAIRKEY WORKS</p><h2 id="journey-title">One authority.<br>Many addresses.</h2></div><p>Start with who can authorize. Derive keys for where you want to go. Call PairKey when you need a signature.</p></div>
 <ol class="journey-steps">
 <li class="journey-card"><div class="journey-step"><span>01</span><p class="eyebrow">SOURCE</p></div><h3>Choose the authority.</h3><p>Your application decides who can request a signature.</p>
-<ul class="authority-sources"><li><span class="source-glyph" aria-hidden="true">{ }</span>Solana program</li><li><span class="source-glyph" aria-hidden="true">◎</span>Solana account</li><li><span class="source-glyph" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="4"/><path d="m11 11 9 9m-5-5 3-3m0 6 3-3"/></svg></span>Passkey <span class="planned-label">Planned</span></li><li><span class="source-glyph" aria-hidden="true">↗</span>OAuth <span class="planned-label">Planned</span></li></ul>
-<a class="journey-detail" href="docs/architecture.html#sources">One authorization model ↗</a></li>
+<ul class="authority-sources"><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/solana-program.svg?v=2" alt="" width="24" height="24"></span>Solana program</li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/solana-account.svg?v=2" alt="" width="24" height="24"></span>Solana account</li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/passkey.svg?v=2" alt="" width="24" height="24"></span>Passkey <span class="planned-label">Planned</span></li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/oauth.svg?v=2" alt="" width="24" height="24"></span>OAuth <span class="planned-label">Planned</span></li></ul>
+<a class="journey-detail" href="docs/architecture.html#sources">One authorization model →</a></li>
 <li class="journey-card"><div class="journey-step"><span>02</span><p class="eyebrow">DERIVE</p></div><h3>Create many addresses.</h3><p>Use a different path for each account. Derive distinct public keys for chain-specific addresses.</p>
 <div class="derivation-map" aria-label="Multiple derivation paths on each destination chain"><div class="derivation-root">Your authority <span>+ derivation path</span></div><ul><li><img src="assets/chains/solana.svg" alt="" width="18" height="18"><span>Solana</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/ethereum.svg" alt="" width="18" height="18"><span>EVM</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/bitcoin.svg?v=2" alt="" width="18" height="18"><span>Bitcoin</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/near.svg" alt="" width="18" height="18"><span>NEAR</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/zcash.svg" alt="" width="18" height="18"><span>Zcash</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li></ul></div></li>
 <li class="journey-card"><div class="journey-step"><span>03</span><p class="eyebrow">SIGN</p></div><h3>Request a signature.</h3><p>Call PairKey. Two independent TEE signers check permission and sign together.</p>
 <div class="journey-signing" aria-label="Two independent TEE signers produce one signature"><div class="journey-signers"><div><svg class="share-block share-block-a" viewBox="0 0 120 100" aria-hidden="true"><path d="M30 20h60v60H50V60H30z" transform="rotate(180 60 50)"/></svg><span>TEE signer A</span></div><div><svg class="share-block share-block-b" viewBox="0 0 120 100" aria-hidden="true"><path d="M30 20h60v60H50V60H30z"/></svg><span>TEE signer B</span></div></div><div class="journey-join" aria-hidden="true"></div><div class="journey-output"><span aria-hidden="true">σ</span>One verifiable signature</div></div>
-<p class="journey-key-note">The full private key never exists.</p><a class="journey-detail" href="/demo">Follow a live signature ↗</a></li>
+<p class="journey-key-note">The full private key never exists.</p><a class="journey-detail" href="/demo">Follow a live signature →</a></li>
 </ol>
 </section>
 
@@ -174,7 +174,7 @@
 </div>
 <div class="statement-bottom">
 <p>Created separately. Held independently. Used together. Each signer checks your rules and signs with its own share. Only the signing contributions combine.</p>
-<p class="caption">The shares stay with the signers.<br>The signature goes to your application.<br><a href="docs/security.html">Explore the security model ↗</a></p>
+<p class="caption">The shares stay with the signers.<br>The signature goes to your application.<br><a href="docs/security.html">Explore the security model →</a></p>
 </div>
 </div>
 </section>
@@ -194,7 +194,7 @@
 <span class="pill">OFF-CHAIN SIGNING PATH</span>
 <h3>Zero per-signature<br>Solana transaction fees.</h3>
 <p>Publish a session grant on Solana. Sign eligible requests off-chain within that grant, without a new authorization transaction for each signature.</p>
-<p class="caption">Keep repeat operations moving within your program’s rules. <a href="docs/sessions.html">Session scope &amp; fee details ↗</a></p>
+<p class="caption">Keep repeat operations moving within your program’s rules. <a href="docs/sessions.html">Session scope &amp; fee details →</a></p>
 </div>
 <ol class="flow">
 <li>
@@ -219,7 +219,7 @@
 <span class="pill">EXACT-OPERATION APPROVAL</span>
 <h3>Make every approval<br>part of your program.</h3>
 <p>Publish a COMMIT for the exact operation through Solana CPI. Both signers check finalized authorization before releasing signing output.</p>
-<p class="caption">Make signing authority part of your application’s on-chain logic. <a href="docs/integration.html">Explore program integration ↗</a></p>
+<p class="caption">Make signing authority part of your application’s on-chain logic. <a href="docs/integration.html">Explore program integration →</a></p>
 </div>
 <ol class="flow">
 <li>
@@ -268,7 +268,7 @@
 </tbody>
 </table>
 </div>
-<p class="comparison-note">Latency describes the request path; *Turnkey’s figure is <a href="https://www.turnkey.com/company-wallets">vendor-reported ↗</a>, not a head-to-head benchmark. Destination-chain fees are separate. <a href="docs/security.html#comparison">Sources, scope &amp; measurement notes ↗</a></p>
+<p class="comparison-note">Latency describes the request path; *Turnkey’s figure is <a href="https://www.turnkey.com/company-wallets">vendor-reported →</a>, not a head-to-head benchmark. Destination-chain fees are separate. <a href="docs/security.html#comparison">Sources, scope &amp; measurement notes →</a></p>
 </div>
 </section>
 <section class="section wrap integration">
@@ -276,7 +276,7 @@
 <p class="eyebrow">05 / BUILD WITH PAIRKEY</p>
 <h2>Your program.<br>A wider reach.</h2>
 <p>Start with a Solana controller. Enroll a signing key, publish an approval, and retrieve a signature your application can verify.</p>
-<a class="text-link" href="docs/integration.html">Read the integration guide <span aria-hidden="true">↗</span>
+<a class="text-link" href="docs/integration.html">Read the integration guide <span aria-hidden="true">→</span>
 </a>
 </div>
 <div class="code-card">
@@ -308,30 +308,30 @@
 </details>
 <details>
 <summary>Why two independent signers?</summary>
-<p>PairKey distributes signing power across two parties. Each holds a separate key share and independently checks authorization. The protocol produces a signature without assembling the full private key. <a href="docs/security.html">Read the security model ↗</a></p>
+<p>PairKey distributes signing power across two parties. Each holds a separate key share and independently checks authorization. The protocol produces a signature without assembling the full private key. <a href="docs/security.html">Read the security model →</a></p>
 </details>
 <details>
 <summary>How does multichain signing work?</summary>
-<p>One authorization model connects to FROST Ed25519, DKLS23 ECDSA, FROST RedPallas, and FROST secp256k1. Your application uses the resulting signature with its destination network. <a href="docs/security.html">Explore chain integrations ↗</a></p>
+<p>One authorization model connects to FROST Ed25519, DKLS23 ECDSA, FROST RedPallas, and FROST secp256k1. Your application uses the resulting signature with its destination network. <a href="docs/security.html">Explore chain integrations →</a></p>
 </details>
 <details>
 <summary>What can I build with PairKey?</summary>
-<p>Start with program-controlled payments and scoped delegation. Use exact-operation approvals for individual actions, or time-bounded sessions for repeat operations. <a href="docs/quickstart.html">Try the program-controlled demo ↗</a></p>
+<p>Start with program-controlled payments and scoped delegation. Use exact-operation approvals for individual actions, or time-bounded sessions for repeat operations. <a href="docs/quickstart.html">Try the program-controlled demo →</a></p>
 </details>
 </div>
 </section>
 <section class="wrap closing">
 <p class="eyebrow">START WITH THE PROTOCOL</p>
 <h2>Make signing<br>part of your program.</h2>
-<a class="button" href="docs/quickstart.html">Run the local demo <span aria-hidden="true">↗</span>
+<a class="button" href="docs/quickstart.html">Start building <span aria-hidden="true">→</span>
 </a>
 </section>
 </main>
 <footer class="wrap footer">
 <a class="brand" href="index.html">
-<img src="mark.svg?v=2" width="26" height="26" alt="">PairKey</a>
-<p>Programmable keys. Governed on Solana.</p>
-<a href="docs/security.html">Architecture &amp; availability ↗</a>
+<img src="mark.svg?v=3" width="26" height="26" alt="">PairKey</a>
+<p>Programmable keys on multiple chains</p>
+<a href="docs/security.html">Architecture &amp; availability →</a>
 </footer>
 </body>
 </html>

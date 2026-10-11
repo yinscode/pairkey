@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Live signing demo — PairKey</title><meta name="description" content="Approve a message on Solana, sign with two independent participants, and verify the resulting multichain signature.">
-<link rel="icon" href="/mark.svg?v=2" type="image/svg+xml"><link rel="stylesheet" href="/style.css?v=bitcoin-1"><link rel="stylesheet" href="/testnet.css"><script type="module" src="/testnet.js?v=bitcoin-1"></script>
+<link rel="icon" href="/mark.svg?v=3" type="image/svg+xml"><link rel="stylesheet" href="/style.css?v=bitcoin-1"><link rel="stylesheet" href="/testnet.css?v=gold-1"><script type="module" src="/testnet.js?v=arrows-1"></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<header class="nav wrap"><a class="brand" href="/"><img src="/mark.svg?v=2" width="30" height="30" alt="">PairKey</a><nav aria-label="Main navigation"><a href="/demo" aria-current="page">Demo</a><a href="/#protocol">Protocol</a><a href="/docs.html">Docs</a></nav><a class="text-link" href="/docs/testnet.html">Setup guide ↗</a></header>
+<header class="nav wrap"><a class="brand" href="/"><img src="/mark.svg?v=3" width="30" height="30" alt="">PairKey</a><nav aria-label="Main navigation"><a href="/demo" aria-current="page">Demo</a><a href="/#protocol">Protocol</a><a href="/docs.html">Docs</a></nav><a class="text-link" href="/docs/testnet.html">Setup guide →</a></header>
 <main id="main" class="wrap live-demo">
 <section class="demo-intro"><div><p class="eyebrow">THE PROTOCOL, IN MOTION</p><h1>Your rules. <em>A real signature.</em></h1><p class="lead">Choose your authority. Pick a chain. Watch two signers produce one verifiable signature.</p></div><div class="network-pill"><span class="status-dot"></span> SOLANA AUTHORITY <span aria-hidden="true">→</span> MULTICHAIN SIGNING</div></section>
 <div class="demo-connection" role="status"><span class="connection-light" id="connection-light"></span><strong id="setup-title">Connecting to the backend…</strong><span id="setup-message">Checking the local signing service.</span></div>
-<noscript><p class="docs-note">Enable JavaScript to connect to the live demo. <a href="/docs/demo.html">Read the walkthrough ↗</a></p></noscript>
+<noscript><p class="docs-note">Enable JavaScript to connect to the live demo. <a href="/docs/demo.html">Read the walkthrough →</a></p></noscript>
 <div class="demo-workspace">
 <aside class="demo-console" aria-label="Message signing controls">
 <div class="console-heading"><span class="eyebrow">YOUR SIGNING REQUEST</span><span class="session-badge">PER-MESSAGE APPROVAL</span></div>
@@ -28,9 +28,9 @@
 <p class="eyebrow message-step">02 / WRITE YOUR MESSAGE</p><label for="message-text">Message</label><textarea id="message-text" rows="4" required maxlength="256">Hello from PairKey.</textarea><p class="demo-help" id="message-size">UTF-8 message · up to 256 bytes</p>
 <p class="demo-help">Each request gets its own finalized Solana approval. No session and no destination transaction.</p>
 <details class="envelope-preview"><summary>Exact signing envelope</summary><pre id="message-preview">Waiting for the derived key.</pre></details>
-<button class="button" type="submit" disabled>Approve &amp; sign <span aria-hidden="true">↗</span></button></form>
+<button class="button" type="submit" disabled>Approve &amp; sign <span aria-hidden="true">→</span></button></form>
 <p id="live-error" class="field-error" role="alert"></p><button class="button small" id="live-resume" hidden>Resume the same request</button>
-<details class="funding-details"><summary>Demo account &amp; funding</summary><dl class="testnet-funding"><dt>Demo owner · Solana devnet</dt><dd><code id="sol-address">—</code><span id="sol-balance"></span></dd><dt>Selected controller</dt><dd><code id="controller-address">—</code></dd></dl><p class="demo-help">Both authority paths use the dedicated demo owner. This does not connect or impersonate your personal wallet. Only devnet SOL is spent on approval and account rent.</p><a class="text-link" href="/docs/testnet.html#funding">Funding guide ↗</a></details>
+<details class="funding-details"><summary>Demo account &amp; funding</summary><dl class="testnet-funding"><dt>Demo owner · Solana devnet</dt><dd><code id="sol-address">—</code><span id="sol-balance"></span></dd><dt>Selected controller</dt><dd><code id="controller-address">—</code></dd></dl><p class="demo-help">Both authority paths use the dedicated demo owner. This does not connect or impersonate your personal wallet. Only devnet SOL is spent on approval and account rent.</p><a class="text-link" href="/docs/testnet.html#funding">Funding guide →</a></details>
 </aside>
 <section class="flow-panel" aria-labelledby="flow-title">
 <div class="flow-heading"><div><p class="eyebrow">ONE REQUEST. TWO SIGNERS.</p><h2 id="flow-title">Follow the signature.</h2></div><span class="flow-live" id="flow-live">LIVE BACKEND</span></div>
@@ -47,12 +47,12 @@
 <article class="flow-node assembly-node" id="flow-assembly" data-state="waiting"><span class="node-icon" aria-hidden="true">σ</span><div><p class="eyebrow">ASSEMBLE &amp; VERIFY</p><h3>One valid signature</h3><p class="node-detail" id="assembly-detail">Signing contributions combine. The full private key is never assembled.</p><code id="signature-preview" hidden></code></div><span class="node-status" id="assembly-status">Waiting</span></article>
 <div class="flow-down" aria-hidden="true">↓</div>
 <section class="signature-verifier" aria-labelledby="verify-title"><p class="eyebrow">CHECK IT YOURSELF</p><h3 id="verify-title">Verify the signature.</h3><p class="demo-help">Recompute verification against the message and public key. Edit the envelope to test a mismatch.</p><label for="verify-message">Signed envelope · editable</label><textarea id="verify-message" rows="5" maxlength="512" disabled></textarea><details><summary>Public key &amp; signature inputs</summary><label for="verify-key">Public key · hex</label><input id="verify-key" disabled><label for="verify-signature">Signature · hex</label><textarea id="verify-signature" rows="3" disabled></textarea></details><button class="button" id="verify-button" type="button" disabled>Verify signature <span aria-hidden="true">✓</span></button><p id="verify-result" role="status" aria-live="polite">A completed signature will appear here.</p></section>
-<article class="signature-use"><span class="node-icon" aria-hidden="true">↗</span><div><p class="eyebrow">USE YOUR SIGNATURE</p><h3>Your application takes it from here.</h3><p>Verify it off-chain, share it with a relying application, or use an appropriate chain-specific transaction flow. A message signature is not a transaction and does not need to be broadcast.</p></div></article>
+<article class="signature-use"><span class="node-icon" aria-hidden="true">→</span><div><p class="eyebrow">USE YOUR SIGNATURE</p><h3>Your application takes it from here.</h3><p>Verify it off-chain, share it with a relying application, or use an appropriate chain-specific transaction flow. A message signature is not a transaction and does not need to be broadcast.</p></div></article>
 </div>
 <p class="flow-footnote">Separate key shares. Independent authorization checks. Joint threshold signing.</p>
 </section>
 </div>
 <section class="activity-panel" aria-labelledby="operation-title"><div class="activity-heading"><div><p class="eyebrow">THE AUDIT TRAIL</p><h2 id="operation-title">Your next operation starts here.</h2></div><div class="history-control"><label for="operation-history">Operation history</label><select id="operation-history"><option value="">No operations yet</option></select></div></div><p id="operation-state" role="status" aria-live="polite">Waiting for a request.</p><ol id="operation-events"></ol><div id="operation-links" class="testnet-links"></div><details><summary>Signature, signer receipts &amp; chain evidence</summary><pre id="operation-json">No result yet.</pre></details></section>
-<p class="demo-context demo-disclosure">Solana devnet approvals · Two local development signer processes · <a href="/docs/security.html">TEE deployment status ↗</a>. Message signing only. FROST Ed25519 for Solana and NEAR, DKLS23 ECDSA for EVM, FROST RedPallas for Zcash, and FROST secp256k1 (BIP-340) for Bitcoin. These message envelopes are not chain-native transactions or NEP-413 / Orchard / BIP-322 wallet formats.</p>
-</main><footer class="wrap footer"><a class="brand" href="/">PairKey</a><span>Programmable keys. Governed on Solana.</span><a href="/docs/demo.html">How this demo works ↗</a></footer>
+<p class="demo-context demo-disclosure">Solana devnet approvals · Two local development signer processes · <a href="/docs/security.html">TEE deployment status →</a>. Message signing only. FROST Ed25519 for Solana and NEAR, DKLS23 ECDSA for EVM, FROST RedPallas for Zcash, and FROST secp256k1 (BIP-340) for Bitcoin. These message envelopes are not chain-native transactions or NEP-413 / Orchard / BIP-322 wallet formats.</p>
+</main><footer class="wrap footer"><a class="brand" href="/">PairKey</a><span>Programmable keys on multiple chains</span><a href="/docs/demo.html">How this demo works →</a></footer>
 </body></html>

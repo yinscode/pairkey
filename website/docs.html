@@ -1,30 +1,33 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Build with programmable keys. PairKey developer documentation: Overview.">
-<title>Overview — PairKey docs</title><link rel="icon" href="mark.svg?v=2" type="image/svg+xml">
-<link rel="stylesheet" href="style.css"><script src="docs.js" defer></script></head>
+<title>Overview — PairKey docs</title><link rel="icon" href="mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="style.css?v=gold-1"><script src="docs.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
-<header class="nav wrap"><a class="brand" href="index.html"><img src="mark.svg?v=2" width="30" height="30" alt="">PairKey</a>
+<header class="nav wrap"><a class="brand" href="index.html"><img src="mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="index.html#protocol">Protocol</a><a href="docs.html" aria-current="true">Docs</a></nav>
-<a class="button small" href="docs/quickstart.html">Run locally ↗</a></header>
+<a class="button small" href="docs/quickstart.html">Get started →</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="docs.html" aria-current="page">Overview</a>
 <a href="docs/quickstart.html">Quickstart</a>
+<a href="docs/quickstart-account.html">Quickstart: Account</a>
+<a href="docs/quickstart-program.html">Quickstart: Program</a>
 <a href="docs/demo.html">Interactive demo</a>
-<a href="docs/testnet.html">Live testnet setup</a>
 <a href="docs/architecture.html">Architecture</a>
 <a href="docs/integration.html">Solana program integration</a>
 <a href="docs/sessions.html">Scoped sessions</a>
 <a href="docs/signing.html">Signing integrations</a>
 <a href="docs/api.html">SDK &amp; API reference</a>
-<a href="docs/security.html">Security &amp; status</a></nav></aside>
+<a href="docs/security.html">Security &amp; status</a>
+<a href="docs/local-development.html">Local development</a>
+<a href="docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="docs.html">DOCS</a> / OVERVIEW</p>
 <h1 id="overview">Build with programmable keys.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#model">One authority model, multiple destinations</a><a href="#concepts">The concepts you need</a><a href="#choose">Choose your next step</a><a href="#availability">Development status</a></nav>
 <p class="lead">A key is more useful when your application can govern it. PairKey connects Solana program authority to two-party signing across multiple signature schemes.</p>
-<div class="docs-note"><p>New here? <a href="/demo">Try the interactive demo</a>, then <a href="docs/quickstart.html">run the real local flow</a>. The demo connects to a local backend with funded Solana devnet and Base Sepolia accounts.</p></div>
-<h2 id="model">One authority model, multiple destinations</h2><p>A Solana controller program governs a namespace and the permissions to use its signing keys. Your application publishes an exact-operation approval or grants a bounded session. Both signers independently check the current authority and participate in producing a signature.</p><p>The intended deployment uses two independent TEE signers. Each holds its own share; the signing protocol does not assemble a complete private key. The relay routes work and returns results, while the signers enforce authorization.</p>
+<div class="docs-note"><p>New here? <a href="/demo">Try the interactive demo</a>, then <a href="docs/quickstart.html">connect your own account or program</a> to our hosted signers.</p></div>
+<h2 id="model">One authority model, multiple destinations</h2><p>A Solana account or controller program governs a namespace and the permissions to use its signing keys. Your application publishes an exact-operation approval or grants a bounded session. Both signers independently check the current authority and participate in producing a signature.</p><p>The intended deployment uses two independent TEE signers. Each holds its own share; the signing protocol does not assemble a complete private key. The relay routes work and returns results, while the signers enforce authorization.</p>
 <h2 id="concepts">The concepts you need</h2><dl class="concept-list"><dt>Controller</dt><dd>The authority that governs permissions. In the program-controlled flow, this is your Solana program’s PDA.</dd><dt>Namespace</dt><dd>The registered context that binds derivation authority, public metadata, and the enrolled signer set.</dd><dt>Account path</dt><dd>The application’s identifier for a signing account within that context. Paths are not independent compromise domains.</dd><dt>COMMIT</dt><dd>An exact-operation approval. It binds the approved bytes and allows signing them; destination replay rules determine execution counts.</dd><dt>Session</dt><dd>A scoped grant to a delegate, constrained by account, destination, recipient, per-operation limits, expiry, and policy version.</dd><dt>Attempt and job</dt><dd>An attempt identifies one signing execution. A job tracks submission, progress, and retained results. Neither is a destination transaction.</dd></dl>
-<h2 id="choose">Choose your next step</h2><div class="doc-link-grid"><a href="docs/demo.html"><strong>Explore the demo ↗</strong><span>See why an operation is allowed or refused.</span></a><a href="docs/integration.html"><strong>Connect a Solana program ↗</strong><span>Approve a real operation through CPI.</span></a><a href="docs/sessions.html"><strong>Delegate with a session ↗</strong><span>Define boundaries for repeat operations.</span></a><a href="docs/signing.html"><strong>Choose a signing integration ↗</strong><span>Match the scheme to your destination.</span></a></div>
-<h2 id="availability">Development status</h2><p>The current implementation is a local developer platform with reproducible Solana and EVM flows. Read <a href="docs/security.html">Security &amp; status</a> for hardware deployment, chain coverage, recovery, and review boundaries.</p>
+<h2 id="choose">Choose your next step</h2><div class="doc-link-grid"><a href="docs/demo.html"><strong>Explore the demo →</strong><span>See why an operation is allowed or refused.</span></a><a href="docs/integration.html"><strong>Connect a Solana program →</strong><span>Approve a real operation through CPI.</span></a><a href="docs/sessions.html"><strong>Delegate with a session →</strong><span>Define boundaries for repeat operations.</span></a><a href="docs/signing.html"><strong>Choose a signing integration →</strong><span>Match the scheme to your destination.</span></a></div>
+<h2 id="availability">Development status</h2><p>The hosted devnet service supports onboarding your own wallet or program PDA and signing messages across five chain integrations. Read <a href="docs/security.html">Security &amp; status</a> for hardware deployment, chain coverage, recovery, and review boundaries.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="docs/quickstart.html"><span>Next</span><strong>Quickstart ↗</strong></a></nav></main></div>
-<footer class="wrap footer"><a class="brand" href="index.html"><img src="mark.svg?v=2" width="26" height="26" alt="">PairKey</a><p>Programmable keys. Governed on Solana.</p><a href="docs/security.html">Security &amp; status ↗</a></footer></body></html>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="docs/quickstart.html"><span>Next</span><strong>Quickstart →</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="index.html"><img src="mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="docs/security.html">Security &amp; status →</a></footer></body></html>

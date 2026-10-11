@@ -1,0 +1,50 @@
+<p class="lead">Your program decides when signing is allowed. Its PDA authorizes the PairKey gateway, and our hosted signers return the signature.</p>
+<h2 id="start">Try the example program</h2><p>Start with our deployed Solana devnet controller, prefilled below, or enter your own program ID. Connect your wallet, register a namespace, then choose a chain and sign a message. You do not need to deploy anything to try this example.</p><p>The example gives every wallet its own authority PDA: <code>["controller", your_wallet_address]</code> under the program ID. Your wallet approves each call; another wallet cannot authorize your PDA. This is a separate namespace from the account quickstart.</p><div class="hosted-quickstart" data-hosted-quickstart="program">
+<label for="hosted-program">Controller program ID</label><input id="hosted-program" type="text" spellcheck="false" value="AwALEPCSMeeK1HXhK9e1TTKQVZqAxp7EkzxAStqsY4Kz" placeholder="Our example or your deployed program ID" aria-describedby="hosted-program-help"><p id="hosted-program-help">Prefilled: <a href="https://explorer.solana.com/address/AwALEPCSMeeK1HXhK9e1TTKQVZqAxp7EkzxAStqsY4Kz?cluster=devnet" target="_blank" rel="noopener noreferrer">PairKey’s example controller on devnet</a>. Use this template’s instruction format when entering your own program ID.</p><p>Use a devnet wallet with about 0.05 devnet SOL for registration and several approvals. Your wallet will ask you to sign Solana transactions.</p>
+<button class="button" id="hosted-connect" type="button">Connect wallet &amp; register</button>
+<pre id="hosted-output" role="status" aria-live="polite">Connect your wallet to begin.</pre><div id="hosted-links"></div>
+<div class="hosted-fields"><div><label for="hosted-chain">Destination</label><select id="hosted-chain"><option value="solana">Solana · FROST Ed25519</option><option value="evm">EVM · DKLS23 secp256k1</option><option value="zcash">Zcash · FROST RedPallas</option><option value="near">NEAR · FROST Ed25519</option><option value="bitcoin">Bitcoin · FROST BIP-340</option></select></div><div><label for="hosted-path">Key path index</label><input id="hosted-path" type="number" min="0" max="4294967295" step="1" value="0"></div></div>
+<button class="button secondary" id="hosted-key" type="button" disabled>Load derived key</button>
+<p>Derived public key</p><code class="hosted-value" id="hosted-public-key">Your key will appear here.</code>
+<label for="hosted-message">Message to sign</label><textarea id="hosted-message" rows="3" maxlength="256">Hello from my PairKey namespace.</textarea>
+<button class="button" id="hosted-sign" type="button" disabled>Approve &amp; sign message</button>
+<p>Signature</p><code class="hosted-value" id="hosted-signature">Your signature will appear here.</code>
+<div class="hosted-actions"><button class="button secondary" id="hosted-verify" type="button" disabled>Verify signature</button><button class="button secondary" id="hosted-recover" type="button">Recover last job</button></div>
+</div>
+<script src="/assets/vendor/solana-web3-1.98.4.min.js"></script><script type="module" src="/hosted-quickstart.mjs?v=wallet-compatibility-2"></script>
+<h2 id="program-code">How the program authorizes signing</h2>
+<p>The program below is the controller used by this example. Its rule is simple: the wallet that scopes the PDA must sign every request. Your application can replace that rule with its own policy.</p>
+<ol><li><strong>Check the request:</strong> accept only the gateway’s Register and Commit instructions.</li><li><strong>Check the owner:</strong> require the wallet’s Solana transaction signature and derive its expected PDA under this program.</li><li><strong>Check the gateway:</strong> require the pinned PairKey gateway address and an executable program account.</li><li><strong>Authorize through CPI:</strong> forward the request with <code>invoke_signed</code>. Solana grants signer privileges to this program’s PDA using its seeds and bump.</li></ol>
+<p>Register binds a namespace to the PDA. Commit approves a particular signing request. Once that approval is finalized, each hosted signer checks it before participating in signing. The resulting signature is fetched from the API.</p>
+<!-- HOSTED_CONTROLLER_SOURCE -->
+<p>The <code>APPLICATION LOGIC</code> comment marks where you add your rules—for example, requiring a vote, checking a balance, or validating an application state transition. For a business-specific approval, also construct or validate the exact Commit fields, including the intended key and message commitment. The example forwards these fields because its policy is explicitly “the owner approves this request.”</p>
+<h2 id="controller">Deploy your application logic</h2><p>Use an existing program or start with the <a href="examples/hosted-controller.zip">standalone controller template</a>. The template requires the owner wallet to sign and derives an authority PDA from <code>["controller", owner_public_key]</code> under your deployed program ID. Each owner gets a separate authority.</p><p>Its gateway address is pinned to the current hosted devnet deployment. Compare it with <a href="https://pairkey.com/api/v1/config">service configuration</a> before deploying.</p>
+<pre><code># Build and deploy your program using your Solana tooling.
+# No PairKey workers, coordinator, or gateway deployment is needed.
+unzip hosted-controller.zip
+cd hosted-controller
+cargo build-sbf --sbf-out-dir target/deploy
+solana program deploy --url devnet --keypair YOUR_DEVNET_WALLET.json \
+  target/deploy/pairkey_hosted_controller_example.so</code></pre>
+<p>Read the <a href="examples/hosted-controller.rs">controller source</a>. Replace the marked owner check with your application’s rules. When authorizing a specific business operation, construct or validate its expected COMMIT fields in your program; do not treat an arbitrary caller-provided hash as an approved business operation.</p>
+<h2 id="application">Connect your application</h2><p>Copy the <a href="hosted-client.mjs">browser client</a> into your application and provide <code>@solana/web3.js</code> v1.</p>
+<pre><code>import * as web3 from '@solana/web3.js';
+import { PairKey } from './hosted-client.mjs';
+
+const wallet = window.phantom.solana;
+const pairkey = new PairKey({ web3 });
+await wallet.connect();
+// Try our devnet example; replace this with your program ID when ready.
+const programId = 'AwALEPCSMeeK1HXhK9e1TTKQVZqAxp7EkzxAStqsY4Kz';
+const controller = pairkey.controller(programId, wallet.publicKey);
+const namespace = await pairkey.onboard(wallet, controller);
+const key = await pairkey.key(namespace, 'evm', [0]);
+const approval = await pairkey.prepare(namespace, wallet, {
+  chain: 'evm', path: [0], message: 'Approved by my program.'
+});
+await pairkey.approve(namespace, wallet, approval);
+const { job_id } = await pairkey.submit(approval);
+const result = await pairkey.wait(job_id);</code></pre>
+<h2 id="cpi">Integrate another program</h2><p>Use your own PDA and provide <code>{ authority, wrapInstruction }</code> to <code>onboard</code>. The adapter turns a returned gateway instruction into a call to your program. Your program validates application rules and performs <code>invoke_signed</code> with its own PDA seeds.</p><ol><li>Set a compute-unit limit of 1,400,000 (the browser client does this automatically). Keep the two signer-identity verification instructions at the transaction’s top level, before the registration CPI.</li><li>For registration, invoke the gateway with the wallet payer and your PDA marked as the controller signer.</li><li>For each message, validate your rules and invoke the gateway’s COMMIT instruction with that same PDA.</li><li>Wait for finality, then submit the prepared signing request through the hosted API.</li></ol>
+<p>A program address alone cannot authorize a request. Solana must grant signer privileges to the PDA through your program’s CPI. Signing completes off-chain after the transaction; a signature is not returned synchronously to that instruction.</p><h2 id="verify">Verify and keep the request</h2><p>The browser’s Verify button asks the service to recompute verification using the returned public key, exact message, and signature. The API also returns both signer receipts. Applications can independently verify Ed25519, EIP-191, RedPallas, or the PairKey BIP-340 message format using the <a href="docs/signing.html">signing integrations</a> and Rust SDK. The <a href="examples/verify_hosted.rs">offline Rust verifier</a> checks the signature and both signer receipts using a saved transcript.</p><p>Save the namespace registration, chain, path, approval request and job ID. Poll the same job after a timeout; do not automatically create a new signing request. “Recover last job” retrieves the saved job or resubmits the identical prepared request if its response was lost. The gateway checks finality and returns the existing job when one already exists.</p>
+<h2 id="derivation">How addresses are scoped</h2><p>Your authority scopes a namespace. Within it, the destination, signature scheme, and numeric path select the key. The default namespace ID is 32 zero bytes; specify another 32-byte ID when your application needs separate namespaces. Keep the same deployment and namespace metadata when recovering a key.</p><p>The UI displays a Solana public key, a NEAR <code>ed25519:</code> public-key identifier, or an EVM address where applicable. Zcash and Bitcoin display signing public keys; this guide does not construct shielded addresses, NEAR named accounts, or transaction payloads.</p>
