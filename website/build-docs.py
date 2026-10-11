@@ -44,10 +44,10 @@ def render(index):
     return f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="{html.escape(title)} PairKey developer documentation: {html.escape(label)}.">
-<title>{html.escape(label)} — PairKey docs</title><link rel="icon" href="{prefix}mark.svg" type="image/svg+xml">
+<title>{html.escape(label)} — PairKey docs</title><link rel="icon" href="{prefix}mark.svg?v=2" type="image/svg+xml">
 <link rel="stylesheet" href="{prefix}style.css"><script src="{prefix}docs.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
-<header class="nav wrap"><a class="brand" href="{prefix}index.html"><img src="{prefix}mark.svg" width="30" height="30" alt="">PairKey</a>
+<header class="nav wrap"><a class="brand" href="{prefix}index.html"><img src="{prefix}mark.svg?v=2" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="{prefix}index.html#protocol">Protocol</a><a href="{prefix}docs.html" aria-current="true">Docs</a></nav>
 <a class="button small" href="{prefix}docs/quickstart.html">Run locally ↗</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation">{links}</nav></aside>
@@ -55,7 +55,7 @@ def render(index):
 <h1{' id="overview"' if slug == 'overview' else ''}>{html.escape(title)}</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong>{toc}</nav>
 {body}
 <nav class="docs-pagination" aria-label="Next and previous pages">{''.join(adjacent)}</nav></main></div>
-<footer class="wrap footer"><a class="brand" href="{prefix}index.html"><img src="{prefix}mark.svg" width="26" height="26" alt="">PairKey</a><p>Programmable keys. Governed on Solana.</p><a href="{prefix}docs/security.html">Security &amp; status ↗</a></footer></body></html>
+<footer class="wrap footer"><a class="brand" href="{prefix}index.html"><img src="{prefix}mark.svg?v=2" width="26" height="26" alt="">PairKey</a><p>Programmable keys. Governed on Solana.</p><a href="{prefix}docs/security.html">Security &amp; status ↗</a></footer></body></html>
 '''
 
 def main():

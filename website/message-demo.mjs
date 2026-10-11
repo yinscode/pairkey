@@ -1,4 +1,4 @@
-export const chainLabels = {solana:'Solana',evm:'EVM / Base Sepolia 84532',zcash:'Zcash / RedPallas',near:'NEAR'};
+export const chainLabels = {solana:'Solana',evm:'EVM / Base Sepolia 84532',zcash:'Zcash / RedPallas',near:'NEAR',bitcoin:'Bitcoin / BIP-340'};
 export function messageEnvelope(chain,authority,controller,id,message) {
   return `PairKey message signing v1\nDestination: ${chainLabels[chain]}\nAuthority: ${authority==='program'?'Solana program':'Solana account'}\nController: ${controller}\nRequest: ${id}\n\n${message}`;
 }

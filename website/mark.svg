@@ -1,1 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="12" fill="#173f35"/><path d="M10 10h13v8h7v12H17v-8h-7z" fill="#c6f18b"/><path d="M19 18h4v4h-4z" fill="#173f35"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="8 8 24 24">
+  <title>PairKey — two independent signers</title>
+  <defs><path id="block" d="M18 10h12v12h-8v-4h-4z"/></defs>
+  <use href="#block" fill="#c6f18b"/>
+  <use href="#block" transform="rotate(180 20 20)" fill="#173f35"/>
+</svg>

@@ -49,3 +49,19 @@
 .flow-notice {border:1px solid #bb8974;background:#f6e9df;color:#783e28;padding:12px 14px;border-radius:6px;font-size:12px;line-height:1.6;margin:0 0 18px}
 .message-step {margin-top:28px!important}.demo-console textarea,.signature-verifier textarea,.signature-verifier input {width:100%;border:1px solid #bac6b3;border-radius:5px;padding:11px;background:var(--paper);color:var(--ink);font:12px/1.6 monospace;resize:vertical;box-sizing:border-box}.demo-console textarea:focus-visible,.signature-verifier textarea:focus-visible,.signature-verifier input:focus-visible {outline:3px solid #258455;outline-offset:2px}.derived-key {margin:20px 0;padding:14px;border:1px solid var(--line);border-radius:6px;background:var(--light)}.derived-key code {display:block;overflow-wrap:anywhere;font:11px/1.7 monospace;margin:10px 0}.derived-key>span:not(.eyebrow) {display:block;font-size:10px;color:var(--muted)}.envelope-preview {font-size:11px;margin-top:15px}.envelope-preview pre {white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.6 monospace}.signature-verifier {padding:20px;background:var(--white);border:1px solid var(--line);border-radius:8px;margin-top:18px}.signature-verifier .eyebrow {font-size:9px;margin:0 0 9px}.signature-verifier h3,.signature-use h3 {font-size:20px;letter-spacing:-.03em;margin:0}.signature-verifier label {display:block;font-size:11px;margin:14px 0 8px}.signature-verifier details {font-size:11px;margin-top:12px}.signature-verifier .button {margin-top:16px;padding:12px 18px;font-size:12px;cursor:pointer;border:0}.signature-verifier #verify-result {font-size:12px;margin:12px 0 0;line-height:1.6}.signature-verifier #verify-result[data-valid=true] {color:#2c6639}.signature-verifier #verify-result[data-valid=false] {color:#852f20}.signature-use {display:flex;gap:14px;margin-top:20px;padding:20px;border:1px dashed #a5b79b;border-radius:8px}.signature-use p:last-child {font-size:12px;color:var(--muted);line-height:1.7;margin:9px 0 0}.signature-use .eyebrow {font-size:9px;margin:0 0 8px}.signature-use .node-icon {background:transparent}.demo-console #message-form {border-right:0}.assembly-node code {max-height:90px;overflow:auto;word-break:break-all}.signature-verifier :disabled {opacity:.5}
 @media(max-width:800px) {.demo-console {display:block}}
+
+.chain-picker {border:0;padding:0;margin:20px 0 0;min-width:0}
+.chain-picker legend {font-size:11px;margin-bottom:10px;padding:0}
+.chain-options {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.demo-console .chain-option {position:relative;display:block;margin:0;cursor:pointer}
+.demo-console .demo-card .chain-option input {position:absolute;opacity:0;width:1px;height:1px;min-height:0;padding:0;margin:0}
+.chain-choice {display:flex;align-items:center;gap:10px;min-height:60px;padding:12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);transition:background .15s,border-color .15s,box-shadow .15s;font-weight:600}
+.chain-choice img {width:27px;height:27px;flex-shrink:0}
+.chain-option:hover .chain-choice {border-color:#759c5c;background:#edf4e3}
+.chain-option input:checked + .chain-choice {border-color:#587749;background:#e8f2dc;box-shadow:inset 0 0 0 1px #587749}
+.chain-option input:checked + .chain-choice:after {content:'✓';margin-left:auto;color:#385c39;font-size:12px}
+.chain-option input:focus-visible + .chain-choice {outline:3px solid #258455;outline-offset:3px}
+.chain-picker:disabled .chain-option {cursor:not-allowed;opacity:.5}
+@media(prefers-reduced-motion:reduce) {.chain-choice {transition:none}}
+
+.chain-option:last-child:nth-child(odd) { grid-column:1/-1; }

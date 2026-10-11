@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Understand the trust model. PairKey developer documentation: Security &amp; status.">
-<title>Security &amp; status — PairKey docs</title><link rel="icon" href="../mark.svg" type="image/svg+xml">
+<title>Security &amp; status — PairKey docs</title><link rel="icon" href="../mark.svg?v=2" type="image/svg+xml">
 <link rel="stylesheet" href="../style.css"><script src="../docs.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
-<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg" width="30" height="30" alt="">PairKey</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=2" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
 <a class="button small" href="../docs/quickstart.html">Run locally ↗</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
@@ -18,7 +18,7 @@
 <a href="../docs/api.html">SDK &amp; API reference</a>
 <a href="../docs/security.html" aria-current="page">Security &amp; status</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / SECURITY &amp; STATUS</p>
-<h1>Understand the trust model.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#status">What is available?</a><a href="#trust">Separate the trust boundaries</a><a href="#hardware">TEE deployment and recovery</a><a href="#incidents">Nonce and incident lifecycle</a><a href="#evidence">Read the evidence at the right scope</a><a href="#sources">Read the architecture</a></nav>
+<h1>Understand the trust model.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#status">What is available?</a><a href="#trust">Separate the trust boundaries</a><a href="#hardware">TEE deployment and recovery</a><a href="#incidents">Nonce and incident lifecycle</a><a href="#evidence">Read the evidence at the right scope</a><a href="#sources">Read the architecture</a><a href="#comparison">Comparison: latency and fees</a></nav>
 <h2 id="status">What is available?</h2>
 <ul>
 <li>
@@ -28,7 +28,8 @@
 <li>
 <strong>Zcash:</strong> FROST RedPallas signatures verified through Orchard SpendAuth verification. Transaction assembly, proofs, wallet operations, and end-to-end execution are not implemented.</li>
 <li>
-<strong>NEAR:</strong> Its Ed25519 signature family is compatible with an implemented scheme. A NEAR transaction adapter and end-to-end integration remain planned.</li>
+<strong>Bitcoin:</strong> FROST secp256k1 produces BIP-340 signatures with a tweaked x-only key. The demo uses a custom tagged message digest; BIP-322 and Bitcoin transactions are not implemented. Root-derived share setup remains experimental.</li><li>
+<strong>NEAR:</strong> FROST Ed25519 message signing is demonstrated. A NEAR transaction adapter and end-to-end integration remain planned.</li>
 <li>
 <strong>Credentials:</strong> Service-key and local passkey assertion verification exist. Complete passkey onboarding and OIDC with ephemeral keys remain future work.</li>
 </ul>
@@ -42,5 +43,7 @@
 <p>In the repository, start with <code>docs/program-jobs-and-lifecycle.md</code>, <code>docs/multi-suite-signing.md</code>, and <code>docs/implementation-status.md</code>. Earlier architecture proposals must be read together with the latest implementation evidence.</p>
 <p>The comparison on the landing page uses the standard request flow in <a href="https://docs.near.org/chain-abstraction/chain-signatures">NEAR’s Chain Signatures documentation</a> and the signing and policy model in <a href="https://whitepaper.turnkey.com/architecture">Turnkey’s architecture whitepaper</a>. NEAR supports multichain outputs; it is not limited to signing NEAR transactions. Turnkey uses multiple enclave services; it is not accurately described as a single-TEE system.</p>
 
+<h2 id="comparison">Comparison: latency and fees</h2><p>The homepage compares request paths, not measured end-to-end performance. PairKey’s exact-approval path waits for Solana finalization before authorization checks and threshold signing. An eligible pre-approved session avoids a new Solana transaction but still requires fresh state checks, RPC access, coordination, and signing. The public message demo uses exact approvals. Signature scheme, queueing, deployment, and network conditions affect latency; no production latency guarantee is published.</p><p><a href="https://docs.near.org/chain-abstraction/chain-signatures">NEAR’s standard flow</a> submits a contract request, waits for MPC signing, and returns the result through contract execution. NEAR block time alone is not the total signature latency. <a href="https://www.turnkey.com/company-wallets">Turnkey reports 50–100 ms signing latency</a>; this is its own published figure, not an equivalent benchmark of PairKey or NEAR, nor destination confirmation time. Its <a href="https://whitepaper.turnkey.com/architecture">architecture</a> uses a Signer enclave and separate policy services.</p><p>PairKey’s zero-fee statement means zero new Solana authorization transaction fees per eligible session signature. Session setup, new exact approvals, RPC/service costs, and destination execution are separate. NEAR contract requests incur chain gas; Turnkey’s API is subject to service pricing and does not require a control-chain transaction. Sources checked October 12, 2026.</p>
+
 <nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/api.html"><span>Previous</span><strong>SDK &amp; API reference ↗</strong></a></nav></main></div>
-<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg" width="26" height="26" alt="">PairKey</a><p>Programmable keys. Governed on Solana.</p><a href="../docs/security.html">Security &amp; status ↗</a></footer></body></html>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=2" width="26" height="26" alt="">PairKey</a><p>Programmable keys. Governed on Solana.</p><a href="../docs/security.html">Security &amp; status ↗</a></footer></body></html>
