@@ -1,4 +1,4 @@
-import {PairKey} from './hosted-v2.mjs';
+import {PairKey} from './hosted-v2.mjs?v=fast-poll-1';
 import {HostedSession} from './hosted-session.mjs';
 import {chainLabels,messageFlowV2} from './message-demo.mjs';
 import {readGoogleClaims,showGoogleButton} from './google-oidc.mjs';

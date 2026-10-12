@@ -2,7 +2,7 @@
  * commit are explicit transactions. The Rust SDK remains the full independent
  * verifier of curve-specific key certificates, signatures and signer receipts.
  */
-import {PairKey as TransactionClient} from './hosted-client.mjs';
+import {PairKey as TransactionClient} from './hosted-client.mjs?v=fast-poll-1';
 import * as c from './approval-codec.mjs';
 const now = () => Math.floor(Date.now() / 1000);
 const copy = value => structuredClone(value);

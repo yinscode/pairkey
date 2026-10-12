@@ -139,12 +139,13 @@ export class PairKey {
   }
   async submit(approval) { return this.request('/jobs', approval.signing_request); }
   async wait(jobId) {
-    const deadline = Date.now() + 240000;
+    const started = Date.now(), deadline = started + 240000;
     while (Date.now() < deadline) {
       const job = await this.request(`/jobs/${encodeURIComponent(jobId)}`);
       if (job.status === 'complete') return job.result;
       if (job.status === 'failed') throw new Error(`${job.error} Job: ${jobId}. Do not create a fresh signing request automatically.`);
-      await pause(2500);
+      // Surface the usual short signing job promptly, then ease off for long-running jobs.
+      await pause(Date.now() - started < 10000 ? 750 : 2500);
     }
     throw new Error(`Still waiting for job ${jobId}. Poll this same job to recover the result.`);
   }
