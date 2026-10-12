@@ -112,12 +112,12 @@ async function googleButton(nonce){
   await showGoogleButton(button,{audience:googleIssuer.audience,nonce,onCredential:credential=>{
     if(generation!==googleGeneration||selectedSource()!=='google')return;
     void run(async()=>{
+      if(nonce)activeOp=currentOp;
       if(!credential)throw new Error('Google did not return an ID token.');
       if(nonce){
         const pending=pendingOidc;
         if(!pending||pending.ephemeral.oidcNonce!==nonce)throw new Error('Google approval expired. Prepare the request again.');
         readGoogleClaims(credential,googleIssuer.audience,{subject:pending.namespace.identity.Oidc.subject,nonce,issuedAfter:pending.ephemeral.binding.issued_at});
-        activeOp=currentOp;
         await flow.completeOidc(pending,credential);
         pendingOidc=undefined;$('google-help').textContent='Signature complete. Prepare another message for a new approval.';
       }else{
