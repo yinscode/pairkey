@@ -11,14 +11,14 @@
 <a href="../docs/quickstart.html">Quickstart</a>
 <a href="../docs/quickstart-account.html">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html">Quickstart: Program</a>
-<a href="../docs/quickstart-passkey.html">Passkey integration</a>
-<a href="../docs/quickstart-oidc.html">Quickstart: Google</a>
+<a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
+<a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
 <a href="../docs/sessions.html" aria-current="page">Scoped sessions</a>
-<a href="../docs/signing.html">Signing integrations</a>
+<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/api.html">SDK &amp; API reference</a>
 <a href="../docs/security.html">Security &amp; status</a>
 <a href="../docs/local-development.html">Local development</a>
@@ -33,5 +33,5 @@
 <p>Both signers still check fresh control state. A policy requiring COMMIT+SESSION needs an exact on-chain approval as well. This legacy transfer-session path does not authorize RedPallas messages. Total spending budgets, EVM contract calls, and EVM simulation are not implemented.</p>
 <p>Solidity integration is planned. Solana remains the sole authorization control plane; an EVM contract cannot currently replace the Solana controller.</p><h2 id="grant">Construct a bounded grant</h2><ol><li>Choose the enrolled account/path and supported destination adapter.</li><li>Bind the delegate credential, recipient, per-operation value limit, and validity interval.</li><li>For EVM native transfers, bind the enrolled backend-key digest, chain ID, gas-price cap, and total-fee cap.</li><li>Publish the grant with your controller wallet’s signature or through authenticated program CPI, and wait for finalized state.</li><li>Attach a proof of possession bound to the exact operation, current policy version, and session when requesting signing.</li></ol><p>Both signers check authority before releasing output. Changing a request cannot broaden the registered grant. Policy versions advance by exactly one and invalidate old grants and proofs.</p><h2 id="composition">Compose policy requirements</h2><p>COMMIT, SESSION, access proof, and constrained SIMULATE requirements come from registered policy. A caller cannot choose a weaker mode. When no applicable session replaces exact approval, COMMIT remains required.</p><p>The legacy Solana simulation adapter checks a tightly constrained native-transfer operation against a pinned immutable program. EVM SIMULATE and general-purpose destination-state predicates are not implemented.</p><h2 id="revoke">Revoke or freeze</h2><p>Have the controller account or program revoke the session, or freeze the namespace. The revocation is permanent for that grant ID; create a new ID for a replacement. Signers refuse future issuance after observing the updated state.</p><p>An already issued signature cannot be recalled. Grant limits are per operation, not a cumulative allowance. Do not treat a 0.01 ETH cap as a 0.01 ETH total budget.</p><h2 id="demo">Choose a flow to try</h2><p>The <a href="/demo">live message demo</a> illustrates exact approvals, independent signer checks and signature verification. The <a href="../docs/quickstart-account.html">account</a> and <a href="../docs/quickstart-program.html">program</a> quickstarts use your wallet and namespace. They do not demonstrate session expiry or revocation.</p><p>For native-transfer sessions, use the repository’s SDK integration and <a href="../docs/local-development.html">local test environment</a>. Validate recipient mismatches, over-limit transfers, expiration and revoked grants before using a custom integration.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/policy.html"><span>Previous</span><strong>Policy &amp; rules →</strong></a><a href="../docs/signing.html"><span>Next</span><strong>Signing integrations →</strong></a></nav></main></div>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/policy.html"><span>Previous</span><strong>Policy &amp; rules →</strong></a><a href="../docs/signing.html"><span>Next</span><strong>Signing schemes →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

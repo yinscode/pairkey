@@ -11,14 +11,14 @@
 <a href="../docs/quickstart.html" aria-current="page">Quickstart</a>
 <a href="../docs/quickstart-account.html">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html">Quickstart: Program</a>
-<a href="../docs/quickstart-passkey.html">Passkey integration</a>
-<a href="../docs/quickstart-oidc.html">Quickstart: Google</a>
+<a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
+<a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
 <a href="../docs/sessions.html">Scoped sessions</a>
-<a href="../docs/signing.html">Signing integrations</a>
+<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/api.html">SDK &amp; API reference</a>
 <a href="../docs/security.html">Security &amp; status</a>
 <a href="../docs/local-development.html">Local development</a>
@@ -26,7 +26,7 @@
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / QUICKSTART</p>
 <h1>Build with hosted signers.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#quickstart">Choose your authority</a><a href="#hosted">PairKey runs the signers</a><a href="#flow">One approval, one signing job</a><a href="#policy">Optional rules, explicit updates</a><a href="#deployment">Deployment and availability</a></nav>
 <p class="lead">Choose your authority, derive a key, approve an exact message and receive a verifiable signature from our hosted signers.</p>
-<h2 id="quickstart">Choose your authority</h2><div class="doc-link-grid"><a href="../docs/quickstart-account.html"><strong>Solana account →</strong><span>Live devnet · Connect a wallet and approve messages off-chain. No registration transaction.</span></a><a href="../docs/quickstart-program.html"><strong>Solana program →</strong><span>Live on-chain example · Evaluate read-only rules or commit a state-consuming decision.</span></a><a href="../docs/quickstart-passkey.html"><strong>Passkey integration →</strong><span>SDK and local tests · Bind a WebAuthn assertion to each exact request.</span></a><a href="../docs/quickstart-oidc.html"><strong>Google account →</strong><span>Browser preview · Approve each message with a bound Google ID token.</span></a></div>
+<h2 id="quickstart">Choose your authority</h2><div class="doc-link-grid"><a href="../docs/quickstart-account.html"><strong>Solana account →</strong><span>Live devnet · Connect a wallet and approve messages off-chain. No registration transaction.</span></a><a href="../docs/quickstart-program.html"><strong>Solana program →</strong><span>Live on-chain example · Evaluate read-only rules or commit a state-consuming decision.</span></a><a href="../docs/quickstart-passkey.html"><strong>Quickstart: Passkey →</strong><span>Browser demo and SDK · Bind a WebAuthn assertion to each exact request.</span></a><a href="../docs/quickstart-oidc.html"><strong>Quickstart: OAuth/OIDC →</strong><span>Google browser preview · Approve each message with a bound ID token.</span></a></div>
 <h2 id="hosted">PairKey runs the signers</h2><p>The new flow uses <code>https://pairkey.com/api/v2</code>. You do not run workers, a coordinator or a validator. Account approvals need wallet message signing, with no registration rent or per-request Solana transaction. Policy changes and program on-chain approvals are explicit Solana transactions.</p>
 <h2 id="flow">One approval, one signing job</h2><ol><li><strong>Connect:</strong> obtain public namespace metadata for your authority; no namespace registration transaction.</li><li><strong>Derive:</strong> choose Solana, EVM, Zcash, NEAR or Bitcoin and a path.</li><li><strong>Approve:</strong> authenticate the exact request; apply any saved rules or program decision.</li><li><strong>Sign:</strong> both hosted signers independently authorize and participate.</li><li><strong>Verify:</strong> check the signature and both signer receipts.</li></ol><p>Signing is asynchronous. These guides return message signatures; they do not broadcast destination transactions. Save the public recovery record before submission, and recover that same job after a timeout.</p>
 <h2 id="policy">Optional rules, explicit updates</h2><p>Per-message authentication is required even without a saved policy. Optional rules live in a reusable Solana account; each signer reads the current revision. Programs can also evaluate custom application logic. See <a href="../docs/policy.html">Policy &amp; rules</a>. Sessions are deferred for v2.</p>

@@ -23,9 +23,10 @@ Optional standard rules live in reusable Solana accounts. Sessions are deferred
 for v2; the older transfer-session APIs remain compatible and separately documented.
 
 Passkeys and configured OIDC providers authenticate bound ephemeral Ed25519 keys
-through the SDK. The passkey integration page explains the application's required
-WebAuthn registration ceremony; the public demo does not provide one. The demo
-exposes account and program sources, plus Google when its issuer is configured.
+through the SDK. The public demo creates or reuses a site-scoped passkey and stores
+only its public credential metadata in the visitor's browser. Applications still
+need a verified WebAuthn registration and recovery ceremony. The demo also exposes
+account and program sources, plus Google when its issuer is configured.
 Google credentials stay in browser memory and are not included in public recovery
 records.
 Development hardware status and transaction-format boundaries belong in the docs.
@@ -41,7 +42,7 @@ produces `examples/hosted-client-v2.zip`.
 
 `hosted-session.mjs` is shared by the quickstarts and demo. It saves public recovery
 metadata before submission and never reauthenticates, recommits or resubmits on
-recovery. `testnet.js` connects visitor wallets or a Google account, exposes program
+recovery. `testnet.js` connects visitor wallets, passkeys or a Google account, exposes program
 setup, and shows signing across five destinations. History is tab-local and contains
 public transcripts only. Saved results are not labelled freshly verified.
 

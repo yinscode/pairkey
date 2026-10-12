@@ -11,14 +11,14 @@
 <a href="../docs/quickstart.html">Quickstart</a>
 <a href="../docs/quickstart-account.html">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html">Quickstart: Program</a>
-<a href="../docs/quickstart-passkey.html">Passkey integration</a>
-<a href="../docs/quickstart-oidc.html">Quickstart: Google</a>
+<a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
+<a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
 <a href="../docs/sessions.html">Scoped sessions</a>
-<a href="../docs/signing.html">Signing integrations</a>
+<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/api.html" aria-current="page">SDK &amp; API reference</a>
 <a href="../docs/security.html">Security &amp; status</a>
 <a href="../docs/local-development.html">Local development</a>
@@ -49,5 +49,5 @@ const result = await pairkey.wait(job_id, { prepared, key });</code></pre><p>Pas
 <h2 id="internal-api">Internal coordinator and legacy APIs</h2><p>Internal worker routes are not public hosted APIs. The coordinator’s off-chain path privately distributes authentication, reserves durable request claims and recovers only original receipts. The hosted service adds its own durable public job journal.</p><p>The older <code>/api/v1</code> hosted API keeps registration and exact COMMIT behavior for compatible clients. Registered-policy and native-transfer sessions use separate types. Do not send a legacy session as a v2 identity proof.</p>
 <h2 id="http">Legacy lower-level integration</h2><p>The self-hosted multi-suite API retains <code>/multi/keys</code>, <code>/jobs</code> with a <code>signing</code> envelope, job polling/events/cancellation and <code>/multi/sign</code>. Its older retention and explicit-attempt semantics differ from v2 durable approval claims. <code>fresh_attempt</code> is not a recovery API for v2. See repository <code>docs/program-jobs-and-lifecycle.md</code> and <a href="../examples/program_jobs.rs">program_jobs.rs</a> for this compatibility path.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/signing.html"><span>Previous</span><strong>Signing integrations →</strong></a><a href="../docs/security.html"><span>Next</span><strong>Security &amp; status →</strong></a></nav></main></div>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/signing.html"><span>Previous</span><strong>Signing schemes →</strong></a><a href="../docs/security.html"><span>Next</span><strong>Security &amp; status →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>
