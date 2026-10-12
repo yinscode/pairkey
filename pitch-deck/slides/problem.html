@@ -1,0 +1,27 @@
+<section id="problem" data-transition="fade" style="background:#f4f5ef;color:#183d33;font-family:Arial, Helvetica, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;flex-direction:column;gap:24px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:3px;font-weight:600;color:#53665c">01 / THE PROBLEM</p>
+<h2 style="font-size:72px;font-weight:500;line-height:1.08;letter-spacing:-3px;color:#183d33;width:1400px">Applications own their logic. They rarely own their signing authority.</h2>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:row;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#fffef9;border:1px solid #d2d9ce;border-radius:8px;padding:48px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#53665c">CUSTODY</p>
+<h3 style="font-size:40px;font-weight:500;line-height:1.15;letter-spacing:-1px;color:#183d33">The key sits whole in one place.</h3>
+<p style="font-size:28px;line-height:1.45;color:#53665c">Custodial and single-enclave setups protect a complete private key. Security rests on one boundary.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#fffef9;border:1px solid #d2d9ce;border-radius:8px;padding:48px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#53665c">CONTROL</p>
+<h3 style="font-size:40px;font-weight:500;line-height:1.15;letter-spacing:-1px;color:#183d33">The rules live somewhere else.</h3>
+<p style="font-size:28px;line-height:1.45;color:#53665c">Signing policy sits in a vendor's API, or on a different chain from the application it is meant to serve.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#fffef9;border:1px solid #d2d9ce;border-radius:8px;padding:48px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#53665c">REACH</p>
+<h3 style="font-size:40px;font-weight:500;line-height:1.15;letter-spacing:-1px;color:#183d33">Every chain is a new integration.</h3>
+<p style="font-size:28px;line-height:1.45;color:#53665c">EVM, Bitcoin, Zcash and NEAR each bring their own signature scheme, key format and tooling.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:800px;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#53665c">PAIRKEY</p>
+<p style="position:absolute;right:128px;bottom:64px;width:200px;text-align:right;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#53665c">02</p>
+<aside>A Solana program can already express rich rules: allowances, roles, time limits. But the moment that application needs to act on another chain, its authority stops at the border. Teams either hand a whole key to a custodian or a single enclave, accept someone else's policy engine, or build signing infrastructure chain by chain. PairKey is built to remove all three compromises.</aside>
+</section>

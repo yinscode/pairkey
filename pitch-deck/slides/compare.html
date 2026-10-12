@@ -1,0 +1,17 @@
+<section id="compare" data-transition="fade" style="background:#f4f5ef;color:#183d33;font-family:Arial, Helvetica, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;flex-direction:column;gap:24px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:3px;font-weight:600;color:#53665c">07 / COMPARE THE MODELS</p>
+<h2 style="font-size:72px;font-weight:500;line-height:1.08;letter-spacing:-3px;color:#183d33">Same destination. Different control.</h2>
+</div>
+<div style="flex:1"></div>
+<table style="font-family:Arial, Helvetica, sans-serif;font-size:26px;line-height:1.4;color:#53665c;background:#fffef9;border:1px solid #d2d9ce;border-radius:8px">
+<tr style="background:#183d33"><th style="width:19%;color:#9fb5a7;padding:20px 24px">&#160;</th><th style="width:29%;color:#E9B949;padding:20px 24px">PairKey</th><th style="width:26%;color:#f4f5ef;padding:20px 24px">NEAR Chain Signatures</th><th style="width:26%;color:#f4f5ef;padding:20px 24px">Turnkey</th></tr>
+<tr><td style="color:#183d33;font-weight:600">Authority</td><td style="color:#183d33">Solana programs and accounts</td><td>NEAR accounts and contracts</td><td>API credentials and policy engine</td></tr>
+<tr><td style="color:#183d33;font-weight:600">Signing model</td><td style="color:#183d33">2 independent TEE signers; separate shares, no full key</td><td>Threshold MPC node network</td><td>Key inside a signer enclave; separate policy enclaves</td></tr>
+<tr><td style="color:#183d33;font-weight:600">Request path</td><td style="color:#183d33">Off-chain approval or on-chain commit</td><td>NEAR contract → MPC → response</td><td>Off-chain API</td></tr>
+<tr><td style="color:#183d33;font-weight:600">Authorization fees</td><td style="color:#183d33">Zero Solana tx fee off-chain; on-chain approvals pay Solana fees</td><td>NEAR gas for contract requests</td><td>Service pricing; no control-chain gas</td></tr>
+</table>
+<p style="position:absolute;left:128px;bottom:64px;width:1300px;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#53665c">Based on each project's published architecture. Not a head-to-head benchmark.</p>
+<p style="position:absolute;right:128px;bottom:64px;width:200px;text-align:right;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#53665c">08</p>
+<aside>Positioning. NEAR Chain Signatures also gives multichain outputs, but authority lives in NEAR accounts and contracts and each request pays NEAR gas and waits for inclusion. Turnkey is fast and off-chain, but authority lives in API credentials and its own policy engine, and the key lives in a signer enclave. PairKey puts authority in the application's own Solana program, splits signing across two independent signers so no full key exists, and lets the app choose between fee-free off-chain approval and atomic on-chain approval. Turnkey publishes a vendor-reported 50 to 100 ms signing figure; we do not yet publish a production latency guarantee, so avoid latency claims in the room.</aside>
+</section>

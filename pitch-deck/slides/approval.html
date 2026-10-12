@@ -1,0 +1,26 @@
+<section id="approval" data-transition="fade" style="background:#f4f5ef;color:#183d33;font-family:Arial, Helvetica, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;flex-direction:column;gap:24px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:3px;font-weight:600;color:#53665c">05 / TWO WAYS TO AUTHORIZE</p>
+<h2 style="font-size:72px;font-weight:500;line-height:1.08;letter-spacing:-3px;color:#183d33">Your rules. Two approval paths.</h2>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:row;gap:32px;align-items:stretch">
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#fffef9;border:1px solid #d2d9ce;border-radius:8px;padding:48px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;font-weight:600;color:#53665c">OFF-CHAIN APPROVAL</p>
+<h3 style="font-size:40px;font-weight:500;line-height:1.15;letter-spacing:-1px;color:#183d33">Zero per-signature Solana transaction fees.</h3>
+<p style="font-size:28px;line-height:1.45;color:#53665c">Authorize the exact request with a wallet signature, or evaluate your program's rules through authenticated simulation. No authorization transaction is broadcast.</p>
+<div style="flex:1"></div>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;line-height:1.7;color:#183d33;border-top:1px solid #d2d9ce;padding:20px 0px 0px 0px">01  Authorize the exact request<br>02  Both signers check, then sign<br>03  Receive and verify the signature</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#183d33;border:1px solid #183d33;border-radius:8px;padding:48px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;font-weight:600;color:#E9B949">ON-CHAIN APPROVAL</p>
+<h3 style="font-size:40px;font-weight:500;line-height:1.15;letter-spacing:-1px;color:#f4f5ef">Make every approval part of your program.</h3>
+<p style="font-size:28px;line-height:1.45;color:#c4d4c9">Consume an allowance or update application state while approving exact bytes through Solana CPI. Both signers verify the finalized decision.</p>
+<div style="flex:1"></div>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;line-height:1.7;color:#f4f5ef;border-top:1px solid #3d6556;padding:20px 0px 0px 0px">01  Program commits the decision via CPI<br>02  Signers verify finalized authority<br>03  Receive a verified signature</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:800px;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#53665c">PAIRKEY</p>
+<p style="position:absolute;right:128px;bottom:64px;width:200px;text-align:right;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#53665c">06</p>
+<aside>Two paths, chosen per use case. Off-chain approval is the fast, cheap default: the account signs the exact request, or both signers run an authenticated simulation of your program's rules, and no Solana authorization transaction is sent. On-chain approval is for decisions that must consume state, like spending down an allowance: the program records its approval atomically through gateway CPI, and both signers check the finalized result. Fee caveat: zero means no Solana authorization transaction per signature. Policy edits, program commits, RPC or service charges and destination execution are separate costs.</aside>
+</section>

@@ -1,0 +1,30 @@
+<section id="principle" data-transition="fade" style="background:#E9B949;color:#183d33;font-family:Arial, Helvetica, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;flex-direction:column;gap:24px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:3px;font-weight:600;color:#183d33">04 / THE DESIGN PRINCIPLE</p>
+<div style="display:flex;flex-direction:column;gap:0px">
+<h2 style="font-size:96px;font-weight:500;line-height:1.05;letter-spacing:-4px;color:#183d33">The full private key</h2>
+<h2 style="font-family:Georgia, 'Times New Roman', serif;font-style:italic;font-size:96px;font-weight:400;line-height:1.05;letter-spacing:-3px;color:#183d33">never exists.</h2>
+</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:row;gap:32px;align-items:center">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#f4f5ef;border-radius:8px;padding:40px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;font-weight:600;color:#53665c">SIGNER A</p>
+<h3 style="font-size:40px;font-weight:500;letter-spacing:-1px;color:#183d33">Its own share.</h3>
+</div>
+<p style="font-size:72px;font-weight:500;color:#183d33">+</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#f4f5ef;border-radius:8px;padding:40px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;font-weight:600;color:#53665c">SIGNER B</p>
+<h3 style="font-size:40px;font-weight:500;letter-spacing:-1px;color:#183d33">Its own share.</h3>
+</div>
+<x-shape kind="arrow-right" style="width:64px;height:32px;background:#183d33"></x-shape>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#183d33;border-radius:8px;padding:40px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;font-weight:600;color:#E9B949">σ  JOINT OUTPUT</p>
+<h3 style="font-size:40px;font-weight:500;letter-spacing:-1px;color:#f4f5ef">One valid signature.</h3>
+</div>
+</div>
+<p style="font-size:32px;line-height:1.45;color:#183d33;width:1400px"><b>Created separately. Held independently. Used together.</b> Each signer checks your rules and signs with its own share. Only the signing contributions combine.</p>
+<p style="position:absolute;left:128px;bottom:64px;width:800px;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#183d33">PAIRKEY</p>
+<p style="position:absolute;right:128px;bottom:64px;width:200px;text-align:right;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#183d33">05</p>
+<aside>This is the core security idea. It is a 2-of-2 threshold: each signer holds a separate share, independently checks authorization, and contributes to the signature. In normal protocol execution the complete private key is never assembled anywhere, not in a signer, not in the coordinator, not in the client. The coordinator only routes encrypted protocol messages; it cannot replace either signer's checks. Be precise if asked: this describes protocol execution, and it does not protect against an attacker who extracts both shares.</aside>
+</section>

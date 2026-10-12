@@ -1,0 +1,35 @@
+<section id="how" data-transition="fade" style="background:#f4f5ef;color:#183d33;font-family:Arial, Helvetica, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;flex-direction:column;gap:24px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:3px;font-weight:600;color:#53665c">03 / HOW IT WORKS</p>
+<h2 style="font-size:72px;font-weight:500;line-height:1.08;letter-spacing:-3px;color:#183d33">One authority. Many addresses.</h2>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:row;gap:24px;align-items:stretch">
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#fffef9;border:1px solid #d2d9ce;border-radius:8px;padding:44px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;font-weight:600;color:#183d33">01 SOURCE</p>
+<h3 style="font-size:40px;font-weight:500;line-height:1.15;letter-spacing:-1px;color:#183d33">Choose the authority.</h3>
+<p style="font-size:28px;line-height:1.45;color:#53665c">Your application decides who can request a signature.</p>
+<div style="flex:1"></div>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;line-height:1.6;color:#183d33;background:#F7EAC5;border-radius:6px;padding:16px 20px">Solana program<br>Solana account<br>Passkey, OAuth: planned</p>
+</div>
+<x-shape kind="arrow-right" style="width:56px;height:28px;background:#E9B949;align-self:center"></x-shape>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#fffef9;border:1px solid #d2d9ce;border-radius:8px;padding:44px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;font-weight:600;color:#183d33">02 DERIVE</p>
+<h3 style="font-size:40px;font-weight:500;line-height:1.15;letter-spacing:-1px;color:#183d33">Create many addresses.</h3>
+<p style="font-size:28px;line-height:1.45;color:#53665c">Authority plus a derivation path gives a distinct key per chain and account.</p>
+<div style="flex:1"></div>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;line-height:1.6;color:#183d33;background:#F7EAC5;border-radius:6px;padding:16px 20px">Solana · EVM · Bitcoin<br>NEAR · Zcash<br>paths 01 · 02 · …</p>
+</div>
+<x-shape kind="arrow-right" style="width:56px;height:28px;background:#E9B949;align-self:center"></x-shape>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#183d33;border:1px solid #183d33;border-radius:8px;padding:44px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;font-weight:600;color:#E9B949">03 SIGN</p>
+<h3 style="font-size:40px;font-weight:500;line-height:1.15;letter-spacing:-1px;color:#f4f5ef">Request a signature.</h3>
+<p style="font-size:28px;line-height:1.45;color:#c4d4c9">Both signers check permission, then sign together.</p>
+<div style="flex:1"></div>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;line-height:1.6;color:#183d33;background:#E9B949;border-radius:6px;padding:16px 20px">Signer A + Signer B<br>→ one signature σ<br>full key never assembled</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:800px;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#53665c">PAIRKEY</p>
+<p style="position:absolute;right:128px;bottom:64px;width:200px;text-align:right;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:2px;color:#53665c">04</p>
+<aside>The developer flow has three steps. Source: pick who controls the namespace, today a Solana program or a Solana account, with passkey and OAuth sources planned. Derive: add a derivation path and destination to get a public key, so one authority can hold many addresses on many chains, derived offline. Sign: call PairKey. Both signers authenticate the request, enforce current rules, and run the threshold protocol. The app gets back one signature plus identity-signed receipts it can verify.</aside>
+</section>
