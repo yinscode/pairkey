@@ -61,8 +61,8 @@ function controls(){
   $('passkey-new').hidden=!passkey||!passkeyRecord;
   $('passkey-new').disabled=busy||!!pendingOidc||!passkeySupported;
   $('google-controls').hidden=!google;
-  $('google-button').hidden=!google||connected()&&!pendingOidc;
-  $('google-cancel').hidden=!pendingOidc;
+  $('google-button').hidden=!google||connected();
+  $('google-approval').hidden=!pendingOidc;
   $('google-cancel').disabled=busy;
   $('demo-connect').hidden=google&&!connected();
   $('demo-connect').textContent=google?'Change Google account':passkey?passkeyRecord?'Use saved passkey':'Create passkey':'Connect wallet';
@@ -106,8 +106,10 @@ async function connectDemoPasskey(createNew=false){
 }
 async function googleButton(nonce){
   const generation=++googleGeneration;
-  $('google-help').textContent=nonce?'Continue with the same Google account to approve this exact message.':'Choose a Google account to derive its PairKey namespace.';
-  await showGoogleButton($('google-button'),{audience:googleIssuer.audience,nonce,onCredential:credential=>{
+  if(!nonce)$('google-help').textContent='Choose a Google account to derive its PairKey namespace.';
+  if(nonce)$('google-approval').hidden=false;
+  const button=nonce?$('google-approval-button'):$('google-button');
+  await showGoogleButton(button,{audience:googleIssuer.audience,nonce,onCredential:credential=>{
     if(generation!==googleGeneration||selectedSource()!=='google')return;
     void run(async()=>{
       if(!credential)throw new Error('Google did not return an ID token.');
@@ -130,6 +132,7 @@ async function googleButton(nonce){
       draft();
     },failed);
   }});
+  if(nonce)$('google-approval').scrollIntoView({behavior:'smooth',block:'center'});
 }
 async function run(work,onError){
   if(busy)return;busy=true;$('live-error').textContent='';controls();
@@ -147,7 +150,7 @@ function renderFlow(op){
   const status={preparing:'Preparing',authorizing:google?'Google approval':passkey?'Passkey approval':'Wallet approval',committing:'Finalizing',submitting:'Caller approved',signing:'Admitted',complete:'Approved',recovering:'Recovering',uncertain:'Unknown',stopped:'Stopped'}[view.stage]||'Waiting';
   const detail=view.assembled?(onchain?'Matching on-chain program approval and current policy checked by both signers.':'Exact caller proof and current rules checked by both signers.'):
     view.stage==='committing'?'The program must consume an allowance and record approval in one finalized transaction.':
-    view.stage==='authorizing'?(google?'Waiting for Google to issue a token bound to this request. No signing result exists yet.':passkey?'Waiting for a WebAuthn assertion bound to this request. No signing result exists yet.':'Waiting for a wallet message signature over the exact request. No signing result exists yet.'):
+    view.stage==='authorizing'?(google?'Click Continue with Google below to approve this exact request. No signing result exists yet.':passkey?'Waiting for a WebAuthn assertion bound to this request. No signing result exists yet.':'Waiting for a wallet message signature over the exact request. No signing result exists yet.'):
     view.stage==='signing'?'The request was admitted. Both signers recheck authorization before releasing their output.':
     view.uncertain?'No verified outcome is available. Recover the original job before making another request.':
     view.saved?'Saved request metadata. Recover the job to recheck its original receipt pair.':
@@ -186,7 +189,7 @@ function renderOperation(op){
 function failed(error){
   if(!activeOp)return;
   activeOp.stage=['submitting','signing','recovering'].includes(activeOp.stage)?'uncertain':'stopped';
-  if(pendingOidc){pendingOidc=undefined;googleGeneration++;$('google-button').replaceChildren();$('google-help').textContent='Approval stopped. Prepare a new exact request to try again.';}
+  if(pendingOidc){pendingOidc=undefined;googleGeneration++;$('google-approval-button').replaceChildren();$('google-help').textContent='Approval stopped. Prepare a new exact request to try again.';}
   activeOp.events.push(error.message||String(error));saveHistory();renderOperation(activeOp);
 }
 $('demo-example').addEventListener('click',()=>{clearConnection();$('demo-program').value=config.example_program;$('demo-mode').value='Onchain';draft();});
@@ -235,7 +238,7 @@ $('message-form').addEventListener('submit',event=>{event.preventDefault();void 
     await flow.signPasskey({...selection(),message:$('message-text').value},passkeyRecord.credential_id);
   }else await flow.sign({...selection(),message:$('message-text').value});
 },failed);});
-$('google-cancel').addEventListener('click',()=>{pendingOidc=undefined;googleGeneration++;$('google-button').replaceChildren();$('google-help').textContent='Approval cancelled. Prepare a new exact request when ready.';if(currentOp?.stage==='authorizing'){currentOp.stage='stopped';currentOp.events.push('Google approval cancelled before submission.');saveHistory();renderOperation(currentOp);}controls();});
+$('google-cancel').addEventListener('click',()=>{pendingOidc=undefined;googleGeneration++;$('google-approval-button').replaceChildren();$('google-help').textContent='Approval cancelled. Prepare a new exact request when ready.';if(currentOp?.stage==='authorizing'){currentOp.stage='stopped';currentOp.events.push('Google approval cancelled before submission.');saveHistory();renderOperation(currentOp);}controls();});
 $('live-resume').addEventListener('click',()=>run(async()=>{
   const saved=JSON.parse(sessionStorage.getItem(recoveryKey)||'null');
   if(!saved)throw new Error('No v2 demo job is saved in this tab.');
