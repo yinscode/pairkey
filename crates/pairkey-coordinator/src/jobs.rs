@@ -179,7 +179,7 @@ pub(super) async fn enqueue(
             failed("storage_failed", &e.to_string(), false)
         } else {
             let work = async {
-                s.relay.multi_reset_checked().await?;
+                s.relay.multi_clear_ephemeral_checked().await?;
                 s.relay.multi_sign(q).await
             };
             use futures_util::FutureExt;
@@ -197,8 +197,14 @@ pub(super) async fn enqueue(
                     Err(_) => failed("timeout", "signing deadline exceeded", true),
                 }
             };
-            // Cleanup is bounded by HTTP deadlines. Next operation repeats this barrier if it fails.
-            if let Err(e) = s.relay.multi_reset_checked().await {
+            // Keep an idle donor only after a completed signing operation.
+            let cleanup = if matches!(&result, IntentJob::Complete { .. }) {
+                s.relay.multi_clear_ephemeral_checked().await
+            } else {
+                s.relay.multi_reset_checked().await
+            };
+            if let Err(e) = cleanup {
+                s.relay.multi_reset().await;
                 eprintln!("multi-suite cleanup incomplete: {e}");
             }
             result

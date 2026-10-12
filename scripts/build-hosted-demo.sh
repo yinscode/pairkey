@@ -9,7 +9,10 @@ export CARGO_BUILD_JOBS=1
 export CARGO_INCREMENTAL=0
 export CARGO_PROFILE_DEV_DEBUG=0
 export CARGO_PROFILE_TEST_DEBUG=0
-# Keep debug assertions: the development coordinator intentionally refuses release mode.
+export CARGO_PROFILE_DEV_OPT_LEVEL=2
+export CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=true
+# Optimize the hosted development binaries while retaining the debug-assertion
+# gate that prevents development attestation from entering release artifacts.
 bash experiments/silence-dkls23/bootstrap.sh build --release --locked
 cargo build --locked -p pairkey-demo -p pairkey-worker -p pairkey-coordinator \
   --features pairkey-worker/dev-simulation --target-dir target/hosted-demo

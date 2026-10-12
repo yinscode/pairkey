@@ -238,6 +238,42 @@ pub async fn run(
             OsRng.fill_bytes(&mut request.attempt.random_id);
             let result = sdk.sign_intent(&request, identities).await?;
             multi::verify_result(&request, &result, identities)?;
+            let mut donor_reused = false;
+            if suite == Suite::Dkls23Secp256k1 {
+                let before = tokio::try_join!(
+                    relay.post::<_, pairkey_signing::wire::DStatus>(0, "/multi/d/status", &()),
+                    relay.post::<_, pairkey_signing::wire::DStatus>(1, "/multi/d/status", &())
+                )?;
+                ensure!(
+                    before.0.generation.is_some() && before.0 == before.1 && before.0.uses == 1,
+                    "first signing did not retain a synchronized donor"
+                );
+                let mut repeat = request.clone();
+                let mut next_id = [0; 32];
+                OsRng.fill_bytes(&mut next_id);
+                let next_commit = Commit::new(
+                    &reg,
+                    next_id,
+                    repeat.intent.key.account.clone(),
+                    &repeat.intent.bytes()?,
+                )?;
+                approve(rpc, payer, controller, cpi, &reg, next_commit.clone()).await?;
+                repeat.attempt.commit = next_commit;
+                repeat.attempt.random_id = next_id;
+                let second = sdk.sign_intent(&repeat, identities).await?;
+                multi::verify_result(&repeat, &second, identities)?;
+                let after = tokio::try_join!(
+                    relay.post::<_, pairkey_signing::wire::DStatus>(0, "/multi/d/status", &()),
+                    relay.post::<_, pairkey_signing::wire::DStatus>(1, "/multi/d/status", &())
+                )?;
+                ensure!(
+                    after.0 == after.1
+                        && after.0.generation == before.0.generation
+                        && after.0.uses == 2,
+                    "second signing did not reuse the donor"
+                );
+                donor_reused = true;
+            }
             let mut old_version = request.clone();
             old_version.protocol = 1;
             workers_refuse(configs, relay, &old_version).await?;
@@ -335,7 +371,7 @@ pub async fn run(
                 "fresh signing repeated nonce/signature"
             );
             authorized_requests.push(retry);
-            evidence.push(json!({"authorization":if cpi{"program_cpi"}else{"account"},"suite":suite,"key":key.key,"signature":result.signature,"restart_signature":after.signature,"missing_approval_refused":true,"payload_substitution_refused":true,"destination_substitution_refused":true,"workers_refused_substitutions":true,"tampered_receipt_refused":true,"restart_preserved_key":true,"mixed_version_refused":true,"evm_executed":suite==Suite::Dkls23Secp256k1,"evm_execution":execution}));
+            evidence.push(json!({"authorization":if cpi{"program_cpi"}else{"account"},"suite":suite,"key":key.key,"signature":result.signature,"restart_signature":after.signature,"missing_approval_refused":true,"payload_substitution_refused":true,"destination_substitution_refused":true,"workers_refused_substitutions":true,"tampered_receipt_refused":true,"restart_preserved_key":true,"mixed_version_refused":true,"donor_reused":donor_reused,"evm_executed":suite==Suite::Dkls23Secp256k1,"evm_execution":execution}));
             println!(
                 "{}",
                 json!({"event":"multi_suite_passed","cpi":cpi,"suite":suite})

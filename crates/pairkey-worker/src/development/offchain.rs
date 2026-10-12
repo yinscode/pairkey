@@ -203,6 +203,8 @@ impl Worker {
         message: &[u8],
         approval: Approval,
     ) -> anyhow::Result<AuthorizedView> {
+        let trace = std::env::var_os("PAIRKEY_LATENCY_TRACE").is_some();
+        let started = Instant::now();
         self.active()?;
         let own = self.signer.proof(&reg.namespace, &mut OsRng)?;
         ensure!(
@@ -258,7 +260,9 @@ impl Worker {
                 ),
             }
         }
+        let rpc_started = Instant::now();
         let response=self.rpc.call("getMultipleAccounts",json!([addresses.iter().map(|a|a.to_string()).collect::<Vec<_>>(),{"encoding":"base64","commitment":"finalized","minContextSlot":minimum_slot}])).await?;
+        let accounts_ms = rpc_started.elapsed().as_millis();
         let slot = response["context"]["slot"]
             .as_u64()
             .context("missing slot")?;
@@ -276,12 +280,21 @@ impl Worker {
                 data: STANDARD.decode(a["data"][0].as_str().context("account data")?)?,
             })
         };
+        let block_started = Instant::now();
         let block_time = self
             .rpc
             .call("getBlockTime", json!([slot]))
             .await?
             .as_i64()
             .context("missing block time")?;
+        if trace {
+            eprintln!(
+                "pairkey_latency offchain_rpc_phase_ms={} accounts_ms={} block_time_ms={}",
+                started.elapsed().as_millis(),
+                accounts_ms,
+                block_started.elapsed().as_millis()
+            );
+        }
         let observation = Observation {
             rules: if accounts[3].is_null() {
                 None

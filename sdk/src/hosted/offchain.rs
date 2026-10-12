@@ -69,8 +69,13 @@ impl super::Client {
         identities: [[u8; 32]; 2],
         now: i64,
     ) -> Result<Prepared> {
+        let started = std::time::Instant::now();
         let response: Prepared = self.post("/approvals", q).await?;
-        response.verify(q, key, identities, now)?;
+        // `now` is captured by the caller before the request. A slow gateway
+        // can legitimately issue the approval in the following second.
+        let elapsed = started.elapsed().as_secs().saturating_add(1);
+        let verify_at = now.saturating_add(i64::try_from(elapsed).unwrap_or(i64::MAX));
+        response.verify(q, key, identities, verify_at)?;
         Ok(response)
     }
     pub async fn submit_offchain(&self, q: &SubmitRequest) -> Result<String> {

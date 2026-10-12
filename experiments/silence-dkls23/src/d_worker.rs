@@ -578,7 +578,7 @@ pub async fn run(role: u8, root_path: &Path, peer: [u8; 32], limits: Limits) -> 
         let base=controls.join("d").join(crate::hex(&d::pairing(boots.clone().map(|b|b.identity))));
         let mut service=Service{role,root,dh,boots,gate:gate.clone(),controls,counter:Counter::new(base.join("counters"),role),donor:None,limits};
         loop {
-            let age=service.donor.as_ref().map(Donor::remaining_age);
+            let age=service.donor.as_ref().and_then(Donor::remaining_age);
             let command=tokio::select!{
                 biased;
                 f=gate.cancelled()=>return Err(f.into()),
@@ -590,7 +590,7 @@ pub async fn run(role: u8, root_path: &Path, peer: [u8; 32], limits: Limits) -> 
             let operation_context=digest(b"pairkey/d/operation",&*command);
             let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs();
             service.counter.check_rate(now,service.limits.abort_window_secs,service.limits.abort_limit)?;
-            let attempt_age=if matches!(*command,Command::Sign(_)){service.donor.as_ref().map(Donor::remaining_age)}else{None};
+            let attempt_age=if matches!(*command,Command::Sign(_)){service.donor.as_ref().and_then(Donor::remaining_age)}else{None};
             let result=tokio::select!{
                 biased;
                 f=gate.cancelled()=>Err(f.into()),

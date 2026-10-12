@@ -33,7 +33,7 @@ impl Limits {
     pub fn validate(&self) -> Result<()> {
         ensure!(
             (1..=100).contains(&self.uses)
-                && (1..=600).contains(&self.age_secs)
+                && (self.age_secs == 0 || (1..=600).contains(&self.age_secs))
                 && self.abort_limit > 0
                 && self.abort_window_secs > 0,
             "invalid D donor hygiene bounds"
@@ -110,8 +110,10 @@ impl Donor {
             limits,
         })
     }
-    pub fn remaining_age(&self) -> Duration {
-        Duration::from_secs(self.limits.age_secs).saturating_sub(self.created.elapsed())
+    pub fn remaining_age(&self) -> Option<Duration> {
+        (self.limits.age_secs != 0).then(|| {
+            Duration::from_secs(self.limits.age_secs).saturating_sub(self.created.elapsed())
+        })
     }
     pub fn usable(&self) -> bool {
         within_bounds(self.uses, self.created.elapsed(), &self.limits)
@@ -173,7 +175,7 @@ impl Donor {
 }
 
 fn within_bounds(uses: u64, age: Duration, limits: &Limits) -> bool {
-    uses < limits.uses && age < Duration::from_secs(limits.age_secs)
+    uses < limits.uses && (limits.age_secs == 0 || age < Duration::from_secs(limits.age_secs))
 }
 #[cfg(test)]
 mod hygiene_tests {
@@ -204,5 +206,15 @@ mod hygiene_tests {
         }
         .validate()
         .is_err());
+    }
+    #[test]
+    fn explicit_demo_zero_age_keeps_the_attempt_limit() {
+        let limits = Limits {
+            age_secs: 0,
+            ..Limits::default()
+        };
+        limits.validate().unwrap();
+        assert!(within_bounds(99, Duration::from_secs(86_400), &limits));
+        assert!(!within_bounds(100, Duration::ZERO, &limits));
     }
 }

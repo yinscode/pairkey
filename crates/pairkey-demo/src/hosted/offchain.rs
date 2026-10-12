@@ -206,11 +206,16 @@ async fn prepare(
     Json(q): Json<wire::PrepareRequest>,
 ) -> ApiResult<wire::Prepared> {
     async {
-        identity(&q.identity)?;
-        available(&app, &q.signing_request.key.registration).await?;
-        let key = cached(&app, &q.signing_request.key)?;
-        let (commit, payload, _) = prepared(&q.signing_request, &key)?;
-        let rules = rules(&app, &q.signing_request.key.registration).await?;
+        identity(&q.identity).context("approval identity")?;
+        available(&app, &q.signing_request.key.registration)
+            .await
+            .context("approval namespace availability")?;
+        let key = cached(&app, &q.signing_request.key).context("approval cached key")?;
+        let (commit, payload, _) =
+            prepared(&q.signing_request, &key).context("approval payload")?;
+        let rules = rules(&app, &q.signing_request.key.registration)
+            .await
+            .context("approval rules")?;
         let now = crate::chain::now()?;
         let request = Request {
             version: 1,
@@ -221,7 +226,9 @@ async fn prepare(
             issued_at: now,
             expires_at: now + pairkey_types::approval::MAX_APPROVAL_LIFETIME,
         };
-        request.validate(&q.signing_request.key.registration, &payload, &rules, now)?;
+        request
+            .validate(&q.signing_request.key.registration, &payload, &rules, now)
+            .context("approval request validation")?;
         Ok::<_, anyhow::Error>(wire::Prepared {
             signing_request: q.signing_request,
             signing_message: request.signing_message(),

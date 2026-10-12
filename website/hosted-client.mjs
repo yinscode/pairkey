@@ -144,8 +144,8 @@ export class PairKey {
       const job = await this.request(`/jobs/${encodeURIComponent(jobId)}`);
       if (job.status === 'complete') return job.result;
       if (job.status === 'failed') throw new Error(`${job.error} Job: ${jobId}. Do not create a fresh signing request automatically.`);
-      // Surface the usual short signing job promptly, then ease off for long-running jobs.
-      await pause(Date.now() - started < 10000 ? 750 : 2500);
+      // Keep the normal DKLS signing window responsive, then ease off for long jobs.
+      await pause(Date.now() - started < 20000 ? 750 : 2500);
     }
     throw new Error(`Still waiting for job ${jobId}. Poll this same job to recover the result.`);
   }

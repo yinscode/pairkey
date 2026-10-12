@@ -370,7 +370,7 @@ pub(super) async fn enqueue(s: S, input: Input) -> Result<Json<Value>, (StatusCo
                     .await
                     .map(|r| Output::Ed(Box::new(r))),
                 Input::Multi(q) => {
-                    s.relay.multi_reset_checked().await?;
+                    s.relay.multi_clear_ephemeral_checked().await?;
                     s.relay
                         .multi_sign(*q)
                         .await
@@ -395,7 +395,13 @@ pub(super) async fn enqueue(s: S, input: Input) -> Result<Json<Value>, (StatusCo
             }
         };
         if guard.is_some() {
-            s.relay.multi_reset().await;
+            if outcome.is_ok() {
+                if s.relay.multi_clear_ephemeral_checked().await.is_err() {
+                    s.relay.multi_reset().await;
+                }
+            } else {
+                s.relay.multi_reset().await;
+            }
         }
         let mut store = s.offchain_jobs.lock().unwrap();
         let saved = match outcome {

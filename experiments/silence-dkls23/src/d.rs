@@ -19,6 +19,13 @@ use sha2::Sha512;
 use zeroize::Zeroizing;
 
 pub type Hash = [u8; 32];
+// Records created before the development donor lifetime changed to 100 uses
+// without an age timer remain valid. This is the exact prior D configuration,
+// not a general acceptance of unknown or downgraded configurations.
+const PRE_DEMO_REUSE_CONFIGURATION: Hash = [
+    0x6e, 0x84, 0x2a, 0x33, 0xfe, 0x25, 0x04, 0x13, 0x87, 0xae, 0x5a, 0xb4, 0xf4, 0x6e, 0xe7, 0x69,
+    0x9b, 0xd2, 0x2c, 0xfd, 0x01, 0x3c, 0xe4, 0xca, 0xa2, 0x08, 0x80, 0x8c, 0x21, 0x1f, 0x72, 0x6b,
+];
 pub fn pairing(peers: [Hash; 2]) -> Hash {
     pool::hash("pairkey/d/pairing/v2", &[&peers[0], &peers[1]])
 }
@@ -135,7 +142,8 @@ impl Record {
     pub fn validate(&self) -> Result<()> {
         self.wallet.validate()?;
         ensure!(
-            self.configuration == configuration(),
+            self.configuration == configuration()
+                || self.configuration == PRE_DEMO_REUSE_CONFIGURATION,
             "unapproved D configuration"
         );
         for role in 0..2 {

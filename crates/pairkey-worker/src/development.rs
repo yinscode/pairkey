@@ -57,6 +57,20 @@ pub struct Config {
     pub set_governor: [u8; 32],
 }
 const ATTEMPT_TTL: Duration = Duration::from_secs(15);
+const RESULT_TTL: Duration = Duration::from_secs(35);
+#[derive(Clone)]
+struct Completed<R> {
+    request: R,
+    slot: u64,
+    created: Instant,
+}
+fn same_admission<R: serde::Serialize>(saved: &R, supplied: &R) -> anyhow::Result<()> {
+    ensure!(
+        serde_json::to_vec(saved)? == serde_json::to_vec(supplied)?,
+        "signing request changed after authority admission"
+    );
+    Ok(())
+}
 struct AttemptLease {
     cancelled: AtomicBool,
     // Held until BOTH metadata and any in-flight nonce owner have been dropped.
@@ -64,6 +78,8 @@ struct AttemptLease {
 }
 struct Pending {
     signing: Option<SigningAttempt>,
+    admitted: Begin,
+    slot: u64,
     lease: Arc<AttemptLease>,
     peer_boot: [u8; 32],
     created: Instant,
@@ -77,6 +93,8 @@ struct InFlight {
     worker: W,
     id: [u8; 32],
     signing: Option<SigningAttempt>,
+    admitted: Begin,
+    slot: u64,
     lease: Arc<AttemptLease>,
     peer_boot: [u8; 32],
     deadline: Instant,
@@ -159,6 +177,7 @@ struct Worker {
     rpc: Rpc,
     trust: Trust,
     pending: Mutex<BTreeMap<[u8; 32], Pending>>,
+    completed: Mutex<BTreeMap<[u8; 32], Completed<Begin>>>,
     // One lock orders known control/policy/incident updates with local issuance.
     // It is held through signing/sealing, never across an await or network I/O.
     release: Mutex<ReleaseState>,
@@ -211,6 +230,10 @@ impl Worker {
         let _release = self.release.lock().unwrap();
         let mut map = self.pending.lock().unwrap();
         map.retain(|_, p| p.created.elapsed() < ATTEMPT_TTL);
+        self.completed
+            .lock()
+            .unwrap()
+            .retain(|_, p| p.created.elapsed() < RESULT_TTL);
         self.multi.prune();
     }
     fn claim(self: &Arc<Self>, id: [u8; 32]) -> anyhow::Result<InFlight> {
@@ -220,6 +243,8 @@ impl Worker {
             worker: Arc::clone(self),
             id,
             signing: Some(p.signing.take().context("attempt already in flight")?),
+            admitted: p.admitted.clone(),
+            slot: p.slot,
             lease: Arc::clone(&p.lease),
             peer_boot: p.peer_boot,
             deadline: p.created + ATTEMPT_TTL,
@@ -640,7 +665,7 @@ async fn begin(State(w): State<W>, Json(q): Json<Begin>) -> Result<Json<Envelope
     let _release = w.release_guard(&q, &view).map_err(failure)?;
     let mut pending = w.pending.lock().unwrap();
     let id = q.attempt.digest();
-    if pending.contains_key(&id) {
+    if pending.contains_key(&id) || w.completed.lock().unwrap().contains_key(&id) {
         return Err(failure("attempt already pending"));
     }
     let permit = w
@@ -658,6 +683,8 @@ async fn begin(State(w): State<W>, Json(q): Json<Begin>) -> Result<Json<Envelope
         id,
         Pending {
             signing: Some(signing),
+            admitted: q.clone(),
+            slot: view.observation.slot,
             lease: Arc::new(AttemptLease {
                 cancelled: AtomicBool::new(false),
                 _permit: permit,
@@ -673,14 +700,15 @@ async fn finish(State(w): State<W>, Json(q): Json<Finish>) -> Result<Json<Envelo
     let mut in_flight = w.claim(q.begin.attempt.digest()).map_err(failure)?;
     let deadline = in_flight.deadline;
     let work = async {
+        same_admission(&in_flight.admitted, &q.begin)?;
         ensure!(
             in_flight.peer_boot == q.begin.peer.evidence.boot_id,
             "peer restarted during attempt"
         );
         w.channel.authenticate_peer(&q.begin.peer)?;
-        let view = w.observe(&q.begin).await?;
         let rounds = w.decode_rounds(&q)?;
-        let mut release = w.release_guard(&q.begin, &view)?;
+        let mut release = w.release.lock().unwrap();
+        ensure!(!release.incident, "authenticated protocol incident");
         w.check_approval(&q.begin)?;
         let share = match in_flight.sign(&rounds) {
             Ok(share) => share,
@@ -691,12 +719,24 @@ async fn finish(State(w): State<W>, Json(q): Json<Finish>) -> Result<Json<Envelo
                 return Err(e);
             }
         };
-        Ok::<_, anyhow::Error>(w.channel.seal(
-            &q.begin.peer,
-            q.begin.attempt.digest(),
-            2,
-            &share,
-        )?)
+        let envelope = w
+            .channel
+            .seal(&q.begin.peer, q.begin.attempt.digest(), 2, &share)?;
+        let mut completed = w.completed.lock().unwrap();
+        completed.retain(|_, p| p.created.elapsed() < RESULT_TTL);
+        ensure!(
+            completed.len() < 64 && !completed.contains_key(&in_flight.id),
+            "completed attempt capacity or duplicate"
+        );
+        completed.insert(
+            in_flight.id,
+            Completed {
+                request: in_flight.admitted.clone(),
+                slot: in_flight.slot,
+                created: Instant::now(),
+            },
+        );
+        Ok::<_, anyhow::Error>(envelope)
     };
     let work = tokio::time::timeout_at(deadline.into(), work)
         .await
@@ -709,8 +749,19 @@ async fn result(
 ) -> Result<Json<ResultResponse>, Failure> {
     let begin = &q.finish.begin;
     let id = begin.attempt.digest();
+    let admitted = w
+        .completed
+        .lock()
+        .unwrap()
+        .get(&id)
+        .cloned()
+        .context("signing round not completed")
+        .map_err(failure)?;
+    same_admission(&admitted.request, begin).map_err(failure)?;
+    if admitted.created.elapsed() >= RESULT_TTL {
+        return Err(failure("completed signing round expired"));
+    }
     w.channel.authenticate_peer(&begin.peer).map_err(failure)?;
-    let view = w.observe(begin).await.map_err(failure)?;
     let rounds = w.decode_rounds(&q.finish).map_err(failure)?;
     if q.shares[0].sender != Role::A || q.shares[1].sender != Role::B {
         return Err(failure("incorrect role order"));
@@ -723,7 +774,18 @@ async fn result(
             .open(&begin.peer, id, 2, &q.shares[1])
             .map_err(failure)?,
     ];
-    let mut release = w.release_guard(begin, &view).map_err(failure)?;
+    let mut release = w.release.lock().unwrap();
+    if release.incident {
+        return Err(failure("authenticated protocol incident"));
+    }
+    if w.completed
+        .lock()
+        .unwrap()
+        .get(&id)
+        .is_none_or(|current| current.created != admitted.created)
+    {
+        return Err(failure("signing round cancelled"));
+    }
     w.check_approval(begin).map_err(failure)?;
     let signature = match aggregate(
         &begin.registration,
@@ -749,7 +811,7 @@ async fn result(
             .map_err(failure)?,
         message_hash: begin.attempt.commit.message_hash,
         signature: signature.to_vec(),
-        finalized_slot: view.observation.slot,
+        finalized_slot: admitted.slot,
         provider_domain: w.trust.provider_domain.clone(),
     };
     let identity_signature = w.channel.sign_public(&receipt_message(&receipt));
@@ -759,11 +821,13 @@ async fn result(
         identity_signature,
     };
     w.complete_approval(begin, &response).map_err(failure)?;
+    w.completed.lock().unwrap().remove(&id);
     Ok(Json(response))
 }
 async fn abort(State(w): State<W>, Json(at): Json<Attempt>) -> StatusCode {
     let _release = w.release.lock().unwrap();
     w.pending.lock().unwrap().remove(&at.digest());
+    w.completed.lock().unwrap().remove(&at.digest());
     StatusCode::NO_CONTENT
 }
 async fn limit(
@@ -858,6 +922,7 @@ async fn run_inner(
         rpc,
         trust,
         pending: Mutex::new(BTreeMap::new()),
+        completed: Mutex::new(BTreeMap::new()),
         release: Mutex::new(release),
         freshness: Freshness::default(),
         started: Instant::now(),
@@ -868,9 +933,11 @@ async fn run_inner(
         .route("/multi/info", post(multi::info))
         .route("/multi/d/open", post(multi::open))
         .route("/multi/d/enroll", post(multi::enroll))
+        .route("/multi/d/status", post(multi::status))
         .route("/multi/d/start", post(multi::start))
         .route("/multi/d/exchange", post(multi::exchange))
         .route("/multi/reset", post(multi::reset))
+        .route("/multi/clear-ephemeral", post(multi::clear_ephemeral))
         .route("/multi/r/begin", post(multi::rbegin))
         .route("/multi/r/finish", post(multi::rfinish))
         .route("/multi/r/result", post(multi::rresult))

@@ -9,9 +9,7 @@ use pairkey_types::{AccountPath, Commit, Scheme};
 struct RpcState {
     program: Mutex<Option<program::ProgramRpc>>,
     observation: Mutex<Observation>,
-    paused: AtomicBool,
-    entered: tokio::sync::Notify,
-    resume: tokio::sync::Notify,
+    reads: std::sync::atomic::AtomicUsize,
 }
 async fn rpc(State(state): State<Arc<RpcState>>, Json(q): Json<Value>) -> Json<Value> {
     let program_response = {
@@ -24,6 +22,7 @@ async fn rpc(State(state): State<Arc<RpcState>>, Json(q): Json<Value>) -> Json<V
 
     let result = match q["method"].as_str().unwrap() {
         "getMultipleAccounts" => {
+            state.reads.fetch_add(1, Ordering::SeqCst);
             let o = state.observation.lock().unwrap();
             let known = [&o.set, &o.namespace, &o.request]
                 .into_iter()
@@ -37,10 +36,6 @@ async fn rpc(State(state): State<Arc<RpcState>>, Json(q): Json<Value>) -> Json<V
             json!({"context":{"slot":o.slot},"value":accounts})
         }
         "getBlockTime" => {
-            if state.paused.load(Ordering::SeqCst) {
-                state.entered.notify_one();
-                state.resume.notified().await;
-            }
             json!(state.observation.lock().unwrap().block_time)
         }
         other => panic!("unexpected test RPC {other}"),
@@ -231,9 +226,7 @@ impl Fixture {
         let state = Arc::new(RpcState {
             program: Default::default(),
             observation: Mutex::new(observation),
-            paused: AtomicBool::new(false),
-            entered: Default::default(),
-            resume: Default::default(),
+            reads: Default::default(),
         });
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
@@ -273,6 +266,7 @@ impl Fixture {
             rpc: Rpc::new(url).unwrap(),
             trust,
             pending: Mutex::new(BTreeMap::new()),
+            completed: Mutex::new(BTreeMap::new()),
             release: Mutex::new(
                 ReleaseState::load(
                     std::env::temp_dir()
@@ -341,18 +335,6 @@ impl Fixture {
             .unwrap();
         [a, b]
     }
-    async fn paused_finish(
-        &self,
-        request: Finish,
-    ) -> tokio::task::JoinHandle<Result<Json<Envelope>, Failure>> {
-        self.rpc.paused.store(true, Ordering::SeqCst);
-        let w = Arc::clone(&self.worker);
-        let task = tokio::spawn(async move { finish(State(w), Json(request)).await });
-        tokio::time::timeout(Duration::from_secs(2), self.rpc.entered.notified())
-            .await
-            .unwrap();
-        task
-    }
 }
 
 #[tokio::test]
@@ -381,15 +363,6 @@ async fn transcript_splice_refuses_without_incident_but_authenticated_bad_share_
     .is_err());
     assert!(!f.worker.release.lock().unwrap().incident);
     let mut shares = f.shares(&second).await;
-    let _ = result(
-        State(Arc::clone(&f.worker)),
-        Json(ResultRequest {
-            finish: second.clone(),
-            shares: shares.clone(),
-        }),
-    )
-    .await
-    .unwrap();
     let id = f.begin.attempt.digest();
     let mut bad: RoundTwo = f
         .peer
@@ -560,11 +533,10 @@ async fn cancelled_offchain_attempt_cannot_restart_with_new_randomness() {
 async fn cancelled_finish_drops_nonce_and_releases_admission() {
     let f = Fixture::new().await;
     let request = f.rounds().await;
-    let task = f.paused_finish(request.clone()).await;
+    let owned = f.worker.claim(f.begin.attempt.digest()).unwrap();
     assert_eq!(f.worker.nonce_capacity.available_permits(), 63);
     assert!(f.worker.claim(f.begin.attempt.digest()).is_err());
-    task.abort();
-    assert!(task.await.unwrap_err().is_cancelled());
+    drop(owned);
     assert!(f.worker.pending.lock().unwrap().is_empty());
     assert_eq!(f.worker.nonce_capacity.available_permits(), 64);
     assert!(finish(State(Arc::clone(&f.worker)), Json(request))
@@ -576,8 +548,8 @@ async fn cancelled_finish_drops_nonce_and_releases_admission() {
 async fn abort_and_reaping_cancel_in_flight_nonce_without_releasing_its_capacity_early() {
     for reap in [false, true] {
         let f = Fixture::new().await;
-        let request = f.rounds().await;
-        let task = f.paused_finish(request).await;
+        f.rounds().await;
+        let owned = f.worker.claim(f.begin.attempt.digest()).unwrap();
         if reap {
             f.worker
                 .pending
@@ -592,15 +564,15 @@ async fn abort_and_reaping_cancel_in_flight_nonce_without_releasing_its_capacity
         }
         assert!(f.worker.pending.lock().unwrap().is_empty());
         assert_eq!(f.worker.nonce_capacity.available_permits(), 63);
-        f.rpc.resume.notify_one();
-        assert!(task.await.unwrap().is_err());
+        assert!(owned.lease.cancelled.load(Ordering::SeqCst));
+        drop(owned);
         assert_eq!(f.worker.nonce_capacity.available_permits(), 64);
         assert!(!f.worker.release.lock().unwrap().incident);
     }
 }
 
 #[tokio::test]
-async fn finish_deadline_covers_rpc_wait_and_clears_owned_nonce() {
+async fn finish_deadline_rejects_expired_admission_and_clears_owned_nonce() {
     let f = Fixture::new().await;
     let request = f.rounds().await;
     f.worker
@@ -609,15 +581,42 @@ async fn finish_deadline_covers_rpc_wait_and_clears_owned_nonce() {
         .unwrap()
         .get_mut(&f.begin.attempt.digest())
         .unwrap()
-        .created = Instant::now() - ATTEMPT_TTL + Duration::from_secs(1);
-    let task = f.paused_finish(request).await;
-    assert!(tokio::time::timeout(Duration::from_secs(2), task)
+        .created = Instant::now() - ATTEMPT_TTL;
+    assert!(finish(State(f.worker.clone()), Json(request))
         .await
-        .unwrap()
-        .unwrap()
         .is_err());
     assert!(f.worker.pending.lock().unwrap().is_empty());
     assert_eq!(f.worker.nonce_capacity.available_permits(), 64);
+}
+
+#[tokio::test]
+async fn frost_signing_rounds_reuse_the_initial_authority_view() {
+    let f = Fixture::new().await;
+    let rounds = f.rounds().await;
+    let reads = f.rpc.reads.load(Ordering::SeqCst);
+    let shares = f.shares(&rounds).await;
+    let _ = result(
+        State(f.worker.clone()),
+        Json(ResultRequest {
+            finish: rounds,
+            shares,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(f.rpc.reads.load(Ordering::SeqCst), reads);
+}
+
+#[tokio::test]
+async fn frost_finish_rejects_a_changed_request_without_rechecking_authority() {
+    let f = Fixture::new().await;
+    let mut rounds = f.rounds().await;
+    let reads = f.rpc.reads.load(Ordering::SeqCst);
+    rounds.begin.message.push(b'!');
+    assert!(finish(State(f.worker.clone()), Json(rounds)).await.is_err());
+    assert_eq!(f.rpc.reads.load(Ordering::SeqCst), reads);
+    assert_eq!(f.worker.nonce_capacity.available_permits(), 64);
+    assert!(!f.worker.release.lock().unwrap().incident);
 }
 
 #[tokio::test]
@@ -860,9 +859,10 @@ async fn passkey_bound_ephemeral_key_authorizes_redpallas_without_exposing_asser
             .is_err()
     );
 }
-async fn red_rounds(f: &Fixture) -> multi::RedFinish {
+async fn red_rounds(f: &Fixture, random_id: u8) -> multi::RedFinish {
     use pairkey_signing::{redpallas, wire as mw};
-    let a = red_request(f);
+    let mut a = red_request(f);
+    a.request.attempt.random_id = [random_id; 32];
     let own = multi::rbegin(
         State(f.worker.clone()),
         Json(mw::RBegin {
@@ -896,14 +896,14 @@ async fn red_rounds(f: &Fixture) -> multi::RedFinish {
 #[tokio::test]
 async fn redpallas_duplicate_finish_and_stale_rounds_burn_without_false_incident() {
     let f = Fixture::new_with(true).await;
-    let first = red_rounds(&f).await;
+    let first = red_rounds(&f, 6).await;
     let _ = multi::rfinish(State(f.worker.clone()), Json(first.clone()))
         .await
         .unwrap();
     assert!(multi::rfinish(State(f.worker.clone()), Json(first.clone()))
         .await
         .is_err());
-    let second = red_rounds(&f).await;
+    let second = red_rounds(&f, 7).await;
     let mut stale = second.clone();
     stale.rounds[0] = first.rounds[0].clone();
     assert!(multi::rfinish(State(f.worker.clone()), Json(stale))
@@ -913,40 +913,51 @@ async fn redpallas_duplicate_finish_and_stale_rounds_burn_without_false_incident
     assert!(multi::rfinish(State(f.worker.clone()), Json(second))
         .await
         .is_err());
-    let third = red_rounds(&f).await;
+    let third = red_rounds(&f, 8).await;
     let _ = multi::rfinish(State(f.worker.clone()), Json(third))
         .await
         .unwrap();
 }
 #[tokio::test]
-async fn redpallas_cancel_during_rpc_burns_nonce_and_retains_capacity_until_exit() {
+async fn redpallas_reset_burns_pending_nonce() {
     let f = Fixture::new_with(true).await;
-    let rounds = red_rounds(&f).await;
-    f.rpc.paused.store(true, Ordering::SeqCst);
-    let w = f.worker.clone();
-    let first = rounds.clone();
-    let task = tokio::spawn(async move { multi::rfinish(State(w), Json(first)).await });
-    f.rpc.entered.notified().await;
-    assert!(
-        multi::rfinish(State(f.worker.clone()), Json(rounds.clone()))
-            .await
-            .is_err()
-    );
-    f.rpc.paused.store(false, Ordering::SeqCst);
-    assert!(multi::rbegin(
-        State(f.worker.clone()),
-        Json(pairkey_signing::wire::RBegin {
-            authorized: rounds.authorized
-        })
-    )
-    .await
-    .is_err());
+    let rounds = red_rounds(&f, 6).await;
     assert_eq!(f.worker.nonce_capacity.available_permits(), 63);
     multi::reset(State(f.worker.clone())).await;
-    assert_eq!(f.worker.nonce_capacity.available_permits(), 63);
-    f.rpc.resume.notify_one();
-    assert!(task.await.unwrap().is_err());
     assert_eq!(f.worker.nonce_capacity.available_permits(), 64);
+    assert!(multi::rfinish(State(f.worker.clone()), Json(rounds))
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn redpallas_signing_rounds_reuse_the_initial_authority_view() {
+    let f = Fixture::new_with(true).await;
+    let rounds = red_rounds(&f, 6).await;
+    let reads = f.rpc.reads.load(Ordering::SeqCst);
+    let _ = multi::rfinish(State(f.worker.clone()), Json(rounds))
+        .await
+        .unwrap();
+    assert_eq!(f.rpc.reads.load(Ordering::SeqCst), reads);
+}
+
+#[tokio::test]
+async fn redpallas_finish_rejects_a_changed_request_without_rechecking_authority() {
+    let f = Fixture::new_with(true).await;
+    let mut rounds = red_rounds(&f, 6).await;
+    let reads = f.rpc.reads.load(Ordering::SeqCst);
+    let pairkey_signing::Payload::RedPallas { message } =
+        &mut rounds.authorized.request.intent.payload
+    else {
+        unreachable!()
+    };
+    message.push(b'!');
+    assert!(multi::rfinish(State(f.worker.clone()), Json(rounds))
+        .await
+        .is_err());
+    assert_eq!(f.rpc.reads.load(Ordering::SeqCst), reads);
+    assert_eq!(f.worker.nonce_capacity.available_permits(), 64);
+    assert!(!f.worker.release.lock().unwrap().incident);
 }
 
 #[test]

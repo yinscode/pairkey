@@ -1,5 +1,5 @@
 //! Local multi-suite bridge. Native D workers own their roots and donor lifecycle.
-//! Every outgoing signing frame is checked against current Solana authority.
+//! Each DKLS signing request is authorized once, before its first protocol frame.
 use super::*;
 use pairkey_signing::{self as signing, bitcoin, dkls, redpallas, wire as mw, Payload, Suite};
 use std::process::Stdio;
@@ -24,6 +24,7 @@ pub(super) struct Multi {
     binary: Option<String>,
     d: tokio::sync::Mutex<Option<DChild>>,
     red: Mutex<BTreeMap<[u8; 32], RedAttempt>>,
+    red_completed: Mutex<BTreeMap<[u8; 32], Completed<mw::Authorized>>>,
 }
 enum FrostPending {
     RedPallas(redpallas::Pending),
@@ -39,6 +40,8 @@ impl FrostPending {
 }
 struct RedAttempt {
     pending: Option<FrostPending>,
+    admitted: mw::Authorized,
+    slot: u64,
     created: Instant,
     peer_boot: [u8; 32],
     lease: Arc<AttemptLease>,
@@ -52,6 +55,8 @@ struct RedFlight {
     worker: W,
     id: [u8; 32],
     pending: Option<FrostPending>,
+    admitted: mw::Authorized,
+    slot: u64,
     peer_boot: [u8; 32],
     deadline: Instant,
     lease: Arc<AttemptLease>,
@@ -75,7 +80,15 @@ struct DChild {
     boot: dkls::pool::Boot,
     peer: mw::Info,
     enrolled: bool,
-    active: Option<([u8; 32], Option<mw::Authorized>, Instant)>,
+    active: Option<DActive>,
+    generation: Option<[u8; 32]>,
+    uses: u64,
+}
+struct DActive {
+    id: [u8; 32],
+    auth: Option<mw::Authorized>,
+    admitted: Option<(Begin, u64)>,
+    created: Instant,
 }
 impl Drop for DChild {
     fn drop(&mut self) {
@@ -89,13 +102,17 @@ impl Multi {
             .lock()
             .unwrap()
             .retain(|_, p| p.created.elapsed() < ATTEMPT_TTL);
+        self.red_completed
+            .lock()
+            .unwrap()
+            .retain(|_, p| p.created.elapsed() < RESULT_TTL);
     }
     pub(super) async fn expire(&self) {
         let mut state = self.d.lock().await;
         if state
             .as_ref()
             .and_then(|d| d.active.as_ref())
-            .is_some_and(|(_, _, t)| t.elapsed() >= Duration::from_secs(35))
+            .is_some_and(|active| active.created.elapsed() >= Duration::from_secs(35))
         {
             *state = None;
         }
@@ -107,6 +124,7 @@ impl Multi {
             binary,
             d: Default::default(),
             red: Default::default(),
+            red_completed: Default::default(),
         }
     }
 }
@@ -139,9 +157,16 @@ fn begin(a: &mw::Authorized) -> anyhow::Result<Begin> {
     })
 }
 async fn view(w: &Worker, a: &mw::Authorized) -> anyhow::Result<(Begin, AuthorizedView)> {
+    let started = Instant::now();
     let b = begin(a)?;
     w.channel.authenticate_peer(&b.peer)?;
     let v = w.observe(&b).await?;
+    if std::env::var_os("PAIRKEY_LATENCY_TRACE").is_some() {
+        eprintln!(
+            "pairkey_latency worker_view_ms={}",
+            started.elapsed().as_millis()
+        );
+    }
     Ok((b, v))
 }
 fn receipt(
@@ -240,7 +265,7 @@ pub(super) async fn open(
                 &w.multi.root_path,
                 &signing::hex(&q.peer.dkls_identity),
                 "100",
-                "600",
+                "0", // Development demo: retire after 100 attempts, without an age timer.
             ])
             .env_remove("PAIRKEY_RESEARCH_BAD_MIGRATION_PPRF")
             .stdin(Stdio::piped())
@@ -298,6 +323,8 @@ pub(super) async fn open(
             peer: q.peer,
             enrolled: false,
             active: None,
+            generation: None,
+            uses: 0,
         });
         Ok(boot)
     }
@@ -339,6 +366,21 @@ pub(super) async fn enroll(
     }
     .await
     .map_err(failure)
+}
+pub(super) async fn status(State(w): State<W>) -> Result<Json<mw::DStatus>, Failure> {
+    let mut state = w.multi.d.lock().await;
+    let exited = match state.as_mut() {
+        Some(d) => d.child.try_wait().map_err(failure)?.is_some(),
+        None => false,
+    };
+    if exited {
+        *state = None;
+    }
+    let current = state.as_ref().filter(|d| d.enrolled && d.active.is_none());
+    Ok(Json(mw::DStatus {
+        generation: current.and_then(|d| d.generation),
+        uses: current.map_or(0, |d| d.uses),
+    }))
 }
 pub(super) async fn start(
     State(w): State<W>,
@@ -390,6 +432,10 @@ pub(super) async fn start(
                 generation,
             } => {
                 ensure!(
+                    d.generation == Some(generation) && d.uses < 100,
+                    "D donor unavailable"
+                );
+                ensure!(
                     authorized.peer.evidence.boot_id == d.peer.boot,
                     "backend peer boot mismatch"
                 );
@@ -422,7 +468,14 @@ pub(super) async fn start(
             let _release = w.release_guard(b, v)?;
             w.reserve_approval(b)?;
         }
-        d.active = Some((q.id, auth, Instant::now()));
+        // The finalized admission snapshot applies to this exact request until it ends.
+        // Exchange frames retain local claim/incident fences without another Solana read.
+        d.active = Some(DActive {
+            id: q.id,
+            auth,
+            admitted: checked.map(|(begin, view)| (begin, view.observation.slot)),
+            created: Instant::now(),
+        });
         if let Err(e) = send(d, &dkls::Frame::DCommand(Box::new(command))).await {
             *state = None;
             return Err(e);
@@ -441,12 +494,13 @@ pub(super) async fn exchange(
         ensure!(q.frames.len() <= 4, "frame batch bound");
         let mut state = w.multi.d.lock().await;
         let d = state.as_mut().context("backend absent")?;
-        let (id, auth, created) = d.active.as_ref().context("no active operation")?;
+        let active = d.active.as_ref().context("no active operation")?;
         ensure!(
-            *id == q.id && created.elapsed() < Duration::from_secs(35),
+            active.id == q.id && active.created.elapsed() < Duration::from_secs(35),
             "expired or wrong operation"
         );
-        let auth = auth.clone();
+        let auth = active.auth.clone();
+        let admitted = active.admitted.clone();
         // Incoming transport may only carry protocol data, never a worker command.
         for f in &q.frames {
             ensure!(
@@ -465,8 +519,18 @@ pub(super) async fn exchange(
                     signature,
                     public_key,
                     recovery_id,
+                    generation,
+                    uses,
                     ..
                 }) => {
+                    ensure!(
+                        d.generation == Some(generation) && uses == d.uses + 1 && uses <= 100,
+                        "D donor use mismatch"
+                    );
+                    d.uses = uses;
+                    if uses == 100 {
+                        d.generation = None;
+                    }
                     let a = auth
                         .as_ref()
                         .context("unsigned operation produced signature")?;
@@ -476,11 +540,12 @@ pub(super) async fn exchange(
                     );
                     let mut sig = signature;
                     sig.push(recovery_id);
-                    let (b, v) = view(&w, a).await?;
-                    let _release = w.release_guard(&b, &v)?;
-                    w.check_approval(&b)?;
-                    let response = receipt(&w, a, sig, v.observation.slot)?;
-                    w.complete_approval(&b, &response)?;
+                    let (b, slot) = admitted.as_ref().context("missing signing admission")?;
+                    let _release = w.release.lock().unwrap();
+                    ensure!(!_release.incident, "authenticated protocol incident");
+                    w.check_approval(b)?;
+                    let response = receipt(&w, a, sig, *slot)?;
+                    w.complete_approval(b, &response)?;
                     result = Some(response);
                     terminal = true;
                 }
@@ -498,11 +563,19 @@ pub(super) async fn exchange(
                     anyhow::bail!("backend failed: {f:?}")
                 }
                 dkls::Frame::Closed => anyhow::bail!("backend closed"),
+                dkls::Frame::DReply(reply) => {
+                    if let dkls::d::Reply::Donor { generation, .. } = &reply {
+                        d.generation = Some(*generation);
+                        d.uses = 0;
+                    }
+                    terminal = true;
+                    frames.push(dkls::Frame::DReply(reply));
+                }
                 other => {
-                    if let Some(a) = &auth {
-                        let (b, v) = view(&w, a).await?;
-                        let _release = w.release_guard(&b, &v)?;
-                        w.check_approval(&b)?;
+                    if let Some((b, _)) = &admitted {
+                        let _release = w.release.lock().unwrap();
+                        ensure!(!_release.incident, "authenticated protocol incident");
+                        w.check_approval(b)?;
                         frames.push(other);
                     } else {
                         terminal = matches!(other, dkls::Frame::DReply(_));
@@ -531,6 +604,17 @@ pub(super) async fn reset(State(w): State<W>) -> StatusCode {
     *w.multi.d.lock().await = None;
     let _release = w.release.lock().unwrap();
     w.multi.red.lock().unwrap().clear();
+    w.multi.red_completed.lock().unwrap().clear();
+    StatusCode::NO_CONTENT
+}
+pub(super) async fn clear_ephemeral(State(w): State<W>) -> StatusCode {
+    let mut state = w.multi.d.lock().await;
+    if state.as_ref().is_some_and(|d| d.active.is_some()) {
+        *state = None;
+    }
+    drop(state);
+    w.multi.red.lock().unwrap().clear();
+    w.multi.red_completed.lock().unwrap().clear();
     StatusCode::NO_CONTENT
 }
 
@@ -546,7 +630,9 @@ pub(super) async fn rbegin(
         let mut pending = w.multi.red.lock().unwrap();
         pending.retain(|_, p| p.created.elapsed() < ATTEMPT_TTL);
         ensure!(
-            pending.len() < 64 && !pending.contains_key(&id),
+            pending.len() < 64
+                && !pending.contains_key(&id)
+                && !w.multi.red_completed.lock().unwrap().contains_key(&id),
             "FROST capacity or duplicate attempt"
         );
         let permit = w.nonce_capacity.clone().try_acquire_owned()?;
@@ -581,6 +667,8 @@ pub(super) async fn rbegin(
             id,
             RedAttempt {
                 pending: Some(owned),
+                admitted: a.clone(),
+                slot: v.observation.slot,
                 created: Instant::now(),
                 peer_boot: b.peer.evidence.boot_id,
                 lease: Arc::new(AttemptLease {
@@ -633,6 +721,8 @@ pub(super) async fn rfinish(
                 worker: Arc::clone(&w),
                 id,
                 pending: Some(p.pending.take().context("nonce already in flight")?),
+                admitted: p.admitted.clone(),
+                slot: p.slot,
                 peer_boot: p.peer_boot,
                 deadline: p.created + ATTEMPT_TTL,
                 lease: Arc::clone(&p.lease),
@@ -640,13 +730,16 @@ pub(super) async fn rfinish(
         };
         let deadline = owned.deadline;
         tokio::time::timeout_at(deadline.into(), async {
-            let (b, v) = view(&w, &q.authorized).await?;
+            same_admission(&owned.admitted, &q.authorized)?;
+            let b = begin(&q.authorized)?;
+            w.channel.authenticate_peer(&b.peer)?;
             let rounds = rounds(&w, &q)?;
             ensure!(
                 owned.peer_boot == b.peer.evidence.boot_id && Instant::now() < deadline,
                 "expired or restarted attempt"
             );
-            let _release = w.release_guard(&b, &v)?;
+            let _release = w.release.lock().unwrap();
+            ensure!(!_release.incident, "authenticated protocol incident");
             w.check_approval(&b)?;
             ensure!(
                 !owned.lease.cancelled.load(Ordering::SeqCst),
@@ -658,7 +751,22 @@ pub(super) async fn rfinish(
                 .context("consumed nonce")?
                 .finish(&rounds)?;
             let transcript = pairkey_types::digest(b"pairkey/redpallas/rounds/v1", &(id, &rounds));
-            Ok::<_, anyhow::Error>(w.channel.seal(&b.peer, id, 12, &(transcript, share))?)
+            let envelope = w.channel.seal(&b.peer, id, 12, &(transcript, share))?;
+            let mut completed = w.multi.red_completed.lock().unwrap();
+            completed.retain(|_, p| p.created.elapsed() < RESULT_TTL);
+            ensure!(
+                completed.len() < 64 && !completed.contains_key(&id),
+                "completed FROST capacity or duplicate"
+            );
+            completed.insert(
+                id,
+                Completed {
+                    request: owned.admitted.clone(),
+                    slot: owned.slot,
+                    created: Instant::now(),
+                },
+            );
+            Ok::<_, anyhow::Error>(envelope)
         })
         .await?
     }
@@ -672,21 +780,45 @@ pub(super) async fn rresult(
 ) -> Result<Json<mw::Receipt>, Failure> {
     async {
         let a = &q.finish.authorized;
-        let (b, v) = view(&w, a).await?;
+        let b = begin(a)?;
+        let id = b.attempt.digest();
+        let admitted = w
+            .multi
+            .red_completed
+            .lock()
+            .unwrap()
+            .get(&id)
+            .cloned()
+            .context("FROST signing round not completed")?;
+        same_admission(&admitted.request, a)?;
+        ensure!(
+            admitted.created.elapsed() < RESULT_TTL,
+            "completed FROST signing round expired"
+        );
+        w.channel.authenticate_peer(&b.peer)?;
         let rounds = rounds(&w, &q.finish)?;
         ensure!(
             q.shares[0].sender == Role::A && q.shares[1].sender == Role::B,
             "share roles"
         );
         let mut shares = [vec![], vec![]];
-        let id = b.attempt.digest();
         let transcript = pairkey_types::digest(b"pairkey/redpallas/rounds/v1", &(id, &rounds));
         for (i, e) in q.shares.iter().enumerate() {
             let (t, s): ([u8; 32], Vec<u8>) = w.channel.open(&b.peer, id, 12, e)?;
             ensure!(t == transcript, "stale FROST transcript");
             shares[i] = s;
         }
-        let mut release = w.release_guard(&b, &v)?;
+        let mut release = w.release.lock().unwrap();
+        ensure!(!release.incident, "authenticated protocol incident");
+        ensure!(
+            w.multi
+                .red_completed
+                .lock()
+                .unwrap()
+                .get(&id)
+                .is_some_and(|current| current.created == admitted.created),
+            "FROST signing round cancelled"
+        );
         w.check_approval(&b)?;
         let result = match (&a.request.certificate, &a.request.intent.payload) {
             (mw::Certificate::RedPallas(public), Payload::RedPallas { message }) => {
@@ -718,8 +850,9 @@ pub(super) async fn rresult(
                 return Err(e);
             }
         };
-        let response = receipt(&w, a, sig, v.observation.slot)?;
+        let response = receipt(&w, a, sig, admitted.slot)?;
         w.complete_approval(&b, &response)?;
+        w.multi.red_completed.lock().unwrap().remove(&id);
         Ok(response)
     }
     .await

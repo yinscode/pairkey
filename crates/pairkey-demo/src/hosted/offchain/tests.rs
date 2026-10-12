@@ -287,7 +287,17 @@ impl Fixture {
         }
         let dir = self.dir.clone();
         drop(self);
-        std::fs::remove_dir_all(dir).unwrap();
+        // Worker shutdown sends a kill to native DKLS children; a child may
+        // still be exiting and creating its final journal file here.
+        for attempt in 0..20 {
+            match std::fs::remove_dir_all(&dir) {
+                Ok(()) => break,
+                Err(e) if e.kind() == std::io::ErrorKind::DirectoryNotEmpty && attempt < 19 => {
+                    tokio::time::sleep(Duration::from_millis(25)).await;
+                }
+                Err(e) => panic!("failed to remove test directory {}: {e}", dir.display()),
+            }
+        }
     }
 }
 
@@ -465,6 +475,24 @@ async fn hosted_current_rules_override_prepared_approvals_and_cannot_be_treated_
 #[tokio::test]
 #[ignore = "requires the native DKLS sidecar built by scripts/ci.sh"]
 async fn hosted_evm_offchain_approval_runs_real_dkls_signing() {
+    async fn donor_status(workers: &[String; 2]) -> [pairkey_signing::wire::DStatus; 2] {
+        let client = reqwest::Client::new();
+        let mut states = Vec::new();
+        for worker in workers {
+            states.push(
+                client
+                    .post(format!("{worker}/multi/d/status"))
+                    .json(&())
+                    .send()
+                    .await
+                    .unwrap()
+                    .json()
+                    .await
+                    .unwrap(),
+            );
+        }
+        states.try_into().unwrap()
+    }
     let f = Fixture::new().await;
     let owner = SigningKey::from_bytes(&fresh());
     let ns = f.metadata(&owner).await;
@@ -480,6 +508,29 @@ async fn hosted_evm_offchain_approval_runs_real_dkls_signing() {
         f.app.identities,
     )
     .unwrap();
+    let before = donor_status(&f.app.workers).await;
+    assert_eq!(before[0], before[1]);
+    assert!(before[0].generation.is_some());
+    assert_eq!(before[0].uses, 1);
+    let (second_prepared, second_key) = f.prepared(&ns, Chain::Evm).await;
+    let second_job: Value = f
+        .client
+        .post("/jobs", &signed(&second_prepared, &owner))
+        .await
+        .unwrap();
+    let second_value = f.wait(second_job["job_id"].as_str().unwrap()).await;
+    wire::verify_result(
+        &second_prepared.signing_request,
+        &second_prepared.request,
+        &second_key,
+        &second_value,
+        f.app.identities,
+    )
+    .unwrap();
+    let after = donor_status(&f.app.workers).await;
+    assert_eq!(after[0], after[1]);
+    assert_eq!(after[0].generation, before[0].generation);
+    assert_eq!(after[0].uses, 2);
     assert_eq!(f.accounts.lock().unwrap().len(), 1);
     f.close().await;
 }

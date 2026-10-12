@@ -82,6 +82,10 @@ impl Relay {
         &self,
         commands: [mw::DStart; 2],
     ) -> anyhow::Result<([Option<dkls::d::Reply>; 2], [Option<mw::Receipt>; 2])> {
+        let trace = std::env::var_os("PAIRKEY_LATENCY_TRACE").is_some();
+        let started = Instant::now();
+        let mut exchanges = [0_u64; 2];
+        let mut exchange_ms = [0_u128; 2];
         let id = commands[0].id;
         ensure!(commands[1].id == id, "operation ids");
         let (a, b) = tokio::join!(
@@ -107,15 +111,40 @@ impl Relay {
                     }
                 }
             }
-            for i in 0..2 {
-                if done[i] {
-                    continue;
+            let requests: [mw::Exchange; 2] = std::array::from_fn(|i| mw::Exchange {
+                id,
+                frames: std::mem::take(&mut input[i]),
+            });
+            let (a, b) = tokio::join!(
+                async {
+                    if done[0] {
+                        Ok(None)
+                    } else {
+                        let started = Instant::now();
+                        let out = self
+                            .post::<_, mw::DOutput>(0, "/multi/d/exchange", &requests[0])
+                            .await?;
+                        Ok::<_, anyhow::Error>(Some((out, started.elapsed().as_millis())))
+                    }
+                },
+                async {
+                    if done[1] {
+                        Ok(None)
+                    } else {
+                        let started = Instant::now();
+                        let out = self
+                            .post::<_, mw::DOutput>(1, "/multi/d/exchange", &requests[1])
+                            .await?;
+                        Ok::<_, anyhow::Error>(Some((out, started.elapsed().as_millis())))
+                    }
                 }
-                let q = mw::Exchange {
-                    id,
-                    frames: std::mem::take(&mut input[i]),
+            );
+            for (i, output) in [a?, b?].into_iter().enumerate() {
+                let Some((out, elapsed_ms)) = output else {
+                    continue;
                 };
-                let out: mw::DOutput = self.post(i, "/multi/d/exchange", &q).await?;
+                exchanges[i] += 1;
+                exchange_ms[i] += elapsed_ms;
                 if let Some(r) = out.receipt {
                     r.verify(self.config.identities[i])?;
                     receipts[i] = Some(r);
@@ -142,6 +171,12 @@ impl Relay {
                 );
             }
             tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        if trace {
+            eprintln!(
+                "pairkey_latency d_command total_ms={} exchanges={exchanges:?} exchange_ms={exchange_ms:?}",
+                started.elapsed().as_millis()
+            );
         }
         Ok((replies, receipts))
     }
@@ -204,8 +239,19 @@ impl Relay {
         b?;
         Ok(())
     }
+    pub async fn multi_clear_ephemeral_checked(&self) -> anyhow::Result<()> {
+        let (a, b) = tokio::join!(
+            self.empty(0, "/multi/clear-ephemeral", &()),
+            self.empty(1, "/multi/clear-ephemeral", &())
+        );
+        a?;
+        b?;
+        Ok(())
+    }
     pub async fn multi_sign(&self, q: mw::SignRequest) -> anyhow::Result<mw::Signed> {
         q.validate()?;
+        let trace = std::env::var_os("PAIRKEY_LATENCY_TRACE").is_some();
+        let started = Instant::now();
         let work = async {
             // Reopen/re-register after worker replacement; public identity must remain identical.
             let key = self
@@ -215,6 +261,12 @@ impl Relay {
                     suite: q.intent.key.suite,
                 })
                 .await?;
+            if trace {
+                eprintln!(
+                    "pairkey_latency multi_sign registration_ms={}",
+                    started.elapsed().as_millis()
+                );
+            }
             ensure!(key.key == q.intent.key, "registered key changed");
             let peers = self.peers().await?;
             let auths = std::array::from_fn::<_, 2, _>(|i| mw::Authorized {
@@ -223,31 +275,59 @@ impl Relay {
             });
             let receipts = match q.intent.key.suite {
                 Suite::Dkls23Secp256k1 => {
-                    // Fresh donor per platform request for now. Native D still enforces its lifetime limits.
-                    let id = fresh();
-                    let (replies, _) = self
-                        .d_command(std::array::from_fn(|_| mw::DStart {
-                            id,
-                            operation: mw::DOperation::Prepare,
-                        }))
-                        .await?;
-                    let gens = replies
-                        .into_iter()
-                        .map(|r| match r {
-                            Some(dkls::d::Reply::Donor { generation, .. }) => Ok(generation),
-                            _ => anyhow::bail!("donor reply"),
-                        })
-                        .collect::<anyhow::Result<Vec<_>>>()?;
-                    ensure!(gens[0] == gens[1], "donor disagreement");
+                    let status_started = Instant::now();
+                    let (a, b) = tokio::join!(
+                        self.post::<_, mw::DStatus>(0, "/multi/d/status", &()),
+                        self.post::<_, mw::DStatus>(1, "/multi/d/status", &())
+                    );
+                    let statuses = [a?, b?];
+                    if trace {
+                        eprintln!(
+                            "pairkey_latency multi_sign donor_status_ms={} uses={}",
+                            status_started.elapsed().as_millis(),
+                            statuses[0].uses
+                        );
+                    }
+                    let generation = if statuses[0].generation.is_some()
+                        && statuses[0].generation == statuses[1].generation
+                        && statuses[0].uses == statuses[1].uses
+                        && statuses[0].uses < 100
+                    {
+                        statuses[0].generation.unwrap()
+                    } else {
+                        // Prepare retires any mismatched generation on both workers.
+                        let id = fresh();
+                        let (replies, _) = self
+                            .d_command(std::array::from_fn(|_| mw::DStart {
+                                id,
+                                operation: mw::DOperation::Prepare,
+                            }))
+                            .await?;
+                        let gens = replies
+                            .into_iter()
+                            .map(|r| match r {
+                                Some(dkls::d::Reply::Donor { generation, .. }) => Ok(generation),
+                                _ => anyhow::bail!("donor reply"),
+                            })
+                            .collect::<anyhow::Result<Vec<_>>>()?;
+                        ensure!(gens[0] == gens[1], "donor disagreement");
+                        gens[0]
+                    };
                     let (_, receipts) = self
                         .d_command(std::array::from_fn(|i| mw::DStart {
                             id: q.attempt.digest(),
                             operation: mw::DOperation::Sign {
                                 authorized: Box::new(auths[i].clone()),
-                                generation: gens[0],
+                                generation,
                             },
                         }))
                         .await?;
+                    if trace {
+                        eprintln!(
+                            "pairkey_latency multi_sign sign_total_ms={}",
+                            started.elapsed().as_millis()
+                        );
+                    }
                     receipts
                         .map(|r| r.context("missing signing receipt"))
                         .into_iter()
@@ -328,11 +408,18 @@ pub(super) async fn key(
     // The owner survives an HTTP disconnect and retains serialization through cleanup.
     tokio::spawn(async move {
         let work = async {
-            s.relay.multi_reset_checked().await?;
+            s.relay.multi_clear_ephemeral_checked().await?;
             s.relay.multi_key(q).await
         };
         let result = tokio::time::timeout(Duration::from_secs(90), work).await;
-        s.relay.multi_reset().await;
+        if matches!(&result, Ok(Ok(_))) {
+            if let Err(e) = s.relay.multi_clear_ephemeral_checked().await {
+                s.relay.multi_reset().await;
+                eprintln!("multi-suite cleanup incomplete: {e}");
+            }
+        } else {
+            s.relay.multi_reset().await;
+        }
         drop(guard);
         result.map_err(anyhow::Error::from).and_then(|r| r)
     })

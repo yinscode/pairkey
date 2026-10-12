@@ -233,6 +233,12 @@ pub struct DOutput {
     pub frames: Vec<dkls::Frame>,
     pub receipt: Option<Receipt>,
 }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DStatus {
+    pub generation: Option<[u8; 32]>,
+    pub uses: u64,
+}
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RBegin {
