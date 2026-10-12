@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="See program approval rules in action. PairKey developer documentation: Policy demo.">
+<title>Policy demo — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
+<body><a class="skip" href="#main">Skip to content</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
+<nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
+<a class="button small" href="../docs/quickstart.html">Get started →</a></header>
+<div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
+<a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/quickstart-account.html">Quickstart: Account</a>
+<a href="../docs/quickstart-program.html">Quickstart: Program</a>
+<a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
+<a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
+<a href="../docs/demo.html">Interactive demo</a>
+<a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/policy.html">Policy &amp; rules</a>
+<a href="../docs/policy-demo.html" aria-current="page">Policy demo</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
+<a href="../docs/signing.html">Signing schemes</a>
+<a href="../docs/api.html">SDK &amp; API reference</a>
+<a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/local-development.html">Local development</a>
+<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
+<main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / POLICY DEMO</p>
+<h1>See program approval rules in action.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#model">One policy, two approval paths</a><a href="#create-program">Create the application program</a><a href="#create-rules">Create and edit the rules</a><a href="#approve">Sample: pairkey_approve</a><a href="#commit">Sample: pairkey_approve_commit</a><a href="#try">Try the hosted example</a></nav>
+<p class="lead">See how a Solana program turns application rules into PairKey signing authority. The same program can answer a read-only <code>pairkey_approve</code> request or commit a state-changing <code>pairkey_approve_commit</code> decision.</p>
+<div class="docs-note"><p>These are instructions in <strong>your application program</strong>, not two separate policies or programs. The example keeps its rules in a program-owned policy account. The excerpts below show the decision points; use the <a href="../examples/program-approval.rs">complete source</a> for account validation, serialization and errors.</p></div>
+
+<h2 id="model">One policy, two approval paths</h2>
+<div class="table-scroll" role="region" aria-label="Program approval paths" tabindex="0"><table><thead><tr><th>Instruction</th><th>Decision</th><th>Solana effect per signing request</th></tr></thead><tbody><tr><td><code>pairkey_approve/v1</code></td><td>Return <code>Output { input_digest, allowed }</code> for the exact input.</td><td>Each signer simulates deployed, immutable program code. No approval transaction or state write.</td></tr><tr><td><code>pairkey_approve_commit/v1</code></td><td>Check the same rules, consume an allowance and invoke the PairKey gateway.</td><td>One transaction changes application state and records the exact approval atomically.</td></tr></tbody></table></div>
+<p>Both paths still require an authenticated caller and an exact request. Both signers independently check current authority before signing. Simulation can read current state, but cannot reserve an allowance or consume a nonce.</p>
+
+<h2 id="create-program">Create the application program</h2>
+<ol><li><a href="../examples/hosted-controller.zip">Download the hosted controller template</a>. It contains the typed gateway ABI and both approval instructions.</li><li>Edit <code>vendor/programs/example-controller/src/approval.rs</code>. Put your application conditions in <code>AppPolicy::allows</code>; keep the caller authentication, exact-input binding, PDA checks and gateway CPI.</li><li>Pin the hosted gateway ID from <code>/api/v2/config</code>, build the Solana program, and deploy it. PairKey hosts the gateway and signers; you deploy only your application logic.</li><li>Create the owner’s policy account with a signed <code>pairkey_policy/v1</code> instruction. The template and hosted SDK do this through <code>setProgramPolicy</code>.</li></ol>
+<pre><code># In the downloaded hosted-controller directory:
+PAIRKEY_REGISTRY_ID=YOUR_HOSTED_GATEWAY cargo build-sbf -- --locked
+solana program deploy --url devnet --keypair YOUR_DEVNET_WALLET.json \
+  target/deploy/pairkey_hosted_controller_example.so</code></pre>
+<p>The example authority PDA uses <code>["controller", owner]</code>; its rules PDA uses <code>["pairkey-policy", owner]</code>. The policy stores the owner, enabled flag, destination, path prefix, payload limit, approval mode, remaining allowance and a revision. Your owner wallet authorizes creation and each edit. Creating the PDA requires rent; later same-size edits reuse it.</p>
+
+<h2 id="create-rules">Create and edit the rules</h2>
+<p>After connecting a wallet with the <a href="../docs/quickstart-program.html#application">program quickstart</a>, use the hosted SDK to create revision 1 or increment the current revision. This example selects the hosted program and its on-chain approval mode; replace its ID with your deployed program when ready.</p>
+<pre><code>const program = (await pairkey.config()).example_program;
+const mode = 'Onchain'; // 'Offchain' only for immutable, read-only code
+const current = await pairkey.programPolicy(program, wallet.publicKey);
+
+await pairkey.setProgramPolicy(wallet, {
+  program,
+  owner: wallet.publicKey.toBase58(),
+  revision: (current?.revision ?? 0) + 1,
+  enabled: true,
+  chain: 'solana',
+  path_prefix: [0],
+  max_payload_bytes: 1232,
+  require_commit: mode === 'Onchain',
+  remaining_approvals: 5
+});</code></pre>
+<p><code>setProgramPolicy</code> builds and checks the policy instruction, then asks the owner wallet to sign a Solana transaction. It is a setup or edit transaction, not a registration transaction and not something to repeat before every signature. The current revision must increase by exactly one. <code>require_commit</code> selects which approval instruction may grant permission; changing the mode does not change the program authority or its derived keys.</p>
+
+<h2 id="approve">Sample: <code>pairkey_approve</code></h2>
+<p>Use this path for read-only conditions such as an enabled flag, allowed destination, path prefix, membership or current application state. The program authenticates the signer-attested caller and returns a decision bound to the exact input. Each signer independently runs and checks the simulation.</p>
+<pre><code>// Excerpt from the example's pairkey_approve/v1 branch.
+let input = Input::try_from_slice(bytes).map_err(|_| bad())?;
+let p = policy(program, &amp;accounts[2])?;
+pair_registry::program_approval::authenticate_input(
+    accounts,
+    &amp;input,
+    &amp;pair_registry::set_address(&amp;pair_registry::id(), &amp;p.enclave_set).0,
+)?;
+let allowed = input.authority
+    == authority(program, &amp;Pubkey::new_from_array(p.owner)).0.to_bytes()
+    &amp;&amp; !p.require_commit
+    &amp;&amp; p.allows(input.caller, &amp;input.account, &amp;input.payload);
+set_return_data(&amp;borsh::to_vec(&amp;Output {
+    input_digest: input.digest(),
+    allowed,
+}).map_err(|_| bad())?);</code></pre>
+<p>The example’s <code>AppPolicy::allows</code> checks the designated caller, enabled flag, destination, path prefix and canonical payload length. The full handler also validates account count and the policy PDA. Off-chain evaluation requires immutable deployed program code; an upgradeable hosted example uses the commit path while you develop.</p>
+
+<h2 id="commit">Sample: <code>pairkey_approve_commit</code></h2>
+<p>Use this path when approval itself must change state: consume a one-time allowance, mark a proposal used or reserve a budget. The example consumes one approval count. It does not parse destination transactions or implement a financial spending limit.</p>
+<pre><code>// Excerpt from the example's pairkey_approve_commit/v1 branch.
+let call = CommitCall::try_from_slice(bytes).map_err(|_| bad())?;
+let source = call.validate(Clock::get()?.unix_timestamp).map_err(|_| bad())?;
+// Validate the owner's transaction signature, source, authority PDA,
+// gateway and ordered application accounts before changing state.
+let mut p = policy(program, policy_info)?;
+if !p.allows(owner.key.to_bytes(), &amp;call.request.commit.account, &amp;call.payload)
+    || p.remaining_approvals == 0
+{
+    return Err(bad());
+}
+p.remaining_approvals -= 1;
+policy_info.try_borrow_mut_data()?.copy_from_slice(
+    &amp;borsh::to_vec(&amp;p).map_err(|_| bad())?
+);
+// Invoke RegistryInstruction::ApproveProgram { approval: call.approval() }
+// through invoke_signed with the program authority PDA seeds.</code></pre>
+<p>The program changes its policy account and records approval through gateway CPI in <strong>the same transaction</strong>. A failed CPI rolls back the state change. After finality, both signers require the matching approval record. If signing later fails, the committed allowance is not automatically refunded; recover the original job before making another request.</p>
+
+<h2 id="try">Try the hosted example</h2>
+<ol><li>Open the <a href="/demo">live message-signing demo</a> and choose <strong>Solana program</strong>.</li><li>Select <strong>Use hosted example</strong>, connect a devnet wallet, and keep <strong>On-chain · consume an allowance</strong>.</li><li>Open <strong>Program policy setup</strong>, set an allowance, and sign the policy transaction once. Then load a derived key.</li><li>Write a message and approve the exact signing request. The program consumes one allowance and commits the approval before the signers produce the signature.</li></ol>
+<p>The on-chain example needs devnet SOL for the policy edit and each commit. The read-only example is represented by the code above; do not remove a program’s upgrade authority merely to try a demo. For your own immutable deployment, set <code>require_commit: false</code>, select <code>Offchain</code>, and keep the same caller and request checks. Read <a href="../docs/integration.html">Solana program integration</a> for the ABI and trust model, or <a href="../docs/policy.html">Policy &amp; rules</a> for the broader account, passkey and OIDC policy model.</p>
+
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/policy.html"><span>Previous</span><strong>Policy &amp; rules →</strong></a><a href="../docs/sessions.html"><span>Next</span><strong>Scoped sessions →</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>
