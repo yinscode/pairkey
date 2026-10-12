@@ -222,3 +222,50 @@ fn typed_transaction_preparation_binds_solana_evm_and_near_signing_payloads() {
     }
     assert_ne!(evm_payload, prepare_message(&changed, &evm.key).unwrap().1);
 }
+
+#[test]
+fn eip712_preparation_binds_domain_and_complete_typed_data() {
+    use pairkey_sdk::hosted::{offchain::prepare_message, Chain, TransactionRequest};
+    let cases: Vec<Transcript> =
+        serde_json::from_str(include_str!("fixtures/hosted-devnet.json")).unwrap();
+    let mut evm = cases
+        .into_iter()
+        .find(|t| t.request.key.chain == Chain::Evm)
+        .unwrap();
+    let typed = pairkey_signing::evm_typed_data::TypedData {
+        chain_id: 84532,
+        json: serde_json::to_vec(&serde_json::json!({
+            "types": {
+                "EIP712Domain": [{"name":"chainId","type":"uint256"}],
+                "Vote": [{"name":"support","type":"bool"}]
+            },
+            "primaryType": "Vote",
+            "domain": {"chainId": 84532},
+            "message": {"support": true}
+        }))
+        .unwrap(),
+    };
+    evm.request.message.clear();
+    evm.request.transaction = Some(TransactionRequest::EvmTypedData {
+        typed_data: typed.clone(),
+    });
+    let (commit, payload, intent) = prepare_message(&evm.request, &evm.key).unwrap();
+    assert!(matches!(
+        intent.unwrap().payload,
+        pairkey_signing::Payload::EvmTypedData(_)
+    ));
+    commit
+        .authorize(&evm.request.key.registration, &payload)
+        .unwrap();
+    let mut changed = evm.request.clone();
+    if let Some(TransactionRequest::EvmTypedData { typed_data }) = &mut changed.transaction {
+        let mut value: serde_json::Value = serde_json::from_slice(&typed_data.json).unwrap();
+        value["message"]["support"] = serde_json::json!(false);
+        typed_data.json = serde_json::to_vec(&value).unwrap();
+    }
+    assert_ne!(payload, prepare_message(&changed, &evm.key).unwrap().1);
+    if let Some(TransactionRequest::EvmTypedData { typed_data }) = &mut changed.transaction {
+        typed_data.chain_id = 1;
+    }
+    assert!(prepare_message(&changed, &evm.key).is_err());
+}

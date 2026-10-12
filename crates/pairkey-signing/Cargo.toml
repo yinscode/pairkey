@@ -5,6 +5,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+zcash-pczt = ["dep:pczt", "dep:orchard", "dep:frost-rerandomized", "dep:group14"]
+zcash-pczt-tests = ["zcash-pczt", "pczt/io-finalizer", "pczt/zcp-builder", "orchard/circuit", "dep:zcash_primitives", "dep:zcash_protocol", "dep:zcash_note_encryption", "dep:rand"]
+
 [dependencies]
 pairkey-types = { path = "../pairkey-types" }
 pairkey-dkls23-research = { path = "../../experiments/silence-dkls23" }
@@ -27,6 +31,16 @@ frost-secp256k1-tr = "=2.2.0"
 solana-sdk.workspace = true
 bincode.workspace = true
 blake2b_simd.workspace = true
+alloy-dyn-abi = { version = "=1.6.0", features = ["eip712"] }
+bitcoin = { version = "=0.32.8", default-features = false, features = ["std"] }
+pczt = { version = "=0.10.0-pre.1", default-features = false, features = ["std", "signer"], optional = true }
+orchard = { version = "=0.16.0", default-features = false, features = ["std"], optional = true }
+frost-rerandomized = { version = "=3.0.0", optional = true }
+group14 = { package = "group", version = "=0.14.0", optional = true }
+zcash_primitives = { version = "=0.31.0-pre.1", default-features = false, features = ["std"], optional = true }
+zcash_protocol = { version = "=0.11.0-pre.0", default-features = false, features = ["std", "local-consensus"], optional = true }
+zcash_note_encryption = { version = "=0.5.1", default-features = false, optional = true }
+rand = { version = "=0.10.3", optional = true }
 
 [dev-dependencies]
 pairkey-frost = { path = "../pairkey-frost" }

@@ -110,9 +110,12 @@ async fn config(State(app): State<Arc<App>>) -> Json<Value> {
         "evm": {"sign": true, "send": "client_rpc", "formats": ["legacy_native_transfer"]},
         "near": {"sign": true, "send": "client_rpc"},
         "sui": {"sign": true, "send": "client_rpc", "formats": ["bcs_transaction_data"], "max_transaction_bytes": 1197},
-        "bitcoin": {"sign": false, "reason": "PSBT and BIP-341 input context adapter required"},
-        "zcash": {"sign": false, "reason": "ZIP transaction digest and shielded authorization adapter required"}
+        "bitcoin": {"sign": true, "send": "client_rpc", "formats": ["taproot_key_path_psbt_v0_single_input"], "network": "testnet", "max_psbt_bytes": 1024},
+        "zcash": {"sign": false, "reason": "testnet PCZT library alpha only; hosted attachment and wallet integration unavailable"}
     });
+    value["typed_data_signing"] =
+        json!({"evm": true, "standard": "EIP-712", "requires_domain_chain_id": true});
+    value["evm_chain_selection"] = json!({"mode":"any_eip155_chain_id","default_chain_id":84532,"transaction_formats":["legacy_native_transfer"]});
     value["example_program"] = json!(example_controller::id().to_string());
     let mut identity_sources = vec!["account", "program", "passkey"];
     if !app.oidc_issuers.is_empty() {
@@ -505,6 +508,12 @@ fn result(
                 "0x{}",
                 hex(&transfer.signed_bytes(&key.public_key, &signature)?)
             ));
+        } else if let TransactionRequest::BitcoinPsbt { spend } = transaction {
+            let (signed_psbt, signed_tx) = spend.signed(&key.public_key, &signature)?;
+            value["signed_psbt_hex"] = json!(format!("0x{}", hex(&signed_psbt)));
+            value["signed_transaction_hex"] = json!(format!("0x{}", hex(&signed_tx)));
+            value["signing_payload_hex"] =
+                json!(format!("0x{}", hex(&spend.sighash(&key.public_key)?)));
         } else if let Some(adapter) = transaction.ed25519() {
             value["signing_payload_hex"] = json!(format!(
                 "0x{}",

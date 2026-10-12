@@ -11,6 +11,8 @@ use pairkey_types::{AccountPath, Registration, Role};
 use pasta_curves::pallas;
 use rand_core::OsRng;
 use reddsa::frost::redpallas as frost;
+#[cfg(feature = "zcash-pczt")]
+use reddsa::frost::redpallas::keys::EvenY;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
 use std::collections::BTreeMap;
@@ -24,6 +26,22 @@ fn point(bytes: &[u8]) -> Result<pallas::Point> {
 pub fn validate_key(bytes: &[u8]) -> Result<()> {
     point(bytes)?;
     Ok(())
+}
+/// Canonical Orchard spend-validating key corresponding to this threshold key.
+/// Orchard requires even Y; FROST shares must be negated for the same key when
+/// the original group point has odd Y.
+#[cfg(feature = "zcash-pczt")]
+pub fn orchard_ak(public: &[u8]) -> Result<[u8; 32]> {
+    let mut bytes: [u8; 32] = public.try_into()?;
+    let p = point(&bytes)?;
+    if bytes[31] & 0x80 != 0 {
+        bytes = (-p).to_bytes();
+    }
+    ensure!(
+        bytes[31] & 0x80 == 0,
+        "invalid Orchard spend-validating key"
+    );
+    Ok(bytes)
 }
 fn id(role: Role) -> frost::Identifier {
     frost::Identifier::try_from(role.id()).unwrap()
@@ -152,6 +170,8 @@ pub struct Pending {
     commitment: Vec<u8>,
     message: Vec<u8>,
     role: Role,
+    #[cfg(feature = "zcash-pczt")]
+    orchard_alpha: Option<pallas::Scalar>,
 }
 impl Pending {
     pub fn begin(
@@ -162,6 +182,34 @@ impl Pending {
         role: Role,
         message: &[u8],
     ) -> Result<(Vec<u8>, Self)> {
+        Self::begin_inner(root, reg, path, public, role, message, None)
+    }
+    #[cfg(feature = "zcash-pczt")]
+    pub fn begin_orchard(
+        root: &[u8; 32],
+        reg: &Registration,
+        path: &AccountPath,
+        public: &Public,
+        role: Role,
+        sighash: &[u8; 32],
+        alpha_bytes: &[u8; 32],
+    ) -> Result<(Vec<u8>, Self)> {
+        let alpha = Option::<pallas::Scalar>::from(pallas::Scalar::from_repr(*alpha_bytes))
+            .ok_or_else(|| anyhow::anyhow!("noncanonical Orchard alpha"))?;
+        ensure!(alpha != pallas::Scalar::ZERO, "zero Orchard alpha");
+        Self::begin_inner(root, reg, path, public, role, sighash, Some(alpha))
+    }
+    fn begin_inner(
+        root: &[u8; 32],
+        reg: &Registration,
+        path: &AccountPath,
+        public: &Public,
+        role: Role,
+        message: &[u8],
+        orchard_alpha: Option<pallas::Scalar>,
+    ) -> Result<(Vec<u8>, Self)> {
+        #[cfg(not(feature = "zcash-pczt"))]
+        let _ = orchard_alpha;
         let points = public.points(reg, path)?;
         let mut secret = scalar(root, reg, path, role)?;
         ensure!(
@@ -173,13 +221,20 @@ impl Pending {
         bytes.zeroize();
         secret = pallas::Scalar::ZERO;
         std::hint::black_box(secret);
-        let key = Zeroizing::new(frost::keys::KeyPackage::new(
+        let key = frost::keys::KeyPackage::new(
             id(role),
             signing,
             frost::keys::VerifyingShare::deserialize(&points[role.index()].to_bytes())?,
             frost::VerifyingKey::deserialize(&public.key(reg, path)?.public_key)?,
             2,
-        ));
+        );
+        #[cfg(feature = "zcash-pczt")]
+        let key = if orchard_alpha.is_some() {
+            key.into_even_y(None)
+        } else {
+            key
+        };
+        let key = Zeroizing::new(key);
         let (nonces, commitment) = frost::round1::commit(key.signing_share(), &mut OsRng);
         let commitment = commitment.serialize()?;
         Ok((
@@ -190,6 +245,8 @@ impl Pending {
                 commitment,
                 message: message.to_vec(),
                 role,
+                #[cfg(feature = "zcash-pczt")]
+                orchard_alpha,
             },
         ))
     }
@@ -199,6 +256,17 @@ impl Pending {
             "own commitment substituted"
         );
         let package = signing_package(&self.message, rounds)?;
+        #[cfg(feature = "zcash-pczt")]
+        if let Some(alpha) = self.orchard_alpha {
+            let randomizer = frost::rerandomized::Randomizer::from_scalar(alpha);
+            // The PCZT specifies alpha, so it cannot be derived from fresh FROST
+            // commitments as the generic API recommends.
+            #[allow(deprecated)]
+            return Ok(
+                frost_rerandomized::sign(&package, &self.nonces, &self.key, randomizer)?
+                    .serialize(),
+            );
+        }
         Ok(frost::round2::sign(&package, &self.nonces, &self.key)?.serialize())
     }
 }
@@ -240,6 +308,52 @@ pub fn aggregate(
     verify(&public.key(reg, path)?.public_key, message, &sig)?;
     Ok(sig)
 }
+#[cfg(feature = "zcash-pczt")]
+pub fn aggregate_orchard(
+    reg: &Registration,
+    path: &AccountPath,
+    public: &Public,
+    sighash: &[u8; 32],
+    alpha_bytes: &[u8; 32],
+    rounds: &[Vec<u8>; 2],
+    shares: &[Vec<u8>; 2],
+) -> Result<Vec<u8>> {
+    let alpha = Option::<pallas::Scalar>::from(pallas::Scalar::from_repr(*alpha_bytes))
+        .ok_or_else(|| anyhow::anyhow!("noncanonical Orchard alpha"))?;
+    ensure!(alpha != pallas::Scalar::ZERO, "zero Orchard alpha");
+    let shares = [Role::A, Role::B]
+        .into_iter()
+        .map(|r| {
+            Ok((
+                id(r),
+                frost::round2::SignatureShare::deserialize(&shares[r.index()])?,
+            ))
+        })
+        .collect::<Result<_>>()?;
+    let package = public.package(reg, path)?.into_even_y(None);
+    let randomizer = frost::rerandomized::Randomizer::from_scalar(alpha);
+    let params =
+        frost::rerandomized::RandomizedParams::from_randomizer(package.verifying_key(), randomizer);
+    let sig = frost::rerandomized::aggregate(
+        &signing_package(sighash, rounds)?,
+        &shares,
+        &package,
+        &params,
+    )?
+    .serialize()?;
+    let randomized_key = params.randomized_verifying_key().serialize()?;
+    verify(&randomized_key, sighash, &sig)?;
+    // Independently validate the serialized signature with the v6 Orchard library.
+    let vk = orchard::primitives::redpallas::VerificationKey::<
+        orchard::primitives::redpallas::SpendAuth,
+    >::try_from(<[u8; 32]>::try_from(randomized_key.as_slice())?)?;
+    vk.verify(
+        sighash,
+        &orchard::primitives::redpallas::Signature::from(<[u8; 64]>::try_from(sig.as_slice())?),
+    )
+    .map_err(|e| anyhow::anyhow!("Orchard signature verification: {e:?}"))?;
+    Ok(sig)
+}
 pub fn verify(public: &[u8], message: &[u8], signature: &[u8]) -> Result<()> {
     frost::VerifyingKey::deserialize(public)?
         .verify(message, &frost::Signature::deserialize(signature)?)?;
@@ -251,4 +365,58 @@ pub fn verify(public: &[u8], message: &[u8], signature: &[u8]) -> Result<()> {
         &reddsa::Signature::from(<[u8; 64]>::try_from(signature)?),
     )?;
     Ok(())
+}
+
+#[cfg(all(test, feature = "zcash-pczt"))]
+mod pczt_tests {
+    use super::*;
+    use pairkey_frost::{register, Root, Signer};
+    use pairkey_types::{Namespace, Scheme};
+
+    #[test]
+    fn randomized_threshold_signature_verifies_with_orchard_v6() {
+        let ns = Namespace {
+            version: 1,
+            scheme: Scheme::FrostEd25519,
+            network: [1; 32],
+            registry: [2; 32],
+            derivation_authority: [3; 32],
+            namespace_id: [4; 32],
+            enclave_set: [5; 32],
+        };
+        let signer_a = Signer::new(Root::new([11; 32]), Role::A);
+        let signer_b = Signer::new(Root::new([22; 32]), Role::B);
+        let reg = register(
+            ns.clone(),
+            &signer_a.proof(&ns, &mut OsRng).unwrap(),
+            &signer_b.proof(&ns, &mut OsRng).unwrap(),
+        )
+        .unwrap();
+        let path = AccountPath {
+            destination: [8; 32],
+            path: vec![1],
+        };
+        let public = Public {
+            proofs: [
+                proof(&[11; 32], &reg, &path, Role::A).unwrap(),
+                proof(&[22; 32], &reg, &path, Role::B).unwrap(),
+            ],
+        };
+        let sighash = [42u8; 32];
+        let alpha = pallas::Scalar::from(7u64).to_repr();
+        let (round_a, pending_a) =
+            Pending::begin_orchard(&[11; 32], &reg, &path, &public, Role::A, &sighash, &alpha)
+                .unwrap();
+        let (round_b, pending_b) =
+            Pending::begin_orchard(&[22; 32], &reg, &path, &public, Role::B, &sighash, &alpha)
+                .unwrap();
+        let rounds = [round_a, round_b];
+        let shares = [
+            pending_a.finish(&rounds).unwrap(),
+            pending_b.finish(&rounds).unwrap(),
+        ];
+        let signature =
+            aggregate_orchard(&reg, &path, &public, &sighash, &alpha, &rounds, &shares).unwrap();
+        assert_eq!(signature.len(), 64);
+    }
 }

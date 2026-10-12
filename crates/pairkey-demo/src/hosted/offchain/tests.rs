@@ -359,7 +359,8 @@ async fn hosted_account_signs_without_registration_and_recovers_exact_requests()
         json!(["namespace", "shared"])
     );
     assert_eq!(config["transaction_signing"]["solana"]["sign"], true);
-    assert_eq!(config["transaction_signing"]["bitcoin"]["sign"], false);
+    assert_eq!(config["evm_chain_selection"]["mode"], "any_eip155_chain_id");
+    assert_eq!(config["transaction_signing"]["bitcoin"]["sign"], true);
     for chain in [Chain::Solana, Chain::Near, Chain::Zcash, Chain::Bitcoin] {
         let (prepared, key) = f.prepared(&ns, chain).await;
         let mut wrong = signed(&prepared, &SigningKey::from_bytes(&fresh()));
@@ -435,14 +436,20 @@ async fn hosted_account_signs_without_registration_and_recovers_exact_requests()
 }
 
 #[tokio::test]
-async fn hosted_account_signs_typed_solana_evm_near_and_sui_transactions() {
+async fn hosted_account_signs_typed_solana_evm_near_sui_and_bitcoin_transactions() {
     use pairkey_signing::transaction::{NearAction, NearPublicKey, NearTransaction};
     use solana_sdk::{hash::Hash, message::Message, system_instruction};
 
     let f = Fixture::new().await;
     let owner = SigningKey::from_bytes(&fresh());
     let ns = f.metadata(&owner).await;
-    for chain in [Chain::Solana, Chain::Evm, Chain::Near, Chain::Sui] {
+    for chain in [
+        Chain::Solana,
+        Chain::Evm,
+        Chain::Near,
+        Chain::Sui,
+        Chain::Bitcoin,
+    ] {
         let key_request = KeyRequest {
             registration: ns.proposal.registration.clone(),
             chain,
@@ -492,6 +499,7 @@ async fn hosted_account_signs_typed_solana_evm_near_and_sui_transactions() {
             Chain::Sui => TransactionRequest::Sui {
                 transaction: vec![1, 2, 3, 4],
             },
+            Chain::Bitcoin => bitcoin_spend(&key.public_key),
             _ => unreachable!(),
         };
         let request = wire::PrepareRequest {
@@ -527,13 +535,16 @@ async fn hosted_account_signs_typed_solana_evm_near_and_sui_transactions() {
             result["transaction"],
             serde_json::to_value(transaction).unwrap()
         );
-        if matches!(chain, Chain::Solana | Chain::Near | Chain::Sui) {
+        if matches!(
+            chain,
+            Chain::Solana | Chain::Near | Chain::Sui | Chain::Bitcoin
+        ) {
             assert!(result["signing_payload_hex"]
                 .as_str()
                 .unwrap()
                 .starts_with("0x"));
         }
-        if chain == Chain::Evm || chain == Chain::Near {
+        if chain == Chain::Evm || chain == Chain::Near || chain == Chain::Bitcoin {
             assert!(result["signed_transaction_hex"]
                 .as_str()
                 .unwrap()
@@ -545,8 +556,68 @@ async fn hosted_account_signs_typed_solana_evm_near_and_sui_transactions() {
                 2 + 97 * 2
             );
         }
+        if chain == Chain::Bitcoin {
+            let signed_psbt = result["signed_psbt_hex"].as_str().unwrap();
+            assert!(signed_psbt.starts_with("0x70736274ff"));
+        }
     }
     f.close().await;
+}
+fn bitcoin_spend(public: &[u8]) -> TransactionRequest {
+    use bitcoin::{
+        absolute, psbt::Psbt, transaction, Amount, OutPoint, ScriptBuf, Sequence, Transaction,
+        TxIn, TxOut, Witness,
+    };
+    let mut owner_script = vec![0x51, 0x20];
+    owner_script.extend_from_slice(public);
+    let prevout = TxOut {
+        value: Amount::from_sat(100_000),
+        script_pubkey: ScriptBuf::from_bytes(owner_script),
+    };
+    let previous = Transaction {
+        version: transaction::Version::TWO,
+        lock_time: absolute::LockTime::ZERO,
+        input: vec![TxIn {
+            previous_output: OutPoint::null(),
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(),
+        }],
+        output: vec![prevout.clone()],
+    };
+    let output = pairkey_signing::bitcoin_psbt::Output {
+        value_sats: 99_500,
+        script_pubkey: vec![0x51, 0x20].into_iter().chain([9; 32]).collect(),
+    };
+    let tx = Transaction {
+        version: transaction::Version::TWO,
+        lock_time: absolute::LockTime::ZERO,
+        input: vec![TxIn {
+            previous_output: OutPoint {
+                txid: previous.compute_txid(),
+                vout: 0,
+            },
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(),
+        }],
+        output: vec![TxOut {
+            value: Amount::from_sat(output.value_sats),
+            script_pubkey: ScriptBuf::from_bytes(output.script_pubkey.clone()),
+        }],
+    };
+    let mut psbt = Psbt::from_unsigned_tx(tx).unwrap();
+    psbt.inputs[0].non_witness_utxo = Some(previous);
+    psbt.inputs[0].witness_utxo = Some(prevout);
+    TransactionRequest::BitcoinPsbt {
+        spend: pairkey_signing::bitcoin_psbt::Spend {
+            network: pairkey_signing::bitcoin::Network::Testnet,
+            psbt: psbt.serialize(),
+            outputs: vec![output],
+            max_fee_sats: 500,
+            max_fee_rate_sat_vb: 10,
+        },
+    }
 }
 #[tokio::test]
 async fn hosted_current_rules_override_prepared_approvals_and_cannot_be_treated_as_absent() {
@@ -686,7 +757,8 @@ async fn hosted_evm_offchain_approval_runs_real_dkls_signing() {
     assert_eq!(before[0], before[1]);
     assert!(before[0].generation.is_some());
     assert_eq!(before[0].uses, 1);
-    let (second_prepared, second_key) = f.prepared(&ns, Chain::Evm).await;
+    let (second_prepared, second_key) = f.prepared(&ns, Chain::EvmChain { chain_id: 1 }).await;
+    assert_ne!(key.account, second_key.account);
     let second_job: Value = f
         .client
         .post("/jobs", &signed(&second_prepared, &owner))

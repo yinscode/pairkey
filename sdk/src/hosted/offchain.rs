@@ -224,13 +224,35 @@ pub fn prepare_message(
         match transaction {
             TransactionRequest::EvmLegacy { transfer } => {
                 ensure!(
-                    q.key.chain == Chain::Evm && key.multi.is_some(),
+                    q.key.chain.evm_chain_id() == Some(transfer.chain_id) && key.multi.is_some(),
                     "EVM transaction/key mismatch"
                 );
                 Some(pairkey_signing::Intent {
                     version: 1,
                     key: key.multi.as_ref().unwrap().key.clone(),
                     payload: pairkey_signing::Payload::EvmTransfer(transfer.clone()),
+                })
+            }
+            TransactionRequest::EvmTypedData { typed_data } => {
+                ensure!(
+                    q.key.chain.evm_chain_id() == Some(typed_data.chain_id) && key.multi.is_some(),
+                    "EVM typed-data/key mismatch"
+                );
+                Some(pairkey_signing::Intent {
+                    version: 1,
+                    key: key.multi.as_ref().unwrap().key.clone(),
+                    payload: pairkey_signing::Payload::EvmTypedData(typed_data.clone()),
+                })
+            }
+            TransactionRequest::BitcoinPsbt { spend } => {
+                ensure!(
+                    q.key.chain == Chain::Bitcoin && key.multi.is_some(),
+                    "Bitcoin transaction/key mismatch"
+                );
+                Some(pairkey_signing::Intent {
+                    version: 1,
+                    key: key.multi.as_ref().unwrap().key.clone(),
+                    payload: pairkey_signing::Payload::BitcoinPsbt(spend.clone()),
                 })
             }
             TransactionRequest::Solana { .. } => {
@@ -267,6 +289,12 @@ pub fn prepare_message(
                 Chain::Evm => {
                     pairkey_signing::Payload::EvmMessage(pairkey_signing::evm_message::Message {
                         chain_id: 84532,
+                        message: q.message.as_bytes().to_vec(),
+                    })
+                }
+                Chain::EvmChain { chain_id } => {
+                    pairkey_signing::Payload::EvmMessage(pairkey_signing::evm_message::Message {
+                        chain_id,
                         message: q.message.as_bytes().to_vec(),
                     })
                 }

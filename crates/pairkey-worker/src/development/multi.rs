@@ -452,6 +452,7 @@ pub(super) async fn start(
                 let prehash = match &r.intent.payload {
                     Payload::EvmTransfer(tx) => tx.prehash()?,
                     Payload::EvmMessage(message) => message.prehash()?,
+                    Payload::EvmTypedData(data) => data.prehash()?,
                     _ => anyhow::bail!("ECDSA payload"),
                 };
                 dkls::d::Command::Sign(dkls::d::Request {
@@ -661,6 +662,18 @@ pub(super) async fn rbegin(
                 )?;
                 (r, FrostPending::Bitcoin(p))
             }
+            (mw::Certificate::Bitcoin(public), Payload::BitcoinPsbt(spend)) => {
+                let digest = spend.sighash(&a.request.intent.key.public_key)?;
+                let (r, p) = bitcoin::Pending::begin(
+                    &w.multi.root,
+                    &b.registration,
+                    &a.request.intent.key.account,
+                    public,
+                    role(&w),
+                    &digest,
+                )?;
+                (r, FrostPending::Bitcoin(p))
+            }
             _ => anyhow::bail!("FROST certificate/payload mismatch"),
         };
         let envelope = w.channel.seal(&b.peer, id, 11, &round)?;
@@ -842,6 +855,14 @@ pub(super) async fn rresult(
                     &shares,
                 )
             }
+            (mw::Certificate::Bitcoin(public), Payload::BitcoinPsbt(spend)) => bitcoin::aggregate(
+                &b.registration,
+                &a.request.intent.key.account,
+                public,
+                &spend.sighash(&a.request.intent.key.public_key)?,
+                &rounds,
+                &shares,
+            ),
             _ => anyhow::bail!("FROST certificate/payload mismatch"),
         };
         let sig = match result {

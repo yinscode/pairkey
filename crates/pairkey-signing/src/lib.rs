@@ -7,11 +7,15 @@ pub use pairkey_dkls23_research as dkls;
 use pairkey_types::{AccountPath, Registration};
 use serde::{Deserialize, Serialize};
 pub mod bitcoin;
+pub mod bitcoin_psbt;
 pub mod evm;
 pub mod evm_message;
+pub mod evm_typed_data;
 pub mod redpallas;
 pub mod sui;
 pub mod transaction;
+#[cfg(feature = "zcash-pczt")]
+pub mod zcash_pczt;
 
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize,
@@ -73,6 +77,10 @@ pub enum Payload {
     EvmMessage(evm_message::Message),
     /// Appended to preserve all existing payload discriminants.
     BitcoinMessage(bitcoin::Message),
+    /// Appended to preserve all existing Borsh payload discriminants.
+    EvmTypedData(evm_typed_data::TypedData),
+    /// BIP-174/BIP-371 Taproot key-path spend, with exact output and fee rules.
+    BitcoinPsbt(bitcoin_psbt::Spend),
 }
 pub const INTENT_PREFIX: &[u8] = b"pairkey/signing-intent/v1\0";
 impl Intent {
@@ -110,6 +118,13 @@ impl Intent {
                     "EVM message destination mismatch"
                 );
             }
+            (Suite::Dkls23Secp256k1, Payload::EvmTypedData(data)) => {
+                data.validate()?;
+                ensure!(
+                    self.key.account.destination == evm::destination(data.chain_id),
+                    "EVM typed-data destination mismatch"
+                );
+            }
             (Suite::FrostSecp256k1Tr, Payload::BitcoinMessage(message)) => {
                 message.validate()?;
                 ensure!(
@@ -120,6 +135,13 @@ impl Intent {
                     self.key.public_key.len() == 32,
                     "x-only Bitcoin public key required"
                 );
+            }
+            (Suite::FrostSecp256k1Tr, Payload::BitcoinPsbt(spend)) => {
+                ensure!(
+                    self.key.account.destination == bitcoin::destination(spend.network),
+                    "Bitcoin destination/network mismatch"
+                );
+                spend.sighash(&self.key.public_key)?;
             }
             (Suite::FrostRedPallas, Payload::RedPallas { message }) => {
                 ensure!(
@@ -136,7 +158,9 @@ impl Intent {
         match &self.payload {
             Payload::EvmTransfer(tx) => evm::verify(&self.key.public_key, tx, signature),
             Payload::EvmMessage(message) => message.verify(&self.key.public_key, signature),
+            Payload::EvmTypedData(data) => data.verify(&self.key.public_key, signature),
             Payload::BitcoinMessage(message) => message.verify(&self.key.public_key, signature),
+            Payload::BitcoinPsbt(spend) => spend.verify(&self.key.public_key, signature),
             Payload::RedPallas { message } => {
                 redpallas::verify(&self.key.public_key, message, signature)
             }

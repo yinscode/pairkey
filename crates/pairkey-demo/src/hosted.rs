@@ -268,7 +268,7 @@ async fn enrolled_metadata(app: &App, q: &KeyRequest) -> Result<KeyResponse> {
         None => pairkey_sdk::derive_public(&q.registration, &account)?.to_vec(),
     };
     let address = match q.chain {
-        Chain::Evm => Some(format!(
+        Chain::Evm | Chain::EvmChain { .. } => Some(format!(
             "0x{}",
             hex(&pairkey_signing::evm::address(&public_key)?)
         )),

@@ -14,11 +14,19 @@ pub enum Chain {
     Near,
     Bitcoin,
     Sui,
+    EvmChain { chain_id: u64 },
 }
 impl Chain {
     pub fn account(self, path: Vec<u32>) -> Result<AccountPath> {
         let destination = match self {
             Self::Evm => pairkey_signing::evm::destination(84532),
+            Self::EvmChain { chain_id } => {
+                ensure!(
+                    chain_id > 0 && chain_id <= (u64::MAX - 36) / 2,
+                    "EVM chain ID bounds"
+                );
+                pairkey_signing::evm::destination(chain_id)
+            }
             Self::Bitcoin => {
                 pairkey_signing::bitcoin::destination(pairkey_signing::bitcoin::Network::Testnet)
             }
@@ -31,9 +39,16 @@ impl Chain {
     pub fn suite(self) -> Option<pairkey_signing::Suite> {
         use pairkey_signing::Suite;
         match self {
-            Self::Evm => Some(Suite::Dkls23Secp256k1),
+            Self::Evm | Self::EvmChain { .. } => Some(Suite::Dkls23Secp256k1),
             Self::Zcash => Some(Suite::FrostRedPallas),
             Self::Bitcoin => Some(Suite::FrostSecp256k1Tr),
+            _ => None,
+        }
+    }
+    pub fn evm_chain_id(self) -> Option<u64> {
+        match self {
+            Self::Evm => Some(84532),
+            Self::EvmChain { chain_id } => Some(chain_id),
             _ => None,
         }
     }
@@ -143,11 +158,17 @@ pub enum TransactionRequest {
     EvmLegacy {
         transfer: pairkey_signing::evm::Transfer,
     },
+    EvmTypedData {
+        typed_data: pairkey_signing::evm_typed_data::TypedData,
+    },
     Near {
         transaction: Vec<u8>,
     },
     Sui {
         transaction: Vec<u8>,
+    },
+    BitcoinPsbt {
+        spend: pairkey_signing::bitcoin_psbt::Spend,
     },
 }
 impl TransactionRequest {
@@ -162,7 +183,7 @@ impl TransactionRequest {
             Self::Sui { transaction } => Some(pairkey_signing::transaction::Transaction::Sui {
                 transaction: transaction.clone(),
             }),
-            Self::EvmLegacy { .. } => None,
+            Self::EvmLegacy { .. } | Self::EvmTypedData { .. } | Self::BitcoinPsbt { .. } => None,
         }
     }
 }
@@ -369,4 +390,25 @@ fn decode_hex(value: &str) -> Result<Vec<u8>> {
         .step_by(2)
         .map(|i| u8::from_str_radix(&value[i..i + 2], 16).map_err(Into::into))
         .collect()
+}
+
+#[cfg(test)]
+mod chain_tests {
+    use super::Chain;
+
+    #[test]
+    fn evm_chain_id_selects_a_distinct_destination() {
+        let base = Chain::Evm.account(vec![0]).unwrap();
+        assert_eq!(
+            base,
+            Chain::EvmChain { chain_id: 84532 }
+                .account(vec![0])
+                .unwrap()
+        );
+        assert_ne!(
+            base,
+            Chain::EvmChain { chain_id: 1 }.account(vec![0]).unwrap()
+        );
+        assert!(Chain::EvmChain { chain_id: 0 }.account(vec![0]).is_err());
+    }
 }

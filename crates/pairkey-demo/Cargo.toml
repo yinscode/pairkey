@@ -33,4 +33,5 @@ litesvm.workspace = true
 p256 = { version = "=0.13.2", features = ["ecdsa"] }
 sha2.workspace = true
 ring = "=0.17.14"
+bitcoin = { version = "=0.32.8", default-features = false, features = ["std"] }
 tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
