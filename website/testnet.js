@@ -2,10 +2,15 @@ import {PairKey} from './hosted-v2.mjs';
 import {HostedSession} from './hosted-session.mjs';
 import {chainLabels,messageFlowV2} from './message-demo.mjs';
 import {readGoogleClaims,showGoogleButton} from './google-oidc.mjs';
+import {createDemoPasskey,passkeyIdentity,validPasskeyRecord} from './passkey-demo.mjs';
 const $=id=>document.getElementById(id),short=(s,n=10)=>s?`${s.slice(0,n)}…${s.slice(-6)}`:'—';
-const recoveryKey='pairkey-v2-demo-recovery',historyKey='pairkey-v2-demo-history';
+const recoveryKey='pairkey-v2-demo-recovery',historyKey='pairkey-v2-demo-history',passkeyKey='pairkey-v2-demo-passkey';
 const schemes={solana:'FROST Ed25519',evm:'DKLS23 · secp256k1',zcash:'FROST RedPallas',near:'FROST Ed25519',bitcoin:'FROST secp256k1 · BIP-340'};
 let config,googleIssuer,googleGeneration=0,pendingOidc,connectedScope,busy=false,verifying=false,currentOp,activeOp,verificationFor;
+const passkeySupported=!!(globalThis.PublicKeyCredential&&navigator.credentials?.create&&navigator.credentials?.get&&crypto.subtle);
+function savedPasskey(){try{const record=JSON.parse(localStorage.getItem(passkeyKey)||'null');return validPasskeyRecord(record,location.origin)?record:undefined;}catch{return undefined;}}
+let passkeyRecord=savedPasskey();
+function selectedSource(){return $('message-authority').querySelector('input[name="source"]:checked')?.value||'account';}
 let history=[];
 try {history=JSON.parse(sessionStorage.getItem(historyKey)||'[]').slice(-12).filter(o=>o&&typeof o.id==='string'&&Array.isArray(o.events)&&Array.isArray(o.transactions)).map(o=>({...o,validated:false,stage:o.stage==='complete'?'complete':'uncertain'}));} catch {}
 const client=new PairKey({web3:window.solanaWeb3,endpoint:`${location.origin}/api/v2`,onProgress:({message,signature})=>{
@@ -22,7 +27,7 @@ const flow=new HostedSession(client,{storageKey:recoveryKey,onStage:(stage,data=
     activeOp.recovery=saved;
   }
   if(stage==='complete'){activeOp.result=data.result;activeOp.validated=true;}
-  const messages={preparing:'Preparing and checking the exact request.',authorizing:flow.namespace?.identity?.Oidc?'Waiting for a Google ID token bound to this exact request.':'Waiting for the caller’s wallet message signature.',committing:'Waiting for the program’s on-chain approval and finality.',submitting:'Submitting the authenticated request.',signing:'Job admitted. Waiting for both signers and the final result.',recovering:'Reading the original job and saved receipts; no new signing.',complete:'Signature and both receipts returned. The hosted Rust SDK verified the result.'};
+  const messages={preparing:'Preparing and checking the exact request.',authorizing:flow.namespace?.identity?.Oidc?'Waiting for a Google ID token bound to this exact request.':flow.namespace?.identity?.Passkey?'Waiting for a passkey assertion bound to this exact request.':'Waiting for the caller’s wallet message signature.',committing:'Waiting for the program’s on-chain approval and finality.',submitting:'Submitting the authenticated request.',signing:'Job admitted. Waiting for both signers and the final result.',recovering:'Reading the original job and saved receipts; no new signing.',complete:'Signature and both receipts returned. The hosted Rust SDK verified the result.'};
   if(messages[stage])activeOp.events.push(messages[stage]);
   saveHistory();renderOperation(activeOp);
 }});
@@ -31,7 +36,7 @@ function selection(){
   if(!Number.isInteger(index)||index<0||index>4294967295)throw new Error('Path index must be an integer from 0 to 4294967295.');
   return {chain:$('message-chain').querySelector('input:checked').value,path:[index]};
 }
-function scope(){return JSON.stringify({source:$('message-authority').value,program:$('demo-program').value.trim(),mode:$('demo-mode').value});}
+function scope(){return JSON.stringify({source:selectedSource(),program:$('demo-program').value.trim(),mode:$('demo-mode').value});}
 function connected(){return !!flow.namespace&&connectedScope===scope();}
 function saveHistory(){
   if(activeOp&&!history.includes(activeOp))history.push(activeOp);
@@ -46,17 +51,22 @@ function renderHistory(){
 }
 function controls(){
   for(const control of $('message-form').querySelectorAll('input,select,textarea,button,fieldset'))control.disabled=busy||!!pendingOidc;
-  const source=$('message-authority').value,program=source==='program',google=source==='google';
-  $('source-account-label').textContent=google?'Google source':'Connected Solana account';
-  $('authority-costs-copy').textContent=google?'A Google ID token authorizes each exact request, without a Solana wallet or per-signature Solana transaction. Optional policy edits need a separate Solana fee payer. Hosted workers hold their own key shares.':'Your wallet controls this request. Account off-chain approvals need no SOL. Policy edits and program commits need devnet fees and any account rent. Hosted workers hold their own key shares.';
+  const source=selectedSource(),program=source==='program',google=source==='google',passkey=source==='passkey';
+  $('google-source').disabled=busy||!!pendingOidc||!googleIssuer;
+  $('passkey-source').disabled=busy||!!pendingOidc||!passkeySupported;
+  $('source-account-label').textContent=google?'Google source':passkey?'Passkey source':'Connected Solana account';
+  $('authority-costs-copy').textContent=google?'A Google ID token authorizes each exact request, without a Solana wallet or per-signature Solana transaction. Optional policy edits need a separate Solana fee payer. Hosted workers hold their own key shares.':passkey?'A passkey assertion authorizes each exact request, without a Solana wallet or per-signature Solana transaction. Only public credential metadata is kept in this browser. Hosted workers hold their own key shares.':'Your wallet controls this request. Account off-chain approvals need no SOL. Policy edits and program commits need devnet fees and any account rent. Hosted workers hold their own key shares.';
   $('program-controls').hidden=!program;$('program-policy-controls').hidden=!program;
+  $('passkey-controls').hidden=!passkey;
+  $('passkey-new').hidden=!passkey||!passkeyRecord;
+  $('passkey-new').disabled=busy||!!pendingOidc||!passkeySupported;
   $('google-controls').hidden=!google;
   $('google-button').hidden=!google||connected()&&!pendingOidc;
   $('google-cancel').hidden=!pendingOidc;
   $('google-cancel').disabled=busy;
   $('demo-connect').hidden=google&&!connected();
-  $('demo-connect').textContent=google?'Change Google account':'Connect wallet';
-  $('demo-connect').disabled=busy||!!pendingOidc||!config||config.ready===false;
+  $('demo-connect').textContent=google?'Change Google account':passkey?passkeyRecord?'Use saved passkey':'Create passkey':'Connect wallet';
+  $('demo-connect').disabled=busy||!!pendingOidc||!config||config.ready===false||passkey&&!passkeySupported;
   $('demo-example').disabled=busy||!!pendingOidc||!config?.example_program;
   $('demo-key').disabled=busy||!!pendingOidc||!connected();
   $('demo-policy').disabled=busy||!!pendingOidc||!connected();
@@ -71,19 +81,34 @@ function controls(){
   for(const id of ['verify-message','verify-key','verify-signature'])$(id).disabled=busy||verifying||!currentOp?.result?.signature_hex;
 }
 function draft(){
-  const source=$('message-authority').value,program=source==='program';
-  $('authority-help').textContent=program?'Your program evaluates the authenticated caller and its own rules.':source==='google'?'Choose a Google account. Google will authorize each exact message with a fresh bound ID token.':'Your connected wallet approves each exact request off-chain.';
+  const source=selectedSource(),program=source==='program';
+  $('authority-help').textContent=program?'Your program evaluates the authenticated caller and its own rules.':source==='google'?'Choose a Google account. Google will authorize each exact message with a fresh bound ID token.':source==='passkey'?'Your passkey approves each exact message with a fresh bound assertion.':'Your connected wallet approves each exact request off-chain.';
   let q;try{q=selection();}catch{}
   $('message-preview').textContent=JSON.stringify({source,...q,message:$('message-text').value},null,2);
   controls();if(!currentOp)renderFlow();
 }
 function clearKey(){flow.key=flow.selection=undefined;$('derived-key').textContent='Load the selected chain and path’s key.';$('derived-scheme').textContent='';$('derived-address').hidden=true;$('key-format').textContent='';}
 function clearConnection(){googleGeneration++;pendingOidc=undefined;flow.reset();connectedScope=undefined;clearKey();$('demo-wallet').textContent='Connect your authority.';$('sol-address').textContent=$('controller-address').textContent='—';}
+async function connectDemoPasskey(createNew=false){
+  clearConnection();currentOp=undefined;renderFlow();
+  if(createNew||!passkeyRecord){
+    const probe=`${passkeyKey}-probe`;
+    localStorage.setItem(probe,'1');localStorage.removeItem(probe);
+    const record=await createDemoPasskey();
+    localStorage.setItem(passkeyKey,JSON.stringify(record));
+    passkeyRecord=record;
+  }
+  const namespace=await flow.connectPasskey(passkeyIdentity(passkeyRecord));connectedScope=scope();
+  $('demo-wallet').textContent=`Passkey ready: ${short(client.pubkey(namespace.registration.namespace.derivation_authority).toBase58())}. Your authenticator will approve each message.`;
+  $('sol-address').textContent='No Solana wallet required';
+  $('controller-address').textContent=client.pubkey(namespace.registration.namespace.derivation_authority).toBase58();
+  $('setup-message').textContent='Passkey namespace ready. Load a derived key.';draft();
+}
 async function googleButton(nonce){
   const generation=++googleGeneration;
   $('google-help').textContent=nonce?'Continue with the same Google account to approve this exact message.':'Choose a Google account to derive its PairKey namespace.';
   await showGoogleButton($('google-button'),{audience:googleIssuer.audience,nonce,onCredential:credential=>{
-    if(generation!==googleGeneration||$('message-authority').value!=='google')return;
+    if(generation!==googleGeneration||selectedSource()!=='google')return;
     void run(async()=>{
       if(!credential)throw new Error('Google did not return an ID token.');
       if(nonce){
@@ -113,16 +138,16 @@ async function run(work,onError){
 }
 function paint(name,state,status,detail){$(`flow-${name}`).dataset.state=state;$(`${name}-status`).textContent=status;$(`${name}-detail`).textContent=detail;}
 function renderFlow(op){
-  const view=messageFlowV2(op),identity=op?.prepared?.request.identity,program=identity?!!identity.Program:$('message-authority').value==='program',google=identity?!!identity.Oidc:$('message-authority').value==='google';
+  const view=messageFlowV2(op),identity=op?.prepared?.request.identity,program=identity?!!identity.Program:selectedSource()==='program',google=identity?!!identity.Oidc:selectedSource()==='google',passkey=identity?!!identity.Passkey:selectedSource()==='passkey';
   const onchain=identity?.Program?.mode==='Onchain';
-  $('authority-title').textContent=program?'Your Solana program':google?'Your Google account':'Your Solana account';
-  $('authority-kind').textContent=google?'AUTHORITY / GOOGLE OIDC':'AUTHORITY / SOLANA';
-  $('authority-icon').textContent=google?'G':'{ }';
+  $('authority-title').textContent=program?'Your Solana program':google?'Your Google account':passkey?'Your passkey':'Your Solana account';
+  $('authority-kind').textContent=google?'AUTHORITY / OIDC':passkey?'AUTHORITY / PASSKEY':'AUTHORITY / SOLANA';
+  $('authority-icon').textContent=google?'G':passkey?'⌑':'{ }';
   $('flow-context').textContent=op?`${chainLabels[op.chain]||'Message'} · ${short(op.jobId||op.id,8)} · ${op.stage}`:'Connect your authority, choose a key and follow its signature.';
-  const status={preparing:'Preparing',authorizing:google?'Google approval':'Wallet approval',committing:'Finalizing',submitting:'Caller approved',signing:'Admitted',complete:'Approved',recovering:'Recovering',uncertain:'Unknown',stopped:'Stopped'}[view.stage]||'Waiting';
+  const status={preparing:'Preparing',authorizing:google?'Google approval':passkey?'Passkey approval':'Wallet approval',committing:'Finalizing',submitting:'Caller approved',signing:'Admitted',complete:'Approved',recovering:'Recovering',uncertain:'Unknown',stopped:'Stopped'}[view.stage]||'Waiting';
   const detail=view.assembled?(onchain?'Matching on-chain program approval and current policy checked by both signers.':'Exact caller proof and current rules checked by both signers.'):
     view.stage==='committing'?'The program must consume an allowance and record approval in one finalized transaction.':
-    view.stage==='authorizing'?(google?'Waiting for Google to issue a token bound to this request. No signing result exists yet.':'Waiting for a wallet message signature over the exact request. No signing result exists yet.'):
+    view.stage==='authorizing'?(google?'Waiting for Google to issue a token bound to this request. No signing result exists yet.':passkey?'Waiting for a WebAuthn assertion bound to this request. No signing result exists yet.':'Waiting for a wallet message signature over the exact request. No signing result exists yet.'):
     view.stage==='signing'?'The request was admitted. Both signers recheck authorization before releasing their output.':
     view.uncertain?'No verified outcome is available. Recover the original job before making another request.':
     view.saved?'Saved request metadata. Recover the job to recheck its original receipt pair.':
@@ -166,10 +191,11 @@ function failed(error){
 }
 $('demo-example').addEventListener('click',()=>{clearConnection();$('demo-program').value=config.example_program;$('demo-mode').value='Onchain';draft();});
 $('demo-connect').addEventListener('click',()=>run(async()=>{
+  if(selectedSource()==='passkey'){await connectDemoPasskey();return;}
   clearConnection();currentOp=undefined;renderFlow();
-  if($('message-authority').value==='google'){await googleButton();draft();return;}
+  if(selectedSource()==='google'){await googleButton();draft();return;}
   const wallet=window.phantom?.solana||window.solflare||window.solana;
-  const program=$('message-authority').value==='program';
+  const program=selectedSource()==='program';
   const options=program?{program:$('demo-program').value.trim(),mode:$('demo-mode').value}:{};
   if(program&&!options.program)throw new Error('Choose the hosted example or enter a v2 program ID.');
   const namespace=await flow.connect(wallet,options);connectedScope=scope();
@@ -177,6 +203,7 @@ $('demo-connect').addEventListener('click',()=>run(async()=>{
   $('controller-address').textContent=client.pubkey(namespace.registration.namespace.derivation_authority).toBase58();
   $('setup-message').textContent='Namespace ready without a registration transaction. Load a derived key.';draft();
 }));
+$('passkey-new').addEventListener('click',()=>run(()=>connectDemoPasskey(true)));
 $('demo-key').addEventListener('click',()=>run(async()=>{
   if(!connected())throw new Error('Source changed. Connect again.');
   clearKey();const q=selection(),key=await flow.loadKey(q.chain,q.path);
@@ -199,10 +226,13 @@ $('message-form').addEventListener('submit',event=>{event.preventDefault();void 
   if(!connected())throw new Error('Connect the selected authority first.');
   activeOp={id:crypto.randomUUID(),chain:selection().chain,stage:'preparing',events:[],transactions:[]};
   verificationFor=undefined;
-  if($('message-authority').value==='google'){
+  if(selectedSource()==='google'){
     pendingOidc=await flow.prepareOidc({...selection(),message:$('message-text').value});
     await googleButton(pendingOidc.ephemeral.oidcNonce);
     $('setup-message').textContent='Approve this exact message with Google below.';
+  }else if(selectedSource()==='passkey'){
+    if(!validPasskeyRecord(passkeyRecord,location.origin))throw new Error('Passkey metadata changed. Reconnect before signing.');
+    await flow.signPasskey({...selection(),message:$('message-text').value},passkeyRecord.credential_id);
   }else await flow.sign({...selection(),message:$('message-text').value});
 },failed);});
 $('google-cancel').addEventListener('click',()=>{pendingOidc=undefined;googleGeneration++;$('google-button').replaceChildren();$('google-help').textContent='Approval cancelled. Prepare a new exact request when ready.';if(currentOp?.stage==='authorizing'){currentOp.stage='stopped';currentOp.events.push('Google approval cancelled before submission.');saveHistory();renderOperation(currentOp);}controls();});
@@ -212,7 +242,7 @@ $('live-resume').addEventListener('click',()=>run(async()=>{
   activeOp=history.find(o=>o.jobId===saved.job_id)||{id:crypto.randomUUID(),jobId:saved.job_id,chain:saved.prepared.signing_request.key.chain,prepared:saved.prepared,recovery:saved,events:[],transactions:[]};
   activeOp.result=undefined;activeOp.validated=false;verificationFor=undefined;await flow.recover();
 },failed));
-for(const id of ['message-authority','demo-program','demo-mode'])$(id).addEventListener('input',()=>{clearConnection();draft();const google=$('message-authority').value==='google';$('setup-message').textContent=google?'Choose a Google account to continue. No Solana wallet is needed.':'Connect a Solana wallet to authorize the selected source.';if(google&&googleIssuer)void googleButton().catch(error=>{$('live-error').textContent=error.message;});});
+for(const id of ['message-authority','demo-program','demo-mode'])$(id).addEventListener('input',()=>{clearConnection();draft();const source=selectedSource();$('setup-message').textContent=source==='google'?'Choose a Google account to continue. No Solana wallet is needed.':source==='passkey'?'Create or reuse a passkey on this site. No Solana wallet is needed.':'Connect a Solana wallet to authorize the selected source.';if(source==='google'&&googleIssuer)void googleButton().catch(error=>{$('live-error').textContent=error.message;});});
 for(const id of ['message-chain','demo-path'])$(id).addEventListener('input',()=>{clearKey();draft();});
 $('message-text').addEventListener('input',draft);
 $('operation-history').addEventListener('change',()=>{const op=history.find(o=>o.id===$('operation-history').value);if(op){verificationFor=undefined;renderOperation(op);}});
@@ -229,7 +259,6 @@ try{
   config=await client.config();$('setup-title').textContent=config.ready===false?'Backend is initializing':'Hosted v2 connected';
   $('setup-message').textContent='Connect your own wallet. Off-chain account approval sends no transaction.';
   googleIssuer=config.oidc_issuers?.find(x=>x.issuer==='https://accounts.google.com');
-  $('google-source').disabled=!googleIssuer;
   $('connection-light').dataset.ready=String(config.ready!==false);$('flow-live').textContent=config.hardware_backed?'HOSTED SIGNERS':'DEVELOPMENT SIGNERS';
 }catch(error){$('setup-title').textContent='Hosted v2 unavailable';$('setup-message').textContent='This page needs the coordinated v2 backend. Check the deployment or retry after it is available.';$('flow-live').textContent='DISCONNECTED';}
 renderHistory();if(history.length)renderOperation(history.at(-1));draft();

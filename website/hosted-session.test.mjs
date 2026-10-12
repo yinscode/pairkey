@@ -81,3 +81,21 @@ test('OIDC uses a bound token for one prepared message and keeps it out of recov
   await f.flow.recover();
   assert.deepEqual(f.calls,['oidc-approve','submit','wait','recover','wait']);
 });
+test('passkey approval uses one bound assertion and recovery never prompts again',async()=>{
+  const f=fixture(),identity={Passkey:{public_key:[2,...Array(32).fill(1)],rp_id:'pairkey.com',origin:'https://pairkey.com'}};
+  f.client.onboard=async(_wallet,options)=>({identity:options.identity});
+  f.flow.ephemeral=async namespace=>({challenge:[7,8,9],approve:async(prepared,key,{assertion})=>{
+    assert.equal(namespace.identity,identity);assert.equal(prepared,f.prepared);assert.equal(key,f.flow.key);
+    assert.deepEqual(assertion,{privateAssertion:'proof'});f.calls.push('passkey-approve');return {proof:assertion};
+  }});
+  f.flow.assertPasskey=async(given,challenge,credentialId)=>{
+    assert.equal(given,identity);assert.deepEqual(challenge,[7,8,9]);assert.deepEqual(credentialId,[4,5]);
+    assert.ok(f.map.get('pairkey-v2-recovery'),'public recovery record must exist before prompting');
+    f.calls.push('passkey-prompt');return {privateAssertion:'proof'};
+  };
+  await f.flow.connectPasskey(identity);await f.flow.loadKey('solana',[0]);
+  assert.deepEqual(await f.flow.signPasskey(selection,[4,5]),f.result);
+  assert.equal(f.map.get('pairkey-v2-recovery').includes('privateAssertion'),false);
+  await f.flow.recover();
+  assert.deepEqual(f.calls,['passkey-prompt','passkey-approve','submit','wait','recover','wait']);
+});

@@ -1,10 +1,10 @@
 /** Shared quickstart/demo lifecycle. Recovery stores public metadata only and
  * never asks for a new signature, calls submit, or consumes another allowance. */
 import {same, check} from './approval-codec.mjs';
-import {ephemeralIdentity} from './hosted-v2.mjs';
+import {ephemeralIdentity, passkeyAssertion} from './hosted-v2.mjs';
 export class HostedSession {
-  constructor(client, {storage = globalThis.sessionStorage, storageKey = 'pairkey-v2-recovery', onStage = () => {}, ephemeral = ephemeralIdentity} = {}) {
-    this.client = client; this.storage = storage; this.storageKey = storageKey; this.onStage = onStage; this.ephemeral = ephemeral;
+  constructor(client, {storage = globalThis.sessionStorage, storageKey = 'pairkey-v2-recovery', onStage = () => {}, ephemeral = ephemeralIdentity, assertPasskey = passkeyAssertion} = {}) {
+    this.client = client; this.storage = storage; this.storageKey = storageKey; this.onStage = onStage; this.ephemeral = ephemeral; this.assertPasskey = assertPasskey;
   }
   reset() { this.namespace = this.wallet = this.key = this.selection = this.result = undefined; }
   async connect(wallet, {program, mode = 'Offchain'} = {}) {
@@ -20,6 +20,14 @@ export class HostedSession {
   async connectOidc(identity) {
     this.reset();
     check(identity?.Oidc, 'Select an OIDC identity first.');
+    const namespace = await this.client.onboard(undefined, {identity});
+    this.namespace = namespace;
+    this.onStage('ready', {namespace});
+    return namespace;
+  }
+  async connectPasskey(identity) {
+    this.reset();
+    check(identity?.Passkey, 'Create or select a passkey first.');
     const namespace = await this.client.onboard(undefined, {identity});
     this.namespace = namespace;
     this.onStage('ready', {namespace});
@@ -77,6 +85,25 @@ export class HostedSession {
     this.onStage('signing', {jobId: job.job_id, prepared: pending.prepared});
     this.result = await this.client.wait(job.job_id, {prepared: pending.prepared, key: pending.key});
     this.onStage('complete', {result: this.result, jobId: job.job_id, prepared: pending.prepared});
+    return this.result;
+  }
+  async signPasskey({chain, path, message}, credentialId) {
+    check(this.namespace?.identity?.Passkey, 'Connect your passkey identity first.');
+    check(this.key && same(this.selection, {chain, path}), 'Chain or path changed. Load its key first.');
+    this.result = undefined;
+    this.onStage('preparing');
+    const ephemeral = await this.ephemeral(this.namespace);
+    const prepared = await this.client.prepare(this.namespace, undefined, {chain, path, message});
+    const recovery = await this.client.recovery(prepared);
+    this.storage.setItem(this.storageKey, JSON.stringify(recovery));
+    this.onStage('authorizing', {prepared});
+    const assertion = await this.assertPasskey(this.namespace.identity, ephemeral.challenge, credentialId);
+    const submission = await ephemeral.approve(prepared, this.key, {assertion});
+    this.onStage('submitting', {jobId: recovery.job_id, prepared});
+    const job = await this.client.submit(submission);
+    this.onStage('signing', {jobId: job.job_id, prepared});
+    this.result = await this.client.wait(job.job_id, {prepared, key: this.key});
+    this.onStage('complete', {result: this.result, jobId: job.job_id, prepared});
     return this.result;
   }
   async recover() {
