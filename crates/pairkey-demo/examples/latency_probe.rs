@@ -1,4 +1,4 @@
-//! Time the hosted account/EVM path without sending an on-chain transaction.
+//! Time a hosted account message-signing path without sending an on-chain transaction.
 use anyhow::{bail, Context, Result};
 use ed25519_dalek::{Signer, SigningKey};
 use pairkey_sdk::hosted::{
@@ -25,6 +25,9 @@ async fn main() -> Result<()> {
         .transpose()?
         .unwrap_or(2);
     anyhow::ensure!((1..=5).contains(&attempts), "attempts must be 1–5");
+    let chain: Chain = serde_json::from_value(Value::String(
+        std::env::var("PAIRKEY_LATENCY_CHAIN").unwrap_or_else(|_| "evm".into()),
+    ))?;
     let client = Client::new(endpoint)?;
     let config: Value = client.get("/config").await?;
     anyhow::ensure!(config["ready"] == true, "hosted demo is not ready");
@@ -61,7 +64,7 @@ async fn main() -> Result<()> {
         .await?;
     let key_request = KeyRequest {
         registration: namespace.proposal.registration,
-        chain: Chain::Evm,
+        chain,
         path: vec![0],
     };
     let key = client.offchain_key(&key_request, identities).await?;
@@ -73,7 +76,7 @@ async fn main() -> Result<()> {
             signing_request: SigningRequest {
                 key: key_request.clone(),
                 request_id,
-                message: format!("PairKey latency probe {}", index + 1),
+                message: format!("PairKey {chain:?} latency probe {}", index + 1),
             },
             identity: identity.clone(),
         };
@@ -126,7 +129,7 @@ async fn main() -> Result<()> {
         )?;
         println!(
             "{}",
-            json!({"attempt":index+1,"prepare_ms":prepare_ms,"preparation_retries":retries,"submit_ms":submit_ms,"wait_ms":wait_ms,"verify_ms":ms(t),"total_ms":ms(total),"polls":polls})
+            json!({"chain":chain,"attempt":index+1,"prepare_ms":prepare_ms,"preparation_retries":retries,"submit_ms":submit_ms,"wait_ms":wait_ms,"verify_ms":ms(t),"total_ms":ms(total),"polls":polls})
         );
     }
     Ok(())
