@@ -65,3 +65,4 @@
 @media(prefers-reduced-motion:reduce) {.chain-choice {transition:none}}
 
 .chain-option:last-child:nth-child(odd) { grid-column:1/-1; }
+.google-controls{display:grid;gap:12px;margin:16px 0}.google-controls[hidden],.google-controls [hidden]{display:none}.google-controls #google-button{min-height:42px}

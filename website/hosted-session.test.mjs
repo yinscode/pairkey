@@ -63,3 +63,21 @@ test('saved recovery cannot silently change job, endpoint or deployment',async()
     await assert.rejects(()=>f.flow.recover());assert.deepEqual(f.calls,[]);
   }
 });
+test('OIDC uses a bound token for one prepared message and keeps it out of recovery',async()=>{
+  const f=fixture(),identity={Oidc:{issuer:'https://accounts.google.com',audience:'client',subject:'person'}};
+  f.client.onboard=async(_wallet,options)=>({identity:options.identity});
+  f.flow.ephemeral=async namespace=>({
+    oidcNonce:'exact-nonce',
+    approve:async(prepared,key,{idToken})=>{assert.equal(namespace.identity,identity);assert.equal(idToken,'private-id-token');assert.equal(prepared,f.prepared);assert.equal(key,f.flow.key);f.calls.push('oidc-approve');return {proof:'private-id-token'};},
+  });
+  await f.flow.connectOidc(identity);
+  await f.flow.loadKey('solana',[0]);
+  const pending=await f.flow.prepareOidc(selection);
+  assert.equal(pending.ephemeral.oidcNonce,'exact-nonce');
+  assert.equal(f.map.get('pairkey-v2-recovery').includes('private-id-token'),false);
+  assert.deepEqual(await f.flow.completeOidc(pending,'private-id-token'),f.result);
+  assert.deepEqual(f.calls,['oidc-approve','submit','wait']);
+  assert.equal(f.map.get('pairkey-v2-recovery').includes('private-id-token'),false);
+  await f.flow.recover();
+  assert.deepEqual(f.calls,['oidc-approve','submit','wait','recover','wait']);
+});

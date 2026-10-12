@@ -1,7 +1,8 @@
 # PairKey website
 
-Static landing page, hosted v2 message demo at `/demo`, and 14 documentation pages.
-All visual assets are local. No analytics or external fonts are loaded.
+Static landing page, hosted v2 message demo at `/demo`, and 16 documentation pages.
+Visual assets are local. The Google source loads Google Identity Services for sign-in;
+no analytics or external fonts are loaded.
 
 For static layout preview (no signing API):
 
@@ -22,7 +23,11 @@ Optional standard rules live in reusable Solana accounts. Sessions are deferred
 for v2; the older transfer-session APIs remain compatible and separately documented.
 
 Passkeys and configured OIDC providers authenticate bound ephemeral Ed25519 keys
-through the SDK. The public wallet demo exposes account and program sources.
+through the SDK. The passkey integration page explains the application's required
+WebAuthn registration ceremony; the public demo does not provide one. The demo
+exposes account and program sources, plus Google when its issuer is configured.
+Google credentials stay in browser memory and are not included in public recovery
+records.
 Development hardware status and transaction-format boundaries belong in the docs.
 The landing page describes the target two-independent-TEE architecture without
 claiming a measured production latency or universal free service.
@@ -36,8 +41,8 @@ produces `examples/hosted-client-v2.zip`.
 
 `hosted-session.mjs` is shared by the quickstarts and demo. It saves public recovery
 metadata before submission and never reauthenticates, recommits or resubmits on
-recovery. `testnet.js` connects visitor wallets, exposes program setup, and shows
-account/program signing across five destinations. History is tab-local and contains
+recovery. `testnet.js` connects visitor wallets or a Google account, exposes program
+setup, and shows signing across five destinations. History is tab-local and contains
 public transcripts only. Saved results are not labelled freshly verified.
 
 `message-demo.mjs` projects lifecycle evidence into signer cards. Joint work does
@@ -54,7 +59,7 @@ Edit `content/*.html`, then run:
 python3 website/build-docs.py
 ```
 
-The generator produces `docs.html`, 13 pages under `docs/`, public Rust examples,
+The generator produces `docs.html`, 15 pages under `docs/`, public Rust examples,
 the browser SDK archive and a self-contained program archive. The program bundles
 the exact typed gateway ABI and policy implementation from the source tree, with
 pinned dependencies. Edit application rules in the downloaded bundle's

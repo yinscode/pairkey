@@ -70,3 +70,18 @@ upgradeable example's on-chain program approval. Immutable program evaluation an
 passkey/OIDC flows retain their recorded local test coverage; they were not exercised
 against public devnet during this rollout. No OIDC provider is configured. Sessions
 remain deferred in v2. These checks signed messages, not destination transactions.
+
+## Google OIDC preview after the rollout — October 13, 2026
+
+The operator subsequently configured Google as a pinned OIDC issuer for the hosted
+v2 development service. Its public audience is the PairKey Web client ID
+`551116982116-nlms8ht155986h1p4k1jpa1ulc3ctrke.apps.googleusercontent.com`;
+the signer configuration uses Google's HTTPS JWKS endpoint. The OAuth client
+secret is not used for browser ID-token approval and is not stored in the site.
+After a coordinated service restart, `/api/v2/config` reported the new audience
+and `ready: true`. The user confirmed Google account selection in their browser.
+No completed Google-authorized signing job was observed at the time of this
+addendum, so the live OIDC signing path is still a preview rather than an
+end-to-end acceptance result. The earlier “No OIDC provider is configured” line
+records the state at the original deployment snapshot. Changing the OIDC
+audience changes namespace identity and derived keys for that source.

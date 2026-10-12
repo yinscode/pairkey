@@ -1,0 +1,37 @@
+<p class="lead">Use a passkey to approve an exact message without asking the user to operate a Solana wallet. PairKey’s hosted signers verify the WebAuthn proof and the bound request independently.</p>
+<div class="docs-note"><p>The passkey approval path is implemented in the SDK and covered by local integration tests. The public demo does not yet create or enroll browser credentials. Your application must provide its own WebAuthn registration ceremony before using this guide.</p></div>
+<h2 id="identity">Establish the passkey identity</h2><p>Register a credential on your application’s HTTPS origin. Verify the registration response in your application, then retain the credential ID, compressed 33-byte P-256 SEC1 public key, RP ID and exact origin. Those public values define the PairKey identity; accepting an unverified caller-supplied public key would let the caller choose a different namespace. Changing the credential, RP ID or origin changes the identity and derived keys.</p><p>Credential registration with your application is distinct from PairKey namespace registration. Hosted v2 obtains public namespace metadata without a Solana registration transaction. Pin the PairKey deployment and signer identities when you integrate.</p>
+<h2 id="sign">Approve one message</h2><p>Create the short-lived Ed25519 binding before preparing the request so its lifetime covers the approval. WebAuthn signs the binding challenge; the bound ephemeral key signs the exact PairKey request. It is not a reusable session.</p><pre><code>import * as web3 from '@solana/web3.js';
+import { PairKey, ephemeralIdentity, passkeyAssertion } from './hosted-v2.mjs';
+
+// Obtained from your verified WebAuthn registration ceremony.
+const identity = { Passkey: {
+  public_key: compressedP256PublicKey, // 33 bytes
+  rp_id: 'app.example',
+  origin: 'https://app.example'
+}};
+const pairkey = new PairKey({ web3 });
+const namespace = await pairkey.onboard(undefined, { identity });
+const key = await pairkey.key(namespace, 'solana', [0]);
+const ephemeral = await ephemeralIdentity(namespace);
+const prepared = await pairkey.prepare(namespace, undefined, {
+  chain: 'solana', path: [0], message: 'Approve this exact message.'
+});
+const recovery = await pairkey.recovery(prepared);
+sessionStorage.setItem('my-pairkey-job', JSON.stringify(recovery));
+const assertion = await passkeyAssertion(identity, ephemeral.challenge, credentialId);
+const submission = await ephemeral.approve(prepared, key, { assertion });
+const { job_id } = await pairkey.submit(submission);
+const result = await pairkey.wait(job_id, { prepared, key });</code></pre><p>Use the <a href="examples/hosted-client-v2.zip">browser SDK bundle</a> and keep its three modules together. Each signer checks the assertion’s challenge, RP ID, origin, user presence and user verification, then verifies the ephemeral signature and current rules. Neither the assertion nor the ephemeral private key belongs in your public recovery record.</p>
+<h2 id="policy">Set optional rules</h2><p>No saved policy is required for the first message, but every message still needs a fresh passkey-bound approval. Optional rules can restrict destinations, paths and canonical payload bytes. A policy edit uses a new WebAuthn assertion directly over the exact policy-update challenge. Solana verifies that P-256 proof; a separate fee payer funds the transaction and cannot change rules without the passkey proof.</p><pre><code>const current = await pairkey.rules(namespace);
+const update = await pairkey.preparePolicy(namespace, {
+  revision: current.rules.revision + 1,
+  destinations: [key.account.destination],
+  path_prefixes: [[0]],
+  max_payload_bytes: 256,
+  payload_prefix: [],
+  disabled: false
+});
+const proof = await passkeyAssertion(identity, update.challenge, credentialId);
+await pairkey.setPolicy(namespace, feePayerWallet, update, { Passkey: proof });</code></pre><p>Policy creation can require rent and a transaction fee; same-size edits reuse the policy account. Ordinary off-chain message approvals do not broadcast a Solana authorization transaction. See <a href="docs/policy.html#identities">Passkey and OIDC policy</a> for the update model.</p>
+<h2 id="verify">Verify and recover</h2><p>Save the public recovery record before submission. After a timeout, recover that same job without prompting the passkey again or creating fresh signing randomness. Verify the signature, key certificate and both signer receipts with the <a href="examples/verify_hosted.rs">offline Rust verifier</a>. The output is a message signature; destination transaction construction and broadcast remain separate.</p>

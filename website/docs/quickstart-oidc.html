@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Sign messages with Google OIDC. PairKey developer documentation: Quickstart: Google.">
+<title>Quickstart: Google — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
+<body><a class="skip" href="#main">Skip to content</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
+<nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
+<a class="button small" href="../docs/quickstart.html">Get started →</a></header>
+<div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
+<a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/quickstart-account.html">Quickstart: Account</a>
+<a href="../docs/quickstart-program.html">Quickstart: Program</a>
+<a href="../docs/quickstart-passkey.html">Passkey integration</a>
+<a href="../docs/quickstart-oidc.html" aria-current="page">Quickstart: Google</a>
+<a href="../docs/demo.html">Interactive demo</a>
+<a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/policy.html">Policy &amp; rules</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
+<a href="../docs/signing.html">Signing integrations</a>
+<a href="../docs/api.html">SDK &amp; API reference</a>
+<a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/local-development.html">Local development</a>
+<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
+<main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / QUICKSTART: GOOGLE</p>
+<h1>Sign messages with Google OIDC.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#flow">Try one exact message</a><a href="#identity">Why Google appears twice</a><a href="#integration">Integrate your own application</a><a href="#policy">Optional rules and costs</a></nav>
+<p class="lead">Try Google-approved message signing with PairKey’s hosted signers. No Solana wallet or registration transaction is needed for an ordinary signature.</p>
+<div class="docs-note"><p><a href="/demo">Open the live demo →</a> Select <strong>Google account · OIDC preview</strong> as the source. The Google browser flow is a preview; account selection has been observed, while an end-to-end Google-authorized signature is still awaiting live acceptance. Access depends on the Google OAuth app’s publishing status and test-user list. This option appears when the operator has enabled Google in <code>/api/v2/config</code>.</p></div>
+<h2 id="flow">Try one exact message</h2><ol><li>Select a Google account. PairKey uses Google’s stable subject identifier, issuer and this site’s client ID to establish your namespace.</li><li>Choose Solana, EVM, Zcash, NEAR or Bitcoin and a path, then load the derived public key.</li><li>Write a message of at most 256 UTF-8 bytes and select <strong>Prepare Google approval</strong>.</li><li>Continue with the same Google account again. This second ID token includes a fresh nonce tied to your namespace and a short-lived Ed25519 key. Both signers independently verify the token and the exact request before signing.</li><li>Inspect the signature and receipts, then select <strong>Verify signature</strong>. Message signing does not broadcast a destination transaction.</li></ol>
+<h2 id="identity">Why Google appears twice</h2><p>The binding includes the identity’s subject, which is learned at first sign-in. The first token selects the namespace; it cannot approve signing. The second token must name the same subject and carry the nonce derived from the bound ephemeral key. In this demo, a fresh key and token are requested for each message. The private key stays in browser memory; hosted v2 sessions are deferred.</p><p>Only the public recovery record is saved in this browser tab. Neither Google ID token nor the ephemeral private key is written to the audit trail or recovery storage. After a reload, recover a submitted job from its saved public record; prepare a new request if no job was submitted.</p>
+<h2 id="integration">Integrate your own application</h2><p>Use the <a href="../examples/hosted-client-v2.zip">browser SDK</a> and your own Google Web OAuth client. Configure your site as an authorized JavaScript origin, and have the PairKey operator pin your exact issuer, client ID audience and HTTPS JWKS URL. The audience is part of the namespace identity: changing the client ID changes derived keys. No Google client secret belongs in browser code.</p><p>Use Google Identity Services to select the subject, call <code>pairkey.onboard(undefined, {identity: {Oidc: {issuer, audience, subject}}})</code>, and create <code>ephemeralIdentity(namespace)</code> before preparing the request. Ask Google for a fresh ID token with <code>ephemeral.oidcNonce</code>; pass that token to <code>ephemeral.approve(prepared, key, {idToken})</code>. Save the public recovery record before requesting the token or submitting the job. See the <a href="../docs/api.html#identities">SDK sequence</a> and <a href="../docs/policy.html#identities">policy management</a>.</p>
+<h2 id="policy">Optional rules and costs</h2><p>Google login authorizes an exact message even without saved rules. Optional PairKey rules are stored on Solana and independently read by both signers. Editing those rules requires a separate Solana fee payer and transaction; the fee payer does not become the OIDC identity owner. Ordinary off-chain message approval sends no Solana authorization transaction. Service and destination costs are separate.</p>
+
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/quickstart-passkey.html"><span>Previous</span><strong>Passkey integration →</strong></a><a href="../docs/demo.html"><span>Next</span><strong>Interactive demo →</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

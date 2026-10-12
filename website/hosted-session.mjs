@@ -1,9 +1,10 @@
 /** Shared quickstart/demo lifecycle. Recovery stores public metadata only and
  * never asks for a new signature, calls submit, or consumes another allowance. */
 import {same, check} from './approval-codec.mjs';
+import {ephemeralIdentity} from './hosted-v2.mjs';
 export class HostedSession {
-  constructor(client, {storage = globalThis.sessionStorage, storageKey = 'pairkey-v2-recovery', onStage = () => {}} = {}) {
-    this.client = client; this.storage = storage; this.storageKey = storageKey; this.onStage = onStage;
+  constructor(client, {storage = globalThis.sessionStorage, storageKey = 'pairkey-v2-recovery', onStage = () => {}, ephemeral = ephemeralIdentity} = {}) {
+    this.client = client; this.storage = storage; this.storageKey = storageKey; this.onStage = onStage; this.ephemeral = ephemeral;
   }
   reset() { this.namespace = this.wallet = this.key = this.selection = this.result = undefined; }
   async connect(wallet, {program, mode = 'Offchain'} = {}) {
@@ -16,9 +17,17 @@ export class HostedSession {
     this.onStage('ready', {namespace});
     return namespace;
   }
+  async connectOidc(identity) {
+    this.reset();
+    check(identity?.Oidc, 'Select an OIDC identity first.');
+    const namespace = await this.client.onboard(undefined, {identity});
+    this.namespace = namespace;
+    this.onStage('ready', {namespace});
+    return namespace;
+  }
   async loadKey(chain, path) {
     check(this.namespace, 'Connect your authority first.');
-    this.client.checkWallet(this.namespace, this.wallet);
+    if (this.namespace.caller) this.client.checkWallet(this.namespace, this.wallet);
     this.key = this.selection = this.result = undefined;
     const key = await this.client.key(this.namespace, chain, path);
     this.key = structuredClone(key); this.selection = {chain, path: [...path]};
@@ -43,6 +52,31 @@ export class HostedSession {
     this.onStage('signing', {jobId: job.job_id, prepared});
     this.result = await this.client.wait(job.job_id, {prepared, key: this.key});
     this.onStage('complete', {result: this.result, jobId: job.job_id, prepared});
+    return this.result;
+  }
+  async prepareOidc({chain, path, message}) {
+    check(this.namespace?.identity?.Oidc, 'Connect your OIDC identity first.');
+    check(this.key && same(this.selection, {chain, path}), 'Chain or path changed. Load its key first.');
+    this.result = undefined;
+    this.onStage('preparing');
+    // The binding must predate the request, and its nonce must be requested
+    // from the issuer only after the identity is known.
+    const ephemeral = await this.ephemeral(this.namespace);
+    const prepared = await this.client.prepare(this.namespace, undefined, {chain, path, message});
+    const recovery = await this.client.recovery(prepared);
+    this.storage.setItem(this.storageKey, JSON.stringify(recovery));
+    this.onStage('authorizing', {prepared});
+    return {ephemeral, prepared, recovery, namespace: this.namespace, key: this.key};
+  }
+  async completeOidc(pending, idToken) {
+    check(pending?.namespace === this.namespace && pending.key === this.key, 'OIDC identity or key changed. Prepare a new request.');
+    check(this.storage.getItem(this.storageKey) === JSON.stringify(pending.recovery), 'Saved recovery record changed. Prepare a new request.');
+    const submission = await pending.ephemeral.approve(pending.prepared, pending.key, {idToken});
+    this.onStage('submitting', {jobId: pending.recovery.job_id, prepared: pending.prepared});
+    const job = await this.client.submit(submission);
+    this.onStage('signing', {jobId: job.job_id, prepared: pending.prepared});
+    this.result = await this.client.wait(job.job_id, {prepared: pending.prepared, key: pending.key});
+    this.onStage('complete', {result: this.result, jobId: job.job_id, prepared: pending.prepared});
     return this.result;
   }
   async recover() {

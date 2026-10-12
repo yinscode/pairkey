@@ -13,6 +13,8 @@ PAGES = [
     ('quickstart', 'Quickstart', 'Build with hosted signers.'),
     ('quickstart-account', 'Quickstart: Account', 'Your wallet. Your programmable keys.'),
     ('quickstart-program', 'Quickstart: Program', 'Your program. Your signing rules.'),
+    ('quickstart-passkey', 'Passkey integration', 'Authorize exact requests with a passkey.'),
+    ('quickstart-oidc', 'Quickstart: Google', 'Sign messages with Google OIDC.'),
     ('demo', 'Interactive demo', 'See the rules in action.'),
     ('architecture', 'Architecture', 'One authority. Two signers.'),
     ('integration', 'Solana program integration', 'Make your program the authority.'),

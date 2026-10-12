@@ -11,6 +11,8 @@
 <a href="../docs/quickstart.html">Quickstart</a>
 <a href="../docs/quickstart-account.html">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html" aria-current="page">Quickstart: Program</a>
+<a href="../docs/quickstart-passkey.html">Passkey integration</a>
+<a href="../docs/quickstart-oidc.html">Quickstart: Google</a>
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/integration.html">Solana program integration</a>
@@ -324,5 +326,5 @@ const transcript = { request: prepared.signing_request, approval: prepared.reque
   key, result, identities: namespace.config.signer_identities };
 // cargo run -p pairkey-sdk --example verify_hosted -- transcript.json</code></pre><p>The client saves the public prepared request, key, deployment and deterministic job ID <strong>before submission</strong>. Keep that recovery record; it contains no wallet signature, JWT or passkey assertion, but it does contain your message. “Recover last job” only retrieves the original attempt. It never asks for another approval, submits another job or consumes another allowance. If the original submission never reached the service, recovery reports an unknown job. An uncertain outcome is not proof that no signature exists.</p>
 <h2 id="derivation">How addresses are scoped</h2><p>The authority scopes the namespace. Destination, signature scheme and numeric path select keys inside it. The default namespace ID is 32 zero bytes; use a different 32-byte ID for another namespace. Keep the deployment and namespace metadata to recover the same keys. Policy edits and program approval-mode changes preserve the authority.</p><p>The UI displays a Solana public key, a NEAR <code>ed25519:</code> public-key identifier or an EVM address where applicable. Zcash and Bitcoin display signing public keys. These guides do not construct shielded addresses, named NEAR accounts or destination transactions.</p>
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/quickstart-account.html"><span>Previous</span><strong>Quickstart: Account →</strong></a><a href="../docs/demo.html"><span>Next</span><strong>Interactive demo →</strong></a></nav></main></div>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/quickstart-account.html"><span>Previous</span><strong>Quickstart: Account →</strong></a><a href="../docs/quickstart-passkey.html"><span>Next</span><strong>Passkey integration →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>
