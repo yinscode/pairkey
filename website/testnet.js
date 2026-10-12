@@ -71,10 +71,14 @@ function controls(){
   $('demo-key').disabled=busy||!!pendingOidc||!connected();
   $('demo-policy').disabled=busy||!!pendingOidc||!connected();
   let keyMatches=false;try{keyMatches=JSON.stringify(selection())===JSON.stringify(flow.selection);}catch{}
+  const authorityReady=connected(),keyReady=authorityReady&&!!flow.key&&keyMatches,signatureReady=keyReady&&!!currentOp?.result?.signature_hex;
+  $('demo-step-authority').dataset.state=authorityReady?'done':'active';
+  $('demo-step-key').dataset.state=keyReady?'done':authorityReady?'active':'waiting';
+  $('demo-step-sign').dataset.state=signatureReady?'done':keyReady?'active':'waiting';
   const bytes=new TextEncoder().encode($('message-text').value).length;
   $('message-size').textContent=`${bytes} / 256 UTF-8 bytes`;
   $('demo-sign').disabled=busy||!!pendingOidc||!connected()||!flow.key||!keyMatches||bytes===0||bytes>256;
-  $('demo-sign').firstChild.textContent=google?'Prepare Google approval ':'Approve & sign ';
+  $('demo-sign').firstChild.textContent=google?'Continue with Google ':'Approve message ';
   $('live-resume').disabled=busy||!!pendingOidc;
   $('operation-history').disabled=busy||verifying||!!pendingOidc;
   $('verify-button').disabled=busy||verifying||!currentOp?.result?.signature_hex;
@@ -87,7 +91,7 @@ function draft(){
   $('message-preview').textContent=JSON.stringify({source,...q,message:$('message-text').value},null,2);
   controls();if(!currentOp)renderFlow();
 }
-function clearKey(){flow.key=flow.selection=undefined;$('derived-key').textContent='Load the selected chain and path’s key.';$('derived-scheme').textContent='';$('derived-address').hidden=true;$('key-format').textContent='';}
+function clearKey(){flow.key=flow.selection=undefined;$('derived-key').textContent='Connect, then derive a key.';$('derived-scheme').textContent='';$('derived-address').hidden=true;$('key-format').textContent='';}
 function clearConnection(){googleGeneration++;pendingOidc=undefined;flow.reset();connectedScope=undefined;clearKey();$('demo-wallet').textContent='Connect your authority.';$('sol-address').textContent=$('controller-address').textContent='—';}
 async function connectDemoPasskey(createNew=false){
   clearConnection();currentOp=undefined;renderFlow();
@@ -146,7 +150,7 @@ function renderFlow(op){
   $('authority-title').textContent=program?'Your Solana program':google?'Your Google account':passkey?'Your passkey':'Your Solana account';
   $('authority-kind').textContent=google?'AUTHORITY / OIDC':passkey?'AUTHORITY / PASSKEY':'AUTHORITY / SOLANA';
   $('authority-icon').textContent=google?'G':passkey?'⌑':'{ }';
-  $('flow-context').textContent=op?`${chainLabels[op.chain]||'Message'} · ${short(op.jobId||op.id,8)} · ${op.stage}`:'Connect your authority, choose a key and follow its signature.';
+  $('flow-context').textContent=op?`${chainLabels[op.chain]||'Message'} · ${short(op.jobId||op.id,8)} · ${op.stage}`:'Connect, derive a key and approve a message. The flow below updates as PairKey works.';
   const status={preparing:'Preparing',authorizing:google?'Google approval':passkey?'Passkey approval':'Wallet approval',committing:'Finalizing',submitting:'Caller approved',signing:'Admitted',complete:'Approved',recovering:'Recovering',uncertain:'Unknown',stopped:'Stopped'}[view.stage]||'Waiting';
   const detail=view.assembled?(onchain?'Matching on-chain program approval and current policy checked by both signers.':'Exact caller proof and current rules checked by both signers.'):
     view.stage==='committing'?'The program must consume an allowance and record approval in one finalized transaction.':
@@ -260,7 +264,7 @@ $('verify-button').addEventListener('click',async()=>{
 });
 try{
   config=await client.config();$('setup-title').textContent=config.ready===false?'Backend is initializing':'Hosted v2 connected';
-  $('setup-message').textContent='Connect your own wallet. Off-chain account approval sends no transaction.';
+  $('setup-message').textContent='Start with Account for the shortest path, or choose Program, Passkey or OIDC.';
   googleIssuer=config.oidc_issuers?.find(x=>x.issuer==='https://accounts.google.com');
   $('connection-light').dataset.ready=String(config.ready!==false);$('flow-live').textContent=config.hardware_backed?'HOSTED SIGNERS':'DEVELOPMENT SIGNERS';
 }catch(error){$('setup-title').textContent='Hosted v2 unavailable';$('setup-message').textContent='This page needs the coordinated v2 backend. Check the deployment or retry after it is available.';$('flow-live').textContent='DISCONNECTED';}
