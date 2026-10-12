@@ -1,0 +1,30 @@
+pairkey.com {
+    encode gzip
+    header X-Content-Type-Options nosniff
+    header Referrer-Policy no-referrer
+
+    @demo path /api /api/* /demo /demo/ /demo.html /testnet.html
+    handle @demo {
+        reverse_proxy 127.0.0.1:4180
+    }
+    handle {
+        root * /var/www/pairkey
+        file_server {
+            hide /var/www/pairkey/content /var/www/pairkey/README.md /var/www/pairkey/build-docs.py /var/www/pairkey/check-site.py
+        }
+    }
+}
+
+# An IP-only preview of public pages. Demo controls are available through HTTPS.
+http://68.183.186.121 {
+    @demo path /api /api/* /demo /demo/ /demo.html /testnet.html
+    handle @demo {
+        redir https://pairkey.com/demo 302
+    }
+    handle {
+        root * /var/www/pairkey
+        file_server {
+            hide /var/www/pairkey/content /var/www/pairkey/README.md /var/www/pairkey/build-docs.py /var/www/pairkey/check-site.py
+        }
+    }
+}

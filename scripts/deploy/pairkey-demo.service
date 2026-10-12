@@ -1,0 +1,28 @@
+[Unit]
+Description=PairKey public testnet demonstration
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pairkey
+Group=pairkey
+WorkingDirectory=/opt/pairkey/app
+Environment=PAIRKEY_DEMO_ROOT=/opt/pairkey/app
+Environment=PAIRKEY_DEMO_ORIGIN=https://pairkey.com
+ExecStart=/opt/pairkey/app/target/hosted-demo/debug/pairkey-demo /opt/pairkey/state
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+KillMode=control-group
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/pairkey/state
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
