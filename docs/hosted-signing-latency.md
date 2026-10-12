@@ -98,3 +98,45 @@ To reproduce a chain's account-message timing, set
 `PAIRKEY_LATENCY_ATTEMPTS=3` when running
 `cargo run -p pairkey-demo --example latency_probe --locked`. The probe prints
 prepare, submit, wait, verify and total milliseconds for every verified result.
+
+## Warm DKLS latency breakdown — October 13, 2026
+
+Four live account/EVM message signatures were profiled with timing-only worker
+and coordinator logs on the `frost-once-20261013` development release. The
+first signature prepared a fresh donor; the next three reused it. The warm
+requests took 4,008, 3,992 and 4,887 ms end to end with 750 ms client polling.
+The coordinator reported 68–93 ms for repeated key registration, 0 ms at its
+millisecond resolution for donor status, and 884–967 ms for the signing
+command. The signing command **includes** its worker's authority view, so the
+figures below must not be added to one another as separate stages.
+
+| Stage | Warm observation | What it includes |
+| --- | ---: | --- |
+| Approval preparation | 587–634 ms | Gateway request and approval-rule preparation; not separately traced inside the gateway |
+| Approval submission | 645–733 ms | One worker authority view per signer, concurrent; the two Solana reads alone took about 458 ms |
+| Job admission check | About 458 ms of Solana reads | A second authority view per signer, concurrent, before coordinator job reservation |
+| DKLS signing command | 884–967 ms | A third view (worker view 544–573 ms), then native signing and relay work; subtracting the view leaves roughly 0.3–0.4 s, an estimate rather than an independently timed stage |
+| Result delivery | Up to 1 s gateway polling, then client polling | The gateway checks the coordinator once per second; the probe checks the gateway every 750 ms by default |
+| Client verification | 203–206 ms | Signature and both signer receipts |
+
+Within each Solana authority view, `getMultipleAccounts` took a median
+228–230 ms and the following `getBlockTime` took 227–230 ms. They are
+sequential because the second call uses the slot returned by the first. The
+three views on the critical path therefore contribute about 1.4 s of Solana
+RPC wait, although the two signers run each view concurrently.
+
+To isolate result polling, the same probe was run with
+`PAIRKEY_LATENCY_POLL_MS=100` after the trace was disabled. Its two warm
+requests took 3,202 and 3,284 ms end to end, with 1,775 and 1,732 ms spent
+waiting for the job. The three traced warm requests at 750 ms polling waited
+2,523, 2,526 and 3,328 ms. These are separate small samples, so the observed
+difference is indicative, not an exact causal estimate. The gateway's 1-second
+poll remains in both runs.
+
+The next straightforward latency change is to deliver coordinator completion
+to the gateway promptly and shorten or replace client polling. Reducing the
+three authority views requires a separate authorization-design review;
+removing a check without preserving its policy and revocation behavior would
+change the security semantics. Warm donor reuse itself avoids about 450 ms of
+fresh donor preparation in the traced cold run, but leaves the per-signature
+DKLS command in place.

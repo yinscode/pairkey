@@ -28,6 +28,15 @@ async fn main() -> Result<()> {
     let chain: Chain = serde_json::from_value(Value::String(
         std::env::var("PAIRKEY_LATENCY_CHAIN").unwrap_or_else(|_| "evm".into()),
     ))?;
+    let poll_ms: u64 = std::env::var("PAIRKEY_LATENCY_POLL_MS")
+        .ok()
+        .map(|s| s.parse())
+        .transpose()?
+        .unwrap_or(750);
+    anyhow::ensure!(
+        (100..=5000).contains(&poll_ms),
+        "poll interval must be 100–5000 ms"
+    );
     let client = Client::new(endpoint)?;
     let config: Value = client.get("/config").await?;
     anyhow::ensure!(config["ready"] == true, "hosted demo is not ready");
@@ -116,7 +125,7 @@ async fn main() -> Result<()> {
                 bail!("signing failed: {}", status["error"]);
             }
             anyhow::ensure!(t.elapsed() < Duration::from_secs(90), "signing timed out");
-            tokio::time::sleep(Duration::from_millis(750)).await;
+            tokio::time::sleep(Duration::from_millis(poll_ms)).await;
         };
         let wait_ms = ms(t);
         let t = Instant::now();
@@ -129,7 +138,7 @@ async fn main() -> Result<()> {
         )?;
         println!(
             "{}",
-            json!({"chain":chain,"attempt":index+1,"prepare_ms":prepare_ms,"preparation_retries":retries,"submit_ms":submit_ms,"wait_ms":wait_ms,"verify_ms":ms(t),"total_ms":ms(total),"polls":polls})
+            json!({"chain":chain,"attempt":index+1,"poll_ms":poll_ms,"prepare_ms":prepare_ms,"preparation_retries":retries,"submit_ms":submit_ms,"wait_ms":wait_ms,"verify_ms":ms(t),"total_ms":ms(total),"polls":polls})
         );
     }
     Ok(())
