@@ -1,0 +1,55 @@
+name: Publish SDK to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: website
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@12.2.0
+
+      - name: Check release tag
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_REF_NAME}" != "v${package_version}" ]; then
+            echo "Release tag ${GITHUB_REF_NAME} does not match package version v${package_version}."
+            exit 1
+          fi
+
+      - name: Test SDK
+        run: npm test
+
+      - name: Inspect package contents
+        run: npm pack --dry-run
+
+      - name: Publish stable release
+        if: ${{ !github.event.release.prerelease }}
+        run: npm publish --access public
+
+      - name: Publish prerelease
+        if: ${{ github.event.release.prerelease }}
+        run: npm publish --access public --tag next
