@@ -35,9 +35,12 @@ export class PairKey extends TransactionClient {
   }
   pubkey(value) { return new this.web3.PublicKey(value); }
   pda(seeds, program) { return this.web3.PublicKey.findProgramAddressSync(seeds.map(v => Uint8Array.from(v)), this.pubkey(program))[0]; }
-  async onboard(wallet, {identity, namespaceId = Array(32).fill(0)} = {}) {
+  async onboard(wallet, {identity, namespaceId, namespace} = {}) {
     const caller = wallet?.publicKey ? [...wallet.publicKey.toBytes()] : undefined;
     identity ??= {Account: {public_key: caller}};
+    c.check(namespace === undefined || namespaceId === undefined, 'Choose a namespace label or raw namespaceId, not both');
+    const namespaceLabel = namespace;
+    namespaceId ??= namespace === undefined ? Array(32).fill(0) : await c.namedNamespaceId(namespace);
     const wanted = copy({identity, namespace_id: namespaceId});
     const config = await this.config(), owner = await c.authority(wanted.identity);
     if (identity.Program) c.check(c.same(this.pda(identity.Program.seeds, identity.Program.program).toBytes(), owner), 'Program authority PDA changed');
@@ -50,15 +53,26 @@ export class PairKey extends TransactionClient {
     const message = c.concat(c.utf8('pairkey/enrolled-registration/v1'), digest, owner);
     c.check(response.proposal.identity_signatures?.length === 2, 'Namespace attestations missing');
     await Promise.all(config.signer_identities.map((key, i) => verifyEd25519(key, message, response.proposal.identity_signatures[i])));
-    return {registration: copy(reg), identity: wanted.identity, namespaceAddress: response.namespace_address, caller, config: copy(config)};
+    return {registration: copy(reg), identity: wanted.identity, namespaceAddress: response.namespace_address, namespaceLabel, caller, config: copy(config)};
   }
-  async programSource(programId, owner, mode = 'Offchain') {
-    const requested = {program: this.pubkey(programId).toBase58(), owner: this.pubkey(owner).toBase58(), mode};
+  async programSource(programId, owner, mode = 'Offchain', {namespace, namespaceId, policyScope = 'shared'} = {}) {
+    c.check(policyScope === 'shared' || policyScope === 'namespace', 'Policy scope must be shared or namespace');
+    c.check(namespace === undefined || namespaceId === undefined, 'Choose a namespace label or raw namespaceId, not both');
+    const config = await this.config(), program = this.pubkey(programId), ownerKey = this.pubkey(owner);
+    const seeds = [c.utf8('controller'), ownerKey.toBytes()], authority = this.pda(seeds, program);
+    let namespaceScope;
+    if (policyScope === 'namespace') {
+      namespaceId ??= namespace === undefined ? Array(32).fill(0) : await c.namedNamespaceId(namespace);
+      namespaceScope = [...await c.namespaceDigest({version: 1, scheme: 'FrostEd25519', network: [...this.pubkey(config.genesis_hash).toBytes()], registry: [...this.pubkey(config.registry).toBytes()], derivation_authority: [...authority.toBytes()], namespace_id: namespaceId, enclave_set: config.enclave_set})];
+    }
+    const requested = {program: program.toBase58(), owner: ownerKey.toBase58(), mode};
+    if (namespaceScope) requested.namespace_scope = namespaceScope;
     const response = await this.request('/programs/example', requested), source = response.identity?.Program;
     c.encodeSource(source);
-    const seeds = [c.utf8('controller'), this.pubkey(owner).toBytes()], authority = this.pda(seeds, programId);
-    const policy = this.pda([c.utf8('pairkey-policy'), this.pubkey(owner).toBytes()], programId);
-    c.check(c.same(source.program, this.pubkey(programId).toBytes()) && c.same(source.authority, authority.toBytes()) && c.same(source.seeds, seeds) && c.same(source.accounts, [[...policy.toBytes()]]) && source.mode === mode && response.policy_address === policy.toBase58(), 'Example program source changed');
+    const policySeeds = [c.utf8('pairkey-policy'), ownerKey.toBytes()];
+    if (namespaceScope) policySeeds.push(namespaceScope);
+    const policy = this.pda(policySeeds, program);
+    c.check(c.same(source.program, program.toBytes()) && c.same(source.authority, authority.toBytes()) && c.same(source.seeds, seeds) && c.same(source.accounts, [[...policy.toBytes()]]) && source.mode === mode && response.policy_address === policy.toBase58(), 'Example program source changed');
     return response;
   }
   async key(namespace, chain = 'solana', path = [0]) {
@@ -69,9 +83,11 @@ export class PairKey extends TransactionClient {
     this.keys.set(keyId(request), copy(key));
     return key;
   }
-  async prepare(namespace, wallet, {chain = 'solana', path = [0], message, requestId = [...crypto.getRandomValues(new Uint8Array(32))]} = {}) {
+  async prepare(namespace, wallet, {chain = 'solana', path = [0], message, transaction, requestId = [...crypto.getRandomValues(new Uint8Array(32))]} = {}) {
     if (namespace.caller) this.checkWallet(namespace, wallet);
-    const expected = copy({signing_request: {key: {registration: namespace.registration, chain, path}, request_id: requestId, message}, identity: namespace.identity});
+    const signing_request={key:{registration:namespace.registration,chain,path},request_id:requestId,message:transaction?'':message};
+    if(transaction)signing_request.transaction=copy(transaction);
+    const expected = copy({signing_request, identity: namespace.identity});
     const key = this.keys.get(keyId(expected.signing_request.key));
     c.check(key, 'Load this chain and path’s public key first');
     const prepared = await this.request('/approvals', expected);
@@ -121,7 +137,9 @@ export class PairKey extends TransactionClient {
   }
   async checkResult(prepared, key, result) {
     const q = prepared.signing_request;
-    c.check(result.chain === q.key.chain && result.signed_message === q.message && result.public_key_hex === key.public_key_hex, 'Hosted result context changed');
+    c.check(result.chain === q.key.chain && result.public_key_hex === key.public_key_hex, 'Hosted result context changed');
+    if(q.transaction)c.check(c.same(result.transaction,q.transaction)&&result.signed_message===null,'Hosted transaction context changed');
+    else c.check(result.signed_message===q.message&&result.transaction===null,'Hosted message context changed');
     c.check(typeof result.signature_hex === 'string' && /^0x[0-9a-f]+$/.test(result.signature_hex), 'Signature encoding missing');
     c.check(result.receipts?.length === 2, 'Both signer receipts required');
     const attempts = key.multi ? result.receipts.map(r => r.request?.attempt) : [result.attempt, result.attempt];
@@ -129,12 +147,16 @@ export class PairKey extends TransactionClient {
     c.check(c.same(attempts[0], attempts[1]), 'Receipts belong to different attempts');
     const roles = result.receipts.map(r => (r.receipt || r).role);
     c.check(c.same(roles, ['A', 'B']), 'Receipt signer order changed');
-    if (!key.multi) await verifyEd25519(key.public_key, c.utf8(q.message), result.signature_hex.slice(2).match(/../g).map(h => parseInt(h, 16)));
+    if (!key.multi) await verifyEd25519(key.public_key, await c.signingPayload(q,key), result.signature_hex.slice(2).match(/../g).map(h => parseInt(h, 16)));
     // Multisuite cryptography and full receipt verification run in the hosted
     // Rust SDK; use its offline verifier when transport-independent proof is needed.
     return result;
   }
-  async programPolicy(programId, owner) { return this.request('/programs/example/policy/read', {program: this.pubkey(programId).toBase58(), owner: this.pubkey(owner).toBase58()}); }
+  async programPolicy(programId, owner, namespaceScope) {
+    const request = {program: this.pubkey(programId).toBase58(), owner: this.pubkey(owner).toBase58()};
+    if (namespaceScope) request.namespace_scope = [...namespaceScope];
+    return this.request('/programs/example/policy/read', request);
+  }
   async rules(namespace) {
     const response = await this.request('/policies', {registration: namespace.registration});
     c.encodeRules(response.rules);
@@ -188,8 +210,14 @@ export class PairKey extends TransactionClient {
     const expected = copy(q), config = await this.config(), owner = [...wallet.publicKey.toBytes()];
     c.check(expected.owner === wallet.publicKey.toBase58(), 'Program policy owner changed');
     const account = await c.account(expected.chain, expected.path_prefix);
-    const data = c.concat(c.utf8('pairkey_policy/v1\0'), b.fixed(owner, 32), b.fixed(config.enclave_set, 32), b.u64(expected.revision), b.bool(expected.enabled), b.fixed(account.destination, 32), b.path(expected.path_prefix), b.u16(expected.max_payload_bytes), b.bool(expected.require_commit), b.u64(expected.remaining_approvals));
-    const ix = this.makeInstruction(expected.program, [this.meta(wallet.publicKey, true, true), this.meta(this.pda([c.utf8('pairkey-policy'), owner], expected.program), false, true), this.meta(this.web3.SystemProgram.programId)], data);
+    const policy = c.concat(b.fixed(owner, 32), b.fixed(config.enclave_set, 32), b.u64(expected.revision), b.bool(expected.enabled), b.fixed(account.destination, 32), b.path(expected.path_prefix), b.u16(expected.max_payload_bytes), b.bool(expected.require_commit), b.u64(expected.remaining_approvals));
+    const scoped = expected.namespace_scope !== undefined;
+    const scope = scoped ? b.fixed(expected.namespace_scope, 32) : undefined;
+    if (scope) c.check(scope.some(x => x), 'Namespace policy scope must not be zero');
+    const data = scoped ? c.concat(c.utf8('pairkey_policy/v2\0'), b.byte(1), scope, policy) : c.concat(c.utf8('pairkey_policy/v1\0'), policy);
+    const policySeeds = [c.utf8('pairkey-policy'), owner];
+    if (scope) policySeeds.push(scope);
+    const ix = this.makeInstruction(expected.program, [this.meta(wallet.publicKey, true, true), this.meta(this.pda(policySeeds, expected.program), false, true), this.meta(this.web3.SystemProgram.programId)], data);
     const response = await this.request('/programs/example/policy', expected);
     this.checkInstructions(response, [ix]);
     return this.send(wallet, [ix]);
@@ -199,8 +227,9 @@ export class PairKey extends TransactionClient {
     const source = namespace.identity.Program;
     c.check(source?.mode === 'Onchain', 'This request uses off-chain program evaluation');
     const ns = namespace.registration.namespace, owner = [...wallet.publicKey.toBytes()], registry = this.pubkey(ns.registry), program = this.pubkey(source.program);
-    const authority = this.pda([c.utf8('controller'), owner], program), policy = this.pda([c.utf8('pairkey-policy'), owner], program), nsDigest = await c.namespaceDigest(ns);
-    c.check(c.same(source.authority, authority.toBytes()) && c.same(source.accounts, [[...policy.toBytes()]]), 'Example program scope changed');
+    const authority = this.pda([c.utf8('controller'), owner], program), sharedPolicy = this.pda([c.utf8('pairkey-policy'), owner], program), nsDigest = await c.namespaceDigest(ns), scopedPolicy = this.pda([c.utf8('pairkey-policy'), owner, nsDigest], program);
+    const policy = this.pubkey(source.accounts?.[0]);
+    c.check(c.same(source.authority, authority.toBytes()) && source.accounts?.length === 1 && (policy.equals(sharedPolicy) || policy.equals(scopedPolicy)), 'Example program scope changed');
     const data = c.concat(c.utf8('pairkey_approve_commit/v1\0'), c.encodeNamespace(ns), c.encodeRequest(immutable.request), b.bytes(immutable.payload));
     const ix = this.makeInstruction(program, [this.meta(wallet.publicKey, true, true), this.meta(authority), this.meta(policy, false, true), this.meta(registry), this.meta(this.pda([c.utf8('set'), ns.enclave_set], registry)), this.meta(this.pda([c.utf8('namespace'), nsDigest], registry)), this.meta(this.pda([c.utf8('program-approval'), nsDigest, immutable.request.commit.request_id], registry), false, true), this.meta(this.web3.SystemProgram.programId)], data);
     const response = await this.request('/programs/example/commit', {owner: wallet.publicKey.toBase58(), prepared: immutable});

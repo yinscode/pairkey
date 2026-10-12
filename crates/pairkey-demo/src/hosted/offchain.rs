@@ -104,8 +104,20 @@ async fn config(State(app): State<Arc<App>>) -> Json<Value> {
     value["registration_required"] = json!(false);
     value["sessions"] = json!(false);
     value["program_approval"] = json!(["offchain", "onchain"]);
+    value["program_policy_scopes"] = json!(["namespace", "shared"]);
+    value["transaction_signing"] = json!({
+        "solana": {"sign": true, "send": "client_rpc"},
+        "evm": {"sign": true, "send": "client_rpc", "formats": ["legacy_native_transfer"]},
+        "near": {"sign": true, "send": "client_rpc"},
+        "bitcoin": {"sign": false, "reason": "PSBT and BIP-341 input context adapter required"},
+        "zcash": {"sign": false, "reason": "ZIP transaction digest and shielded authorization adapter required"}
+    });
     value["example_program"] = json!(example_controller::id().to_string());
-    value["identity_sources"] = json!(["account", "program", "passkey"]);
+    let mut identity_sources = vec!["account", "program", "passkey"];
+    if !app.oidc_issuers.is_empty() {
+        identity_sources.push("oidc");
+    }
+    value["identity_sources"] = json!(identity_sources);
     // Configured does not mean the provider has completed a live integration test.
     value["oidc_issuers"] = json!(app
         .oidc_issuers
@@ -419,6 +431,15 @@ async fn run(
                     .clone(),
             })
             .await?
+    } else if let Some(transaction) = q.transaction.as_ref().and_then(TransactionRequest::ed25519) {
+        app.sdk
+            .submit_transaction_authorized(
+                &q.key.registration,
+                &commit,
+                &transaction,
+                &saved.authorization,
+            )
+            .await?
     } else {
         app.sdk
             .submit_authorized(&q.key.registration, &commit, &payload, &saved.authorization)
@@ -441,7 +462,9 @@ async fn run(
                 )
                 .into());
             }
-            anyhow::bail!("coordinator could not complete this job; recover the same request");
+            anyhow::bail!(
+                "coordinator could not complete this job; recover the same request: {status}"
+            );
         }
         ensure!(Instant::now() < deadline, "timed out; recover the same job");
     }
@@ -472,7 +495,34 @@ fn result(
             serde_json::to_value(result.attempt)?,
         )
     };
-    let value = json!({"chain":q.key.chain,"public_key_hex":key.public_key_hex,"signature_hex":format!("0x{}",hex(&signature)),"signed_message":q.message,"receipts":receipts,"attempt":attempt,"signature_verified":true,"hardware_backed":false});
+    let mut value = json!({"chain":q.key.chain,"public_key_hex":key.public_key_hex,"signature_hex":format!("0x{}",hex(&signature)),"receipts":receipts,"attempt":attempt,"signature_verified":true,"hardware_backed":false});
+    if let Some(transaction) = &q.transaction {
+        value["transaction"] = serde_json::to_value(transaction)?;
+        value["signed_message"] = Value::Null;
+        if let TransactionRequest::EvmLegacy { transfer } = transaction {
+            value["signed_transaction_hex"] = json!(format!(
+                "0x{}",
+                hex(&transfer.signed_bytes(&key.public_key, &signature)?)
+            ));
+        } else if let Some(adapter) = transaction.ed25519() {
+            value["signing_payload_hex"] = json!(format!(
+                "0x{}",
+                hex(&adapter.signing_bytes(&key.public_key)?)
+            ));
+            if matches!(
+                adapter,
+                pairkey_signing::transaction::Transaction::Near { .. }
+            ) {
+                value["signed_transaction_hex"] = json!(format!(
+                    "0x{}",
+                    hex(&adapter.signed_bytes(&key.public_key, &signature)?)
+                ));
+            }
+        }
+    } else {
+        value["signed_message"] = json!(q.message);
+        value["transaction"] = Value::Null;
+    }
     wire::verify_result(q, request, key, &value, identities)?;
     Ok(value)
 }

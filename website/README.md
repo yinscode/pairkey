@@ -37,13 +37,17 @@ claiming a measured production latency or universal free service.
 
 `hosted-v2.mjs` and `approval-codec.mjs` implement canonical browser approvals and
 explicit management transactions. They reuse wallet transaction compatibility from
-`hosted-client.mjs` (the v1 client). Keep all three together; the docs generator
-produces `examples/hosted-client-v2.zip`.
+`hosted-client.mjs` (the v1 client). `pairkey-client.mjs` provides one interface
+for account, program, passkey and OIDC sources with message signing, typed
+transaction signing, client-side broadcast and recovery. `program-client.mjs`
+adds explicit example-controller policy management. They form the publishable
+`@pairkey/sdk` package with type declarations. The docs generator includes them in
+`examples/hosted-client-v2.zip`.
 
 `hosted-session.mjs` is shared by the quickstarts and demo. It saves public recovery
-metadata before submission and never reauthenticates, recommits or resubmits on
-recovery. `testnet.js` connects visitor wallets, passkeys or a Google account, exposes program
-setup, and shows signing across five destinations. History is tab-local and contains
+metadata for each job before submission and never reauthenticates, recommits or
+resubmits on recovery. `testnet.js` connects visitor wallets, passkeys or a Google account, exposes program
+setup, and shows message signing across five destinations. History is tab-local and contains
 public transcripts only. Saved results are not labelled freshly verified.
 
 `message-demo.mjs` projects lifecycle evidence into signer cards. Joint work does

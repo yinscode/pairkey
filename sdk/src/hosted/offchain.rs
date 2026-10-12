@@ -1,5 +1,6 @@
 //! Hosted v2: lazy public metadata, exact private approval, public result recovery.
 use super::*;
+use anyhow::Context;
 use pairkey_types::approval::{Identity, Proof, Request, Rules};
 pub mod management;
 
@@ -208,8 +209,8 @@ pub fn prepare_message(
     key: &KeyResponse,
 ) -> Result<(Commit, Vec<u8>, Option<pairkey_signing::Intent>)> {
     ensure!(
-        !q.message.trim().is_empty() && q.message.len() <= 256,
-        "message must contain 1–256 UTF-8 bytes"
+        q.transaction.is_none() || q.message.is_empty(),
+        "choose message or transaction, not both"
     );
     ensure!(
         key.account == q.key.chain.account(q.key.path.clone())?,
@@ -219,34 +220,72 @@ pub fn prepare_message(
         key.multi.as_ref().map(|k| k.key.suite) == q.key.chain.suite(),
         "key suite mismatch"
     );
-    let intent = key.multi.as_ref().map(|k| pairkey_signing::Intent {
-        version: 1,
-        key: k.key.clone(),
-        payload: match q.key.chain {
-            Chain::Evm => {
-                pairkey_signing::Payload::EvmMessage(pairkey_signing::evm_message::Message {
-                    chain_id: 84532,
-                    message: q.message.as_bytes().to_vec(),
+    let intent = if let Some(transaction) = &q.transaction {
+        match transaction {
+            TransactionRequest::EvmLegacy { transfer } => {
+                ensure!(
+                    q.key.chain == Chain::Evm && key.multi.is_some(),
+                    "EVM transaction/key mismatch"
+                );
+                Some(pairkey_signing::Intent {
+                    version: 1,
+                    key: key.multi.as_ref().unwrap().key.clone(),
+                    payload: pairkey_signing::Payload::EvmTransfer(transfer.clone()),
                 })
             }
-            Chain::Bitcoin => {
-                pairkey_signing::Payload::BitcoinMessage(pairkey_signing::bitcoin::Message {
-                    network: pairkey_signing::bitcoin::Network::Testnet,
-                    message: q.message.as_bytes().to_vec(),
-                })
+            TransactionRequest::Solana { .. } => {
+                ensure!(
+                    q.key.chain == Chain::Solana && key.multi.is_none(),
+                    "Solana transaction/key mismatch"
+                );
+                None
             }
-            Chain::Zcash => pairkey_signing::Payload::RedPallas {
-                message: q.message.as_bytes().to_vec(),
+            TransactionRequest::Near { .. } => {
+                ensure!(
+                    q.key.chain == Chain::Near && key.multi.is_none(),
+                    "NEAR transaction/key mismatch"
+                );
+                None
+            }
+        }
+    } else {
+        ensure!(
+            !q.message.trim().is_empty() && q.message.len() <= 256,
+            "message must contain 1–256 UTF-8 bytes"
+        );
+        key.multi.as_ref().map(|k| pairkey_signing::Intent {
+            version: 1,
+            key: k.key.clone(),
+            payload: match q.key.chain {
+                Chain::Evm => {
+                    pairkey_signing::Payload::EvmMessage(pairkey_signing::evm_message::Message {
+                        chain_id: 84532,
+                        message: q.message.as_bytes().to_vec(),
+                    })
+                }
+                Chain::Bitcoin => {
+                    pairkey_signing::Payload::BitcoinMessage(pairkey_signing::bitcoin::Message {
+                        network: pairkey_signing::bitcoin::Network::Testnet,
+                        message: q.message.as_bytes().to_vec(),
+                    })
+                }
+                Chain::Zcash => pairkey_signing::Payload::RedPallas {
+                    message: q.message.as_bytes().to_vec(),
+                },
+                _ => unreachable!("suite checked above"),
             },
-            _ => unreachable!("suite checked above"),
-        },
-    });
-    let bytes = match &intent {
-        Some(intent) => {
+        })
+    };
+    let bytes = match (&q.transaction, &intent) {
+        (Some(transaction), None) => transaction
+            .ed25519()
+            .context("unsupported Ed25519 transaction")?
+            .bytes()?,
+        (_, Some(intent)) => {
             intent.validate(&q.key.registration)?;
             intent.bytes()?
         }
-        None => q.message.as_bytes().to_vec(),
+        (None, None) => q.message.as_bytes().to_vec(),
     };
     let commit = Commit::new(
         &q.key.registration,

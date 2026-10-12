@@ -86,6 +86,7 @@ async fn main() -> Result<()> {
                 key: key_request.clone(),
                 request_id,
                 message: format!("PairKey {chain:?} latency probe {}", index + 1),
+                transaction: None,
             },
             identity: identity.clone(),
         };

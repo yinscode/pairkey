@@ -1,5 +1,5 @@
 //! Hosted devnet gateway. Wallets/programs authorize on Solana; this client never holds shares.
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context, Result};
 use pairkey_types::{AccountPath, Commit, Registration};
 use serde::{Deserialize, Serialize};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
@@ -128,7 +128,36 @@ pub struct PrepareRequest {
 pub struct SigningRequest {
     pub key: KeyRequest,
     pub request_id: [u8; 32],
+    #[serde(default)]
     pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transaction: Option<TransactionRequest>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransactionRequest {
+    Solana {
+        message: Vec<u8>,
+    },
+    EvmLegacy {
+        transfer: pairkey_signing::evm::Transfer,
+    },
+    Near {
+        transaction: Vec<u8>,
+    },
+}
+impl TransactionRequest {
+    pub fn ed25519(&self) -> Option<pairkey_signing::transaction::Transaction> {
+        match self {
+            Self::Solana { message } => Some(pairkey_signing::transaction::Transaction::Solana {
+                message: message.clone(),
+            }),
+            Self::Near { transaction } => Some(pairkey_signing::transaction::Transaction::Near {
+                transaction: transaction.clone(),
+            }),
+            Self::EvmLegacy { .. } => None,
+        }
+    }
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Approval {
@@ -213,12 +242,27 @@ pub fn verify_result(
     identities: [[u8; 32]; 2],
 ) -> Result<()> {
     use crate::multi;
+    let transaction_context = q
+        .transaction
+        .as_ref()
+        .map(serde_json::to_value)
+        .transpose()?;
     ensure!(
-        result["signed_message"] == q.message
-            && result["chain"] == serde_json::to_value(q.key.chain)?
+        result["chain"] == serde_json::to_value(q.key.chain)?
             && result["public_key_hex"] == key.public_key_hex,
         "hosted result context mismatch"
     );
+    if let Some(transaction) = transaction_context {
+        ensure!(
+            result["transaction"] == transaction && result["signed_message"].is_null(),
+            "hosted transaction context mismatch"
+        );
+    } else {
+        ensure!(
+            result["signed_message"] == q.message && result["transaction"].is_null(),
+            "hosted message context mismatch"
+        );
+    }
     let signature_text = result["signature_hex"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("signature missing"))?;
@@ -231,6 +275,7 @@ pub fn verify_result(
         key.account == q.key.chain.account(q.key.path.clone())?,
         "key path mismatch"
     );
+    let (commit, approved_payload, prepared_intent) = offchain::prepare_message(q, key)?;
     if let Some(k) = &key.multi {
         let suite = q
             .key
@@ -249,35 +294,7 @@ pub fn verify_result(
         ensure!(k.key.public_key == key.public_key, "public key mismatch");
         let receipts: [multi::Receipt; 2] = serde_json::from_value(result["receipts"].clone())?;
         let request = &receipts[0].request;
-        let payload = match q.key.chain {
-            Chain::Evm => {
-                pairkey_signing::Payload::EvmMessage(pairkey_signing::evm_message::Message {
-                    chain_id: 84532,
-                    message: q.message.as_bytes().to_vec(),
-                })
-            }
-            Chain::Bitcoin => {
-                pairkey_signing::Payload::BitcoinMessage(pairkey_signing::bitcoin::Message {
-                    network: pairkey_signing::bitcoin::Network::Testnet,
-                    message: q.message.as_bytes().to_vec(),
-                })
-            }
-            Chain::Zcash => pairkey_signing::Payload::RedPallas {
-                message: q.message.as_bytes().to_vec(),
-            },
-            _ => anyhow::bail!("unexpected signing suite"),
-        };
-        let intent = pairkey_signing::Intent {
-            version: 1,
-            key: k.key.clone(),
-            payload,
-        };
-        let commit = Commit::new(
-            &q.key.registration,
-            q.request_id,
-            key.account.clone(),
-            &intent.bytes()?,
-        )?;
+        let intent = prepared_intent.context("multi-suite intent missing")?;
         ensure!(
             request.registration == q.key.registration
                 && request.intent == intent
@@ -297,16 +314,14 @@ pub fn verify_result(
             q.key.chain.suite().is_none(),
             "missing multi-suite certificate"
         );
-        let commit = Commit::new(
-            &q.key.registration,
-            q.request_id,
-            key.account.clone(),
-            q.message.as_bytes(),
-        )?;
         ensure!(
             crate::derive_public(&q.key.registration, &key.account)?.as_slice() == key.public_key,
             "derived key mismatch"
         );
+        let signed_message = match q.transaction.as_ref().and_then(TransactionRequest::ed25519) {
+            Some(transaction) => transaction.signing_bytes(&key.public_key)?,
+            None => q.message.as_bytes().to_vec(),
+        };
         let receipts: [pairkey_types::receipt::ResultResponse; 2] =
             serde_json::from_value(result["receipts"].clone())?;
         for (i, role) in [pairkey_types::Role::A, pairkey_types::Role::B]
@@ -317,10 +332,13 @@ pub fn verify_result(
             let attempt: pairkey_types::Attempt =
                 serde_json::from_value(result["attempt"].clone())?;
             ensure!(attempt.commit == commit, "receipt approval mismatch");
-            crate::service::verify_receipt(
+            crate::service::verify_receipt_payload(
                 &q.key.registration,
                 &attempt,
-                q.message.as_bytes(),
+                crate::service::ReceiptPayloads {
+                    approved: &approved_payload,
+                    signed: &signed_message,
+                },
                 &receipts[i],
                 identities[i],
                 role,

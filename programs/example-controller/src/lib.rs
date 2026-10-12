@@ -36,6 +36,7 @@ pub fn process_instruction(
     if data.starts_with(pairkey_types::program_approval::APPROVE_PREFIX)
         || data.starts_with(pairkey_types::program_approval::COMMIT_PREFIX)
         || data.starts_with(approval::POLICY_PREFIX)
+        || data.starts_with(approval::SCOPED_POLICY_PREFIX)
     {
         return approval::process(program, accounts, data);
     }

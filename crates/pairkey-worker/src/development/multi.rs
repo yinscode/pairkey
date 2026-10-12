@@ -152,6 +152,7 @@ fn begin(a: &mw::Authorized) -> anyhow::Result<Begin> {
     Ok(Begin {
         registration: a.request.registration.clone(),
         attempt: a.request.attempt.clone(),
+        transaction: None,
         message: a.request.intent.bytes()?,
         peer: a.peer.clone(),
     })

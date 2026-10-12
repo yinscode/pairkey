@@ -23,6 +23,28 @@ test('passkey, OIDC and program identities match Rust encodings and stable autho
     assert.deepEqual([...await codec.authority(v.identity)],v.authority);
   }
 });
+test('named namespace labels have stable domain-separated IDs',async()=>{
+  const id=await codec.namedNamespaceId('org/acme/treasury');
+  assert.equal(id.length,32);
+  assert.deepEqual(id,await codec.namedNamespaceId('org/acme/treasury'));
+  assert.notDeepEqual(id,await codec.namedNamespaceId('Org/acme/treasury'));
+  await assert.rejects(()=>codec.namedNamespaceId(''));
+  await assert.rejects(()=>codec.namedNamespaceId('a\n'));
+});
+test('typed Solana, EVM and NEAR transaction envelopes bind exact transaction fields',async()=>{
+  const byChain=Object.fromEntries(vectors.cases.map(v=>[v.prepared.signing_request.key.chain,v]));
+  const sol=structuredClone(byChain.solana.prepared.signing_request);sol.message='';sol.transaction={solana:{message:[1,2,3]}};
+  const near=structuredClone(byChain.near.prepared.signing_request);near.message='';near.transaction={near:{transaction:[4,5,6]}};
+  const evm=structuredClone(byChain.evm.prepared.signing_request);evm.message='';evm.transaction={evm_legacy:{transfer:{chain_id:84532,nonce:1,gas_price:2,gas_limit:21000,to:Array(20).fill(3),value:4}}};
+  const solBytes=await codec.payload(sol,byChain.solana.key),nearBytes=await codec.payload(near,byChain.near.key),evmBytes=await codec.payload(evm,byChain.evm.key);
+  assert.deepEqual([...await codec.signingPayload(sol,byChain.solana.key)],[1,2,3]);
+  assert.deepEqual([...await codec.signingPayload(near,byChain.near.key)],[...await codec.sha256(Uint8Array.from([4,5,6]))]);
+  assert.equal(await codec.signingPayload(evm,byChain.evm.key),null);
+  evm.transaction.evm_legacy.transfer.value=5;
+  assert.notDeepEqual(evmBytes,await codec.payload(evm,byChain.evm.key));
+  sol.transaction.solana.message[0]^=1;assert.notDeepEqual(solBytes,await codec.payload(sol,byChain.solana.key));
+  near.transaction.near.transaction[0]^=1;assert.notDeepEqual(nearBytes,await codec.payload(near,byChain.near.key));
+});
 test('message, chain, path, source, policy, expiry and wallet-byte substitutions fail locally',async()=>{
   for(const v of vectors.cases){
     const expected={signing_request:v.prepared.signing_request,identity:v.prepared.request.identity};

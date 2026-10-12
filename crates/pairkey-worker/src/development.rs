@@ -13,9 +13,7 @@ use pairkey_core::{
     authorize, prepare, ControlFence, Freshness, Observation, ObservedAccount,
     SimulationObservation, Trust,
 };
-use pairkey_frost::{
-    aggregate, register, Possession, Root, RoundOne, RoundTwo, Signer, SigningAttempt,
-};
+use pairkey_frost::{register, Possession, Root, RoundOne, RoundTwo, Signer, SigningAttempt};
 use pairkey_sdk::rpc::Rpc;
 use pairkey_types::{derive_public, Attempt, Namespace, Role};
 use rand_core::OsRng;
@@ -276,12 +274,13 @@ impl Worker {
             self.trust.max_observation_age_secs as u64 * 1000,
         )?;
         if let Some(evidence) = &view.offchain {
+            let payload = begin.approval_payload()?;
             pairkey_core::approval::authorize_with_program(
                 &self.trust,
                 &view.observation,
                 &begin.registration,
                 &begin.attempt,
-                &begin.message,
+                &payload,
                 &evidence.approval.proof,
                 evidence.issuer.as_deref(),
                 evidence.program.as_ref(),
@@ -336,14 +335,11 @@ impl Worker {
     }
     async fn observe(&self, begin: &Begin) -> anyhow::Result<AuthorizedView> {
         if begin.attempt.authorization.offchain_request().is_some() {
+            begin.validate_signing_payload()?;
             let approval = self.offchain.proof(&begin.attempt.authorization)?;
+            let payload = begin.approval_payload()?;
             return self
-                .offchain_view(
-                    &begin.registration,
-                    &begin.attempt,
-                    &begin.message,
-                    approval,
-                )
+                .offchain_view(&begin.registration, &begin.attempt, &payload, approval)
                 .await;
         }
         self.active()?;
@@ -652,6 +648,7 @@ async fn ack(State(w): State<W>, Json(q): Json<Ack>) -> Result<Json<Vec<u8>>, Fa
     )))
 }
 async fn begin(State(w): State<W>, Json(q): Json<Begin>) -> Result<Json<Envelope>, Failure> {
+    q.validate_signing_payload().map_err(failure)?;
     if q.attempt.authorization.session_id.is_some()
         && q.message.starts_with(pairkey_signing::INTENT_PREFIX)
     {
@@ -674,9 +671,16 @@ async fn begin(State(w): State<W>, Json(q): Json<Begin>) -> Result<Json<Envelope
         .try_acquire_owned()
         .map_err(failure)?;
     w.reserve_approval(&q).map_err(failure)?;
+    let approved_payload = q.approval_payload().map_err(failure)?;
     let (round, signing) = w
         .signer
-        .begin_owned(&q.registration, &q.attempt, &q.message, &mut OsRng)
+        .begin_owned_with_payload(
+            &q.registration,
+            &q.attempt,
+            &approved_payload,
+            &q.message,
+            &mut OsRng,
+        )
         .map_err(failure)?;
     let envelope = w.channel.seal(&q.peer, id, 1, &round).map_err(failure)?;
     pending.insert(
@@ -787,9 +791,11 @@ async fn result(
         return Err(failure("signing round cancelled"));
     }
     w.check_approval(begin).map_err(failure)?;
-    let signature = match aggregate(
+    let approved_payload = begin.approval_payload().map_err(failure)?;
+    let signature = match pairkey_frost::aggregate_with_payload(
         &begin.registration,
         &begin.attempt,
+        &approved_payload,
         &begin.message,
         &rounds,
         &shares,

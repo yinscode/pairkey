@@ -1,8 +1,50 @@
-<p class="lead">PairKey targets chain-native signatures from one programmable authority. The destination selects a signature scheme and a separately derived public key; the two signers hold shares and produce one verifiable signature.</p>
-<h2 id="matrix">Target chain-to-scheme map</h2><table><thead><tr><th>Chain</th><th>Signing scheme</th><th>Derived key and intended use</th></tr></thead><tbody><tr><td>Solana</td><td>FROST Ed25519</td><td>Ed25519 public key for messages and Solana transaction signatures.</td></tr><tr><td>EVM</td><td>DKLS23 ECDSA · secp256k1</td><td>Ethereum address for messages, typed data and EVM transactions.</td></tr><tr><td>Zcash</td><td>FROST RedPallas</td><td>Orchard SpendAuth verification key for Zcash spending authorization.</td></tr><tr><td>NEAR</td><td>FROST Ed25519</td><td>NEAR-format Ed25519 public key for messages and transaction authorization.</td></tr><tr><td>Bitcoin</td><td>FROST secp256k1 · BIP-340</td><td>X-only Schnorr public key for Taproot signing.</td></tr></tbody></table><p>These are the intended chain and scheme pairings, not a claim that every transaction format or production deployment is complete. See <a href="docs/security.html">Security &amp; status</a> for current implementation and rollout boundaries.</p>
-<h2 id="solana">Solana · FROST Ed25519</h2><p>Two signers jointly produce a standard Ed25519 signature under a Solana public key. The target covers exact message bytes and canonical Solana transaction messages; programs and accounts can govern whether a request is authorized.</p>
-<h2 id="evm">EVM · DKLS23 ECDSA</h2><p>DKLS23 jointly produces a secp256k1 ECDSA signature whose public key maps to an Ethereum address. The target covers personal messages, typed data and chain-specific transaction payloads, with replay domains and chain IDs handled by the applicable format.</p>
-<h2 id="zcash">Zcash · FROST RedPallas</h2><p>RedPallas is the signing scheme for Orchard SpendAuth. The target is authorization within a complete Zcash spending flow; a signing key alone is not a shielded address, note witness or transaction proof.</p>
-<h2 id="near">NEAR · FROST Ed25519</h2><p>NEAR uses Ed25519 public keys for account access. PairKey derives a NEAR-specific key even though Solana uses the same signature scheme. The target includes messages and properly constructed NEAR transactions with the required account, nonce and permission context.</p>
-<h2 id="bitcoin">Bitcoin · FROST secp256k1</h2><p>FROST secp256k1 produces BIP-340 Schnorr signatures for x-only Taproot keys. The target is BIP-341 transaction signing; message-signing formats require their own defined payload and verification rules.</p>
-<h2 id="integration">From approval to chain use</h2><p>An authority approves an exact request, both signers check the rules, and PairKey returns the derived key, signature and receipts. An application supplies the correct chain-specific payload and separately handles transaction construction, submission and confirmation. The <a href="docs/demo.html">interactive demo</a> illustrates message signing; the target scheme map above also describes planned chain integrations.</p>
+<p class="lead">PairKey can sign a message on every configured suite and can sign complete Solana, EVM legacy-transfer, and NEAR transactions. Your application chooses whether and where to broadcast the signed bytes.</p>
+<h2 id="today">Transaction support by chain</h2>
+<div class="table-scroll" role="region" aria-label="PairKey transaction support by chain" tabindex="0"><table><thead><tr><th>Chain</th><th>Accepted transaction</th><th>Signed output</th><th>Current boundary</th></tr></thead><tbody>
+<tr><td>Solana · Ed25519</td><td>Serialized legacy or v0 transaction message. The derived key must be one of its required static signers.</td><td>Ed25519 signature; the browser SDK inserts it into <code>Transaction</code> or <code>VersionedTransaction</code>.</td><td>The application supplies recent blockhash, fee payer, address tables, instructions, and any other signatures.</td></tr>
+<tr><td>EVM · secp256k1</td><td>Typed EIP-155 legacy native transfer with chain ID, nonce, gas price/limit, recipient, and value.</td><td>Complete signed legacy transaction bytes.</td><td>Chain ID is currently 84532. EIP-1559, calldata, contract calls, access lists, and arbitrary RLP are not accepted.</td></tr>
+<tr><td>NEAR · Ed25519</td><td>Canonical Borsh <code>Transaction</code> with signer, matching access key, nonce, block hash, receiver, and bounded actions.</td><td>Complete Borsh <code>SignedTransaction</code>.</td><td>The derived key must already be installed as an account access key. PairKey does not create the NEAR account or add the key.</td></tr>
+<tr><td>Bitcoin · BIP-340</td><td>Message signing only.</td><td>PairKey-tagged Schnorr message signature.</td><td>A transaction adapter still needs PSBT/UTXO validation, BIP-341 sighashes, per-input policy, witness assembly, fee/change checks, and supported sighash modes.</td></tr>
+<tr><td>Zcash · RedPallas</td><td>Message signing only.</td><td>RedPallas message signature.</td><td>A transaction adapter still needs ZIP-244/Orchard digest rules, randomized spend authorization, note witnesses, proofs, bundle assembly, and binding authorization.</td></tr>
+</tbody></table></div>
+<p>The deployment advertises these capabilities in <code>GET /api/v2/config → transaction_signing</code>. Do not turn a message signature into a transaction signature by placing a digest in a text string; message APIs apply their own domain and encoding.</p>
+<h2 id="sdk-flow">Build, sign, and send</h2>
+<p>The import below is the API prepared for the first <code>@pairkey/sdk</code> npm release. Until it is published, use the <a href="https://github.com/yinscode/pairkey/blob/main/website/pairkey-client.mjs">SDK source on GitHub</a>.</p>
+<pre><code>import * as web3 from '@solana/web3.js';
+import {PairKeyClient} from '@pairkey/sdk';
+
+const pairkey = new PairKeyClient({web3, storage: localStorage});
+await pairkey.connect({
+  source: 'account', wallet: window.phantom.solana,
+  namespace: 'org/acme/treasury'
+});
+
+// Construct and inspect this with the normal destination-chain SDK.
+const transaction = new web3.VersionedTransaction(message);
+
+// Signs and assembles, but does not contact a destination RPC.
+const signed = await pairkey.signTransaction({
+  chain: 'solana', path: [0], transaction
+});
+
+// Or sign, submit, and optionally wait for the destination response.
+const sent = await pairkey.signAndSend({
+  chain: 'solana', path: [0], transaction, connection
+});
+console.log(sent.jobId, sent.transactionId, sent.status);</code></pre>
+<ol><li><strong>Build:</strong> use the destination SDK and RPC to choose the current nonce or block hash, fees, recipient, value, instructions, and action data.</li><li><strong>Authorize:</strong> PairKey commits the complete typed transaction envelope to the exact request. Account/program approval or a passkey/OIDC ephemeral binding authenticates that request.</li><li><strong>Sign:</strong> both workers independently validate the envelope and derive the chain-native signing bytes before participating.</li><li><strong>Assemble:</strong> the SDK attaches the signature or returns complete signed transaction bytes.</li><li><strong>Send:</strong> <code>signAndSend</code> uses the connection, RPC URL, or broadcast callback supplied by your application. PairKey's signing service does not broadcast to destination chains.</li></ol>
+<h2 id="recovery">Handle uncertain outcomes</h2>
+<p>The SDK saves public signing recovery data before the authentication prompt and saves the exact signed transaction before the first broadcast call. A destination RPC timeout returns <code>status: "unknown"</code>; it does not claim the transaction failed or was never accepted.</p>
+<pre><code>if (sent.status === 'unknown') {
+  // Recovers the same threshold-signing job. No new approval or signature.
+  const recovered = await pairkey.recoverAndSend(sent.jobId, {
+    chain: 'solana', connection, rebroadcast: true
+  });
+}</code></pre>
+<p>Rebroadcast only the recovered identical bytes. Before constructing a replacement with a new nonce, check the destination chain for the original transaction where possible. A completed threshold signature proves signing; an RPC transaction ID proves submission; a finalized destination receipt proves execution. These are separate states.</p>
+<h2 id="policy">What policy can enforce</h2>
+<p>Standard PairKey rules bind destination, derivation path, canonical payload length, and optional byte prefix. Program policies can decode the transaction envelope and enforce application-specific recipients, amounts, contracts, actions, or budgets. The supplied example controller demonstrates destination/path/payload limits and an approval counter; it does not decode every chain transaction into financial policy.</p>
+<p>A program can use a namespace-scoped policy PDA at <code>["pairkey-policy", owner, namespace_digest]</code> or the compatible shared PDA at <code>["pairkey-policy", owner]</code>. Namespace scope prevents one owner's policy update from silently changing another named namespace.</p>
+<h2 id="limits">Operational limits</h2>
+<p>Hosted v2 is a public development deployment with two development signers on one host. Solana message size is bounded by the transaction limit; NEAR unsigned transactions are currently bounded to 1,024 bytes; EVM numeric JSON fields must fit the SDK's browser-safe integer representation. Transaction signing is not atomic with Solana approval or destination execution. Onchain program approval can consume an allowance even when signing or later delivery fails. Verify the key, chain signature, exact approval, and both worker receipts against trusted signer identities before relying on output.</p>
+<p>Implementation source: <a href="https://github.com/yinscode/pairkey/blob/main/crates/pairkey-signing/src/transaction.rs">Ed25519 transaction adapters</a>, <a href="https://github.com/yinscode/pairkey/blob/main/crates/pairkey-signing/src/evm.rs">EVM adapter</a>, and <a href="https://github.com/yinscode/pairkey/blob/main/website/pairkey-client.mjs">browser client</a>.</p>

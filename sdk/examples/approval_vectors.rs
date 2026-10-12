@@ -74,6 +74,7 @@ fn main() -> Result<()> {
             ),
             pairkey_types::program_approval::Mode::Offchain,
             [9; 32],
+            None,
         )?
         .identity,
     ];
@@ -90,6 +91,7 @@ fn main() -> Result<()> {
         owner,
         pairkey_types::program_approval::Mode::Onchain,
         [0; 32],
+        None,
     )?;
     let mut update: PolicyUpdate = serde_json::from_value(cases[0]["policy_update"].clone())?;
     update.namespace.derivation_authority = owner.to_bytes();
@@ -115,6 +117,7 @@ fn main() -> Result<()> {
     let example_policy = offchain::management::ExamplePolicyRequest {
         program: program.to_string(),
         owner: owner.to_string(),
+        namespace_scope: None,
         revision: 1,
         enabled: true,
         chain: pairkey_sdk::hosted::Chain::Solana,

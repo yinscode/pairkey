@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PairKey program browser example</title>
+  <style>
+    body {font: 16px/1.5 system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #183d33;}
+    label {display: block; margin-top: 1rem; font-weight: 600;}
+    input, select, textarea, button {font: inherit; box-sizing: border-box;}
+    input, select, textarea {width: 100%; padding: .55rem; margin-top: .25rem;}
+    button {padding: .6rem .9rem; margin: .7rem .4rem .1rem 0; cursor: pointer;}
+    pre {white-space: pre-wrap; overflow-wrap: anywhere; background: #edf3ee; padding: 1rem; border-radius: .4rem;}
+    .note {background: #fff6d8; padding: .8rem 1rem; border-radius: .4rem;}
+  </style>
+</head>
+<body>
+  <h1>PairKey program example</h1>
+  <p>Connect a Solana wallet, create your application rules, derive a key, sign one exact message, and recover the same job after a reload.</p>
+  <p class="note">This uses Solana devnet and the hosted development signers. Policy and commit transactions need devnet SOL. The optional proof transaction verifies the Ed25519 signature on Solana; it does not transfer assets.</p>
+  <label for="program">Application program ID</label>
+  <input id="program" placeholder="Your deployed v2 example controller ID">
+  <button id="example" type="button">Use hosted example program</button>
+  <label for="mode">Approval mode</label>
+  <select id="mode"><option value="Onchain">On-chain, consumes allowance</option><option value="Offchain">Off-chain, immutable program only</option></select>
+  <div><button id="connect" type="button">1. Connect program</button></div>
+  <div><button id="policy" type="button" disabled>2. Set policy (wallet transaction)</button></div>
+  <div><button id="key" type="button" disabled>3. Derive Solana public key</button></div>
+  <label for="message">Exact message</label>
+  <textarea id="message" rows="3">Hello from my PairKey program.</textarea>
+  <div><button id="sign" type="button" disabled>4. Approve and sign</button></div>
+  <label for="job">Saved job ID</label>
+  <input id="job" placeholder="Optional: paste a previous job ID">
+  <div><button id="recover" type="button">Recover saved job</button>
+  <button id="transcript" type="button" disabled>Download verification transcript</button>
+  <button id="proof" type="button" disabled>Verify signature on Solana</button></div>
+  <h2>Result</h2>
+  <pre id="status" role="status" aria-live="polite">Choose a program to begin.</pre>
+  <script src="../../assets/vendor/solana-web3-1.98.4.min.js"></script>
+  <script type="module" src="./main.mjs"></script>
+</body>
+</html>

@@ -21,8 +21,9 @@ async function fixture(){
     calls.push([path,body]);
     if(path==='/config')return structuredClone(config);
     if(path==='/namespaces'){
-      const message=c.concat(c.utf8('pairkey/enrolled-registration/v1'),await c.registrationDigest(registration),owner.publicKey.toBytes());
-      return {identity:body.identity,proposal:{registration,identity_signatures:[...await Promise.all([a,b].map(async s=>[...await s.sign(message)]))]},namespace_address:client.pda([c.utf8('namespace'),await c.namespaceDigest(registration.namespace)],config.registry).toBase58()};
+      const selected=structuredClone(registration);selected.namespace.namespace_id=body.namespace_id;
+      const message=c.concat(c.utf8('pairkey/enrolled-registration/v1'),await c.registrationDigest(selected),owner.publicKey.toBytes());
+      return {identity:body.identity,proposal:{registration:selected,identity_signatures:[...await Promise.all([a,b].map(async s=>[...await s.sign(message)]))]},namespace_address:client.pda([c.utf8('namespace'),await c.namespaceDigest(selected.namespace)],config.registry).toBase58()};
     }
     if(path==='/keys')return structuredClone(vector.key);
     if(path==='/approvals')return prepare(body,vector.key);
@@ -49,6 +50,17 @@ test('onboarding never calls wallet transaction signing; exact wallet approval i
   assert.equal(JSON.stringify(recovery).includes('"proof"'),false);
   await f.client.recover(submitted.job_id);
   assert.deepEqual(f.calls.map(c=>c[0]),['/config','/namespaces','/keys','/approvals','/jobs',`/jobs/${submitted.job_id}/recover`]);
+});
+test('named namespaces are canonical, deterministic and distinct from the default namespace',async()=>{
+  const first=await c.namedNamespaceId('org/acme/treasury');
+  assert.deepEqual(first,await c.namedNamespaceId('org/acme/treasury'));
+  assert.notDeepEqual(first,await c.namedNamespaceId('org/acme/payments'));
+  await assert.rejects(()=>c.namedNamespaceId('e\u0301'),/NFC/);
+  const f=await fixture(),ns=await f.client.onboard(f.wallet,{namespace:'org/acme/treasury'});
+  assert.equal(ns.namespaceLabel,'org/acme/treasury');
+  assert.deepEqual(ns.registration.namespace.namespace_id,first);
+  assert.deepEqual(f.calls.find(([path])=>path==='/namespaces')[1].namespace_id,first);
+  await assert.rejects(()=>f.client.onboard(f.wallet,{namespace:'a',namespaceId:Array(32).fill(1)}),/label or raw/);
 });
 test('missing/mutated namespace attestations and changed pinned deployment are refused',async()=>{
   for(const mutate of [r=>r.proposal.identity_signatures[1][0]^=1,r=>r.proposal.registration.namespace.namespace_id[0]^=1,r=>r.namespace_address='wrong']){
@@ -107,6 +119,29 @@ test('instruction substitution is rejected before sending a program policy trans
   f.client.request=async(path,body)=>path==='/programs/example/policy'?{instructions:[]} :request(path,body);
   await assert.rejects(()=>f.client.setProgramPolicy(f.wallet,{program:f.config.registry,owner:f.wallet.publicKey.toBase58(),revision:1,enabled:true,chain:'solana',path_prefix:[0],max_payload_bytes:256,require_commit:false,remaining_approvals:2}),/instructions changed/);
   assert.equal(sent,false);
+});
+test('namespace policy scope binds the source and v2 policy PDA to one namespace',async()=>{
+  const owner=web3.Keypair.generate().publicKey,program=web3.Keypair.generate().publicKey;
+  const config={version:2,registration_required:false,sessions:false,registry:web3.Keypair.generate().publicKey.toBase58(),genesis_hash:web3.Keypair.generate().publicKey.toBase58(),enclave_set:Array(32).fill(6),signer_identities:[Array(32).fill(2),Array(32).fill(3)]};
+  const client=new PairKey({web3,deployment:config});let sourceRequest,policyInstruction;
+  client.request=async(path,body)=>{
+    if(path==='/config')return structuredClone(config);
+    if(path==='/programs/example'){
+      sourceRequest=structuredClone(body);
+      const authority=client.pda([c.utf8('controller'),owner.toBytes()],program);
+      const policy=client.pda([c.utf8('pairkey-policy'),owner.toBytes(),body.namespace_scope],program);
+      return {identity:{Program:{program:[...program.toBytes()],authority:[...authority.toBytes()],seeds:[[...c.utf8('controller')],[...owner.toBytes()]],code_hash:Array(32).fill(0),accounts:[[...policy.toBytes()]],mode:'Onchain'}},policy_address:policy.toBase58()};
+    }
+    if(path==='/programs/example/policy')return {instructions:[]};
+    throw new Error(`unexpected ${path}`);
+  };
+  const source=await client.programSource(program,owner,'Onchain',{namespace:'org/acme/treasury',policyScope:'namespace'});
+  assert.equal(sourceRequest.namespace_scope.length,32);assert.equal(sourceRequest.namespace_scope.some(Boolean),true);
+  assert.deepEqual(source.identity.Program.accounts[0],[...client.pda([c.utf8('pairkey-policy'),owner.toBytes(),sourceRequest.namespace_scope],program).toBytes()]);
+  client.checkInstructions=(_response,expected)=>{policyInstruction=expected[0];};client.send=async()=> 'policy-tx';
+  await client.setProgramPolicy({publicKey:owner},{program:program.toBase58(),owner:owner.toBase58(),namespace_scope:sourceRequest.namespace_scope,revision:1,enabled:true,chain:'solana',path_prefix:[0],max_payload_bytes:256,require_commit:true,remaining_approvals:2});
+  assert.deepEqual([...policyInstruction.data.slice(0,c.utf8('pairkey_policy/v2\0').length)],[...c.utf8('pairkey_policy/v2\0')]);
+  assert.equal(policyInstruction.data[c.utf8('pairkey_policy/v2\0').length],1);
 });
 test('wallet policy, program policy and commit instructions match Rust account flags and bytes',async t=>{
   t.mock.method(Date,'now',()=>200000);

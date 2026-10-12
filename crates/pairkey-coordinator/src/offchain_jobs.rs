@@ -31,7 +31,11 @@ impl Input {
             Self::Ed { request, attempt } => ApprovalCheck {
                 registration: request.registration.clone(),
                 attempt: (**attempt).clone(),
-                payload: request.message.clone(),
+                payload: request
+                    .transaction
+                    .as_ref()
+                    .map(|t| t.bytes().expect("validated transaction"))
+                    .unwrap_or_else(|| request.message.clone()),
             },
             Self::Multi(q) => ApprovalCheck {
                 registration: q.registration.clone(),
@@ -43,9 +47,7 @@ impl Input {
     fn validate(&self) -> anyhow::Result<String> {
         match self {
             Self::Ed { request, attempt } => {
-                request
-                    .commit
-                    .authorize(&request.registration, &request.message)?;
+                validate_signing_request(request)?;
                 ensure!(
                     attempt.commit == request.commit
                         && attempt.authorization == request.authorization,
@@ -94,10 +96,19 @@ impl Input {
             (Self::Ed { request, attempt }, Output::Ed(r)) => {
                 ensure!(r.attempt == **attempt, "recovered attempt mismatch");
                 for (i, receipt) in r.receipts.iter().enumerate() {
-                    pairkey_sdk::service::verify_receipt(
+                    let approved = request
+                        .transaction
+                        .as_ref()
+                        .map(|t| t.bytes())
+                        .transpose()?
+                        .unwrap_or_else(|| request.message.clone());
+                    pairkey_sdk::service::verify_receipt_payload(
                         &request.registration,
                         attempt,
-                        &request.message,
+                        pairkey_sdk::service::ReceiptPayloads {
+                            approved: &approved,
+                            signed: &request.message,
+                        },
                         receipt,
                         identities[i],
                         if i == 0 { Role::A } else { Role::B },
@@ -577,6 +588,7 @@ mod tests {
             authorization: Authorization::offchain(&approval),
             registration: reg.clone(),
             commit,
+            transaction: None,
             message: message.clone(),
         });
         let attempt = input.check().attempt;

@@ -24,6 +24,8 @@ pasta_curves = "=0.5.2"
 group = "=0.13.0"
 rlp = "=0.5.2"
 frost-secp256k1-tr = "=2.2.0"
+solana-sdk.workspace = true
+bincode.workspace = true
 
 [dev-dependencies]
 pairkey-frost = { path = "../pairkey-frost" }

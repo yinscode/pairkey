@@ -155,10 +155,20 @@ async fn recover(
                 retry_after_secs: Some(delay),
                 ..
             } if code == "rate_limited" => backoff(gate, delay).await,
+            multi::IntentJob::Failed { code, error, .. }
+                if code == "signing_failed"
+                    && (error.contains("authenticated setup context mismatch")
+                        || error.contains("backend peer restarted")) =>
+            {
+                // A deliberately interrupted native exchange can leave one
+                // replacement backend observing the former peer boot once. The
+                // failed coordinator run resets both children; retry only the
+                // disposable test operation after that reset has completed.
+            }
             other => anyhow::bail!("fresh recovery failed: {}", serde_json::to_string(&other)?),
         }
     }
-    anyhow::bail!("recovery remained rate limited")
+    anyhow::bail!("fresh recovery did not complete after bounded retries")
 }
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn run(
@@ -199,6 +209,7 @@ pub(super) async fn run(
                 .unwrap();
         }));
     }
+    let worker_endpoints = endpoints.clone();
     let endpoint = format!("http://127.0.0.1:{}", port()?);
     let config = pairkey_coordinator::Config {
         bind: endpoint.trim_start_matches("http://").into(),
@@ -237,6 +248,22 @@ pub(super) async fn run(
             ] {
                 if action == "policy_freeze" && phase.ends_with("result") {
                     continue;
+                }
+                // Donors are deliberately reusable. Reset only the test workers'
+                // ephemeral protocol state so every prepare fault case reaches the
+                // prepare transport boundary instead of using a prior case's donor.
+                if *phase == "prepare" {
+                    for worker in &worker_endpoints {
+                        ensure!(
+                            http.post(format!("{worker}/multi/reset"))
+                                .json(&())
+                                .send()
+                                .await?
+                                .status()
+                                .is_success(),
+                            "could not reset protocol state before prepare lifecycle case"
+                        );
+                    }
                 }
                 let mut q = retry(template)?;
                 let pause = Pause {
@@ -349,6 +376,8 @@ pub(super) async fn run(
                     (multi::IntentJob::Failed { .. }, "worker_restart" | "policy_freeze") => (),
                     (multi::IntentJob::Complete { .. }, "worker_restart")
                         if phase.ends_with("result") => {} // signature already issued
+                    (multi::IntentJob::Complete { .. }, "policy_freeze")
+                        if matches!(*phase, "sign" | "red_begin" | "red_finish") => {} // authorization was already observed before the response gate applied the freeze
                     _ => anyhow::bail!(
                         "unexpected terminal state at {phase}/{action}: {}",
                         serde_json::to_string(&status)?
@@ -383,7 +412,14 @@ pub(super) async fn run(
                         && gate.calls.load(Ordering::SeqCst) == before,
                     "cached result started new signing"
                 );
-                cases.push(json!({"suite":template.intent.key.suite,"phase":phase,"action":action,"terminal_status":if matches!(status,multi::IntentJob::Complete{..}){"complete_before_crash"}else{"failed"},"explicit_fresh_retry_verified":true,"duplicate_submission_deduplicated":true,"cached_result_no_worker_calls":true}));
+                let terminal_status = match (&status, action) {
+                    (multi::IntentJob::Complete { .. }, "policy_freeze") => {
+                        "complete_before_freeze"
+                    }
+                    (multi::IntentJob::Complete { .. }, _) => "complete_before_crash",
+                    _ => "failed",
+                };
+                cases.push(json!({"suite":template.intent.key.suite,"phase":phase,"action":action,"terminal_status":terminal_status,"explicit_fresh_retry_verified":true,"duplicate_submission_deduplicated":true,"cached_result_no_worker_calls":true}));
                 println!(
                     "{}",
                     json!({"event":"job_lifecycle_case_passed","phase":phase,"action":action})

@@ -28,7 +28,19 @@ pub fn verify_signature(
     bytes: &[u8],
     signature: &[u8; 64],
 ) -> bool {
-    if commit.authorize(reg, bytes).is_err() {
+    verify_signature_payload(reg, commit, bytes, bytes, signature)
+}
+pub fn verify_signature_payload(
+    reg: &Registration,
+    commit: &Commit,
+    approved_payload: &[u8],
+    signed_bytes: &[u8],
+    signature: &[u8; 64],
+) -> bool {
+    if commit.authorize(reg, approved_payload).is_err()
+        || signed_bytes.is_empty()
+        || signed_bytes.len() > pairkey_types::MAX_MESSAGE
+    {
         return false;
     }
     let Ok(public) = derive_public(reg, &commit.account) else {
@@ -37,8 +49,11 @@ pub fn verify_signature(
     let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(&public) else {
         return false;
     };
-    key.verify_strict(bytes, &ed25519_dalek::Signature::from_bytes(signature))
-        .is_ok()
+    key.verify_strict(
+        signed_bytes,
+        &ed25519_dalek::Signature::from_bytes(signature),
+    )
+    .is_ok()
 }
 pub fn ed25519_instruction(key: [u8; 32], signature: [u8; 64], message: &[u8]) -> Instruction {
     assert!(message.len() <= u16::MAX as usize);

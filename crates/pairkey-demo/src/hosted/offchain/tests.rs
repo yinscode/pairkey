@@ -259,6 +259,7 @@ impl Fixture {
                 key: key_request,
                 request_id: fresh(),
                 message: "Hosted request without a registration transaction".into(),
+                transaction: None,
             },
             identity: ns.identity.clone(),
         };
@@ -353,6 +354,12 @@ async fn hosted_account_signs_without_registration_and_recovers_exact_requests()
         .contains_key(&ns.namespace_address));
     let config: Value = f.client.get("/config").await.unwrap();
     assert_eq!(config["registration_required"], false);
+    assert_eq!(
+        config["program_policy_scopes"],
+        json!(["namespace", "shared"])
+    );
+    assert_eq!(config["transaction_signing"]["solana"]["sign"], true);
+    assert_eq!(config["transaction_signing"]["bitcoin"]["sign"], false);
     for chain in [Chain::Solana, Chain::Near, Chain::Zcash, Chain::Bitcoin] {
         let (prepared, key) = f.prepared(&ns, chain).await;
         let mut wrong = signed(&prepared, &SigningKey::from_bytes(&fresh()));
@@ -424,6 +431,112 @@ async fn hosted_account_signs_without_registration_and_recovers_exact_requests()
         1,
         "no chain accounts were created"
     );
+    f.close().await;
+}
+
+#[tokio::test]
+async fn hosted_account_signs_typed_solana_evm_and_near_transactions() {
+    use pairkey_signing::transaction::{NearAction, NearPublicKey, NearTransaction};
+    use solana_sdk::{hash::Hash, message::Message, system_instruction};
+
+    let f = Fixture::new().await;
+    let owner = SigningKey::from_bytes(&fresh());
+    let ns = f.metadata(&owner).await;
+    for chain in [Chain::Solana, Chain::Evm, Chain::Near] {
+        let key_request = KeyRequest {
+            registration: ns.proposal.registration.clone(),
+            chain,
+            path: vec![0],
+        };
+        let key: KeyResponse = f.client.post("/keys", &key_request).await.unwrap();
+        let transaction = match chain {
+            Chain::Solana => {
+                let signer = Pubkey::new_from_array(key.public_key.clone().try_into().unwrap());
+                let message = Message::new_with_blockhash(
+                    &[system_instruction::transfer(
+                        &signer,
+                        &Pubkey::new_unique(),
+                        1,
+                    )],
+                    Some(&signer),
+                    &Hash::new_unique(),
+                );
+                TransactionRequest::Solana {
+                    message: bincode::serialize(&solana_sdk::message::VersionedMessage::Legacy(
+                        message,
+                    ))
+                    .unwrap(),
+                }
+            }
+            Chain::Near => TransactionRequest::Near {
+                transaction: borsh::to_vec(&NearTransaction {
+                    signer_id: "alice.near".into(),
+                    public_key: NearPublicKey::Ed25519(key.public_key.clone().try_into().unwrap()),
+                    nonce: 1,
+                    receiver_id: "bob.near".into(),
+                    block_hash: [8; 32],
+                    actions: vec![NearAction::Transfer { deposit: 1 }],
+                })
+                .unwrap(),
+            },
+            Chain::Evm => TransactionRequest::EvmLegacy {
+                transfer: pairkey_signing::evm::Transfer {
+                    chain_id: 84532,
+                    nonce: 1,
+                    gas_price: 2,
+                    gas_limit: 21_000,
+                    to: [3; 20],
+                    value: 4,
+                },
+            },
+            _ => unreachable!(),
+        };
+        let request = wire::PrepareRequest {
+            signing_request: SigningRequest {
+                key: key_request,
+                request_id: fresh(),
+                message: String::new(),
+                transaction: Some(transaction.clone()),
+            },
+            identity: ns.identity.clone(),
+        };
+        let prepared: wire::Prepared = f.client.post("/approvals", &request).await.unwrap();
+        prepared
+            .verify(
+                &request,
+                &key,
+                f.app.identities,
+                crate::chain::now().unwrap(),
+            )
+            .unwrap();
+        let submission = signed(&prepared, &owner);
+        let job: Value = f.client.post("/jobs", &submission).await.unwrap();
+        let result = f.wait(job["job_id"].as_str().unwrap()).await;
+        wire::verify_result(
+            &prepared.signing_request,
+            &prepared.request,
+            &key,
+            &result,
+            f.app.identities,
+        )
+        .unwrap();
+        assert_eq!(
+            result["transaction"],
+            serde_json::to_value(transaction).unwrap()
+        );
+        if chain == Chain::Solana || chain == Chain::Near {
+            assert!(result["signing_payload_hex"]
+                .as_str()
+                .unwrap()
+                .starts_with("0x"));
+        }
+        if chain == Chain::Evm || chain == Chain::Near {
+            assert!(result["signed_transaction_hex"]
+                .as_str()
+                .unwrap()
+                .starts_with("0x"));
+        }
+    }
     f.close().await;
 }
 #[tokio::test]

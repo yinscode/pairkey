@@ -107,7 +107,7 @@ def main():
     outputs[ROOT / 'examples/hosted-controller.rs']=(ROOT.parent / 'examples/hosted-controller/src/lib.rs').read_bytes()
     outputs[ROOT / 'examples/program-approval.rs']=(ROOT.parent / 'programs/example-controller/src/approval.rs').read_bytes()
     outputs[ROOT / 'examples/hosted-controller.zip'] = controller_bundle()
-    outputs[ROOT / 'examples/hosted-client-v2.zip'] = archive_files({name: (ROOT / name).read_bytes() for name in ['hosted-v2.mjs', 'hosted-client.mjs', 'approval-codec.mjs']})
+    outputs[ROOT / 'examples/hosted-client-v2.zip'] = archive_files({name: (ROOT / name).read_bytes() for name in ['pairkey-client.mjs', 'pairkey-client.d.ts', 'program-client.mjs', 'program-client.d.ts', 'hosted-session.mjs', 'hosted-v2.mjs', 'hosted-client.mjs', 'approval-codec.mjs', 'package.json', 'PACKAGE-README.md']})
     for path,data in outputs.items():
         if args.check:
             if not path.exists() or path.read_bytes()!=data:

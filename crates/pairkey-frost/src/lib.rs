@@ -250,6 +250,32 @@ impl Signer {
         rng: &mut R,
     ) -> Result<(RoundOne, SigningAttempt), Error> {
         attempt.commit.authorize(reg, message)?;
+        self.begin_owned_validated(reg, attempt, message, rng)
+    }
+    /// Sign chain-native bytes after validating a distinct, approved typed
+    /// envelope. The caller must derive `message` deterministically from that
+    /// envelope before invoking this method.
+    pub fn begin_owned_with_payload<R: RngCore + CryptoRng>(
+        &self,
+        reg: &Registration,
+        attempt: &Attempt,
+        approved_payload: &[u8],
+        message: &[u8],
+        rng: &mut R,
+    ) -> Result<(RoundOne, SigningAttempt), Error> {
+        attempt.commit.authorize(reg, approved_payload)?;
+        if message.is_empty() || message.len() > pairkey_types::MAX_MESSAGE {
+            return Err(pairkey_types::Error::Bounds.into());
+        }
+        self.begin_owned_validated(reg, attempt, message, rng)
+    }
+    fn begin_owned_validated<R: RngCore + CryptoRng>(
+        &self,
+        reg: &Registration,
+        attempt: &Attempt,
+        message: &[u8],
+        rng: &mut R,
+    ) -> Result<(RoundOne, SigningAttempt), Error> {
         let key = packages(&self.root, reg, &attempt.commit.account, self.role)?;
         let id = attempt.digest();
         let (nonces, commitment) = frost::round1::commit(key.signing_share(), rng);
@@ -319,6 +345,29 @@ pub fn aggregate(
     responses: &[RoundTwo; 2],
 ) -> Result<[u8; 64], Error> {
     attempt.commit.authorize(reg, message)?;
+    aggregate_validated(reg, attempt, message, rounds, responses)
+}
+pub fn aggregate_with_payload(
+    reg: &Registration,
+    attempt: &Attempt,
+    approved_payload: &[u8],
+    message: &[u8],
+    rounds: &[RoundOne; 2],
+    responses: &[RoundTwo; 2],
+) -> Result<[u8; 64], Error> {
+    attempt.commit.authorize(reg, approved_payload)?;
+    if message.is_empty() || message.len() > pairkey_types::MAX_MESSAGE {
+        return Err(pairkey_types::Error::Bounds.into());
+    }
+    aggregate_validated(reg, attempt, message, rounds, responses)
+}
+fn aggregate_validated(
+    reg: &Registration,
+    attempt: &Attempt,
+    message: &[u8],
+    rounds: &[RoundOne; 2],
+    responses: &[RoundTwo; 2],
+) -> Result<[u8; 64], Error> {
     let id = attempt.digest();
     let commitments = round_map(id, rounds)?;
     let transcript = transcript_digest(id, rounds);

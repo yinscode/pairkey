@@ -6,9 +6,10 @@
 <p>Both paths still require an authenticated caller and an exact request. Both signers independently check current authority before signing. Simulation can read current state, but cannot reserve an allowance or consume a nonce.</p>
 
 <h2 id="create-program">Create the application program</h2>
-<ol><li><a href="examples/hosted-controller.zip">Download the hosted controller template</a>. It contains the typed gateway ABI and both approval instructions.</li><li>Edit <code>vendor/programs/example-controller/src/approval.rs</code>. Put your application conditions in <code>AppPolicy::allows</code>; keep the caller authentication, exact-input binding, PDA checks and gateway CPI.</li><li>Pin the hosted gateway ID from <code>/api/v2/config</code>, build the Solana program, and deploy it. PairKey hosts the gateway and signers; you deploy only your application logic.</li><li>Create the owner’s policy account with a signed <code>pairkey_policy/v1</code> instruction. The template and hosted SDK do this through <code>setProgramPolicy</code>.</li></ol>
-<pre><code># In the downloaded hosted-controller directory:
-PAIRKEY_REGISTRY_ID=YOUR_HOSTED_GATEWAY cargo build-sbf -- --locked
+<ol><li><a href="https://github.com/yinscode/pairkey/tree/main/examples/hosted-controller">Browse the hosted controller template on GitHub</a>. It contains the typed gateway ABI and both approval instructions.</li><li>Edit <code>programs/example-controller/src/approval.rs</code>. Put your application conditions in <code>AppPolicy::allows</code>; keep the caller authentication, exact-input binding, PDA checks and gateway CPI.</li><li>Pin the hosted gateway ID from <code>/api/v2/config</code>, build the Solana program, and deploy it. PairKey hosts the gateway and signers; you deploy only your application logic.</li><li>Create the owner’s policy account with a signed <code>pairkey_policy/v1</code> instruction. The template and hosted SDK do this through <code>setProgramPolicy</code>.</li></ol>
+<pre><code># From the cloned PairKey repository:
+PAIRKEY_REGISTRY_ID=YOUR_HOSTED_GATEWAY cargo build-sbf \
+  --manifest-path programs/example-controller/Cargo.toml -- --locked
 solana program deploy --url devnet --keypair YOUR_DEVNET_WALLET.json \
   target/deploy/pairkey_hosted_controller_example.so</code></pre>
 <p>The example authority PDA uses <code>["controller", owner]</code>; its rules PDA uses <code>["pairkey-policy", owner]</code>. The policy stores the owner, enabled flag, destination, path prefix, payload limit, approval mode, remaining allowance and a revision. Your owner wallet authorizes creation and each edit. Creating the PDA requires rent; later same-size edits reuse it.</p>

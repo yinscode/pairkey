@@ -10,6 +10,7 @@ pub mod bitcoin;
 pub mod evm;
 pub mod evm_message;
 pub mod redpallas;
+pub mod transaction;
 
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize,

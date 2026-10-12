@@ -12,33 +12,30 @@
 <div class="hosted-actions"><button class="button secondary" id="hosted-verify" type="button" disabled>Verify signature</button><button class="button secondary" id="hosted-recover" type="button">Recover last job</button></div>
 </div>
 <script src="/assets/vendor/solana-web3-1.98.4.min.js"></script><script type="module" src="/hosted-quickstart.mjs?v=offchain-approval-1"></script>
-<h2 id="application">Use it in your application</h2><p>Download the <a href="examples/hosted-client-v2.zip">browser SDK bundle</a> (keep all three modules together), and provide <code>@solana/web3.js</code> v1. Your application uses our hosted signers; no PairKey processes run locally.</p>
+<h2 id="application">Use it in your application</h2><p>The <code>@pairkey/sdk</code> package is prepared for its first npm release. Until it is published, use the <a href="https://github.com/yinscode/pairkey/blob/main/website/pairkey-client.mjs">SDK source on GitHub</a>; the import below is the package API. Your application uses the hosted signers; it never sends a wallet private key.</p>
 <pre><code>import * as web3 from '@solana/web3.js';
-import { PairKey } from './hosted-v2.mjs';
+import {PairKeyClient} from '@pairkey/sdk';
 
-const pairkey = new PairKey({ web3 }); // hosted /api/v2
-const wallet = window.phantom.solana;
-await wallet.connect();
-
-const namespace = await pairkey.onboard(wallet); // public metadata, no transaction
-const key = await pairkey.key(namespace, 'solana', [0]);
-const prepared = await pairkey.prepare(namespace, wallet, {
+const pairkey = new PairKeyClient({web3, storage: localStorage});
+await pairkey.connect({
+  source: 'account', wallet: window.phantom.solana,
+  namespace: 'org/acme/treasury'
+});
+const key = await pairkey.key({chain: 'solana', path: [0]});
+const signed = await pairkey.signMessage({
   chain: 'solana', path: [0], message: 'Hello from my application.'
 });
-const recovery = await pairkey.recovery(prepared);
-sessionStorage.setItem('my-pairkey-job', JSON.stringify(recovery));
-const submission = await pairkey.approve(namespace, wallet, prepared);
-const { job_id } = await pairkey.submit(submission);
-const result = await pairkey.wait(job_id, { prepared, key });
-console.log(key.public_key_hex, result.signature_hex);
+console.log(key.public_key_hex, signed.signatureHex, signed.jobId);
 
-// After a timeout or page reload, use the saved job. Never sign again to recover.
-const saved = JSON.parse(sessionStorage.getItem('my-pairkey-job'));
-const resumed = new PairKey({ web3, endpoint: saved.endpoint,
-  deployment: saved.deployment });
-await resumed.config();
-await resumed.recover(saved.job_id);
-const recovered = await resumed.wait(saved.job_id, saved);</code></pre>
+// A complete Solana Transaction or VersionedTransaction can use the same key.
+const sent = await pairkey.signAndSend({
+  chain: 'solana', path: [0], transaction, connection
+});
+if (sent.status === 'unknown') {
+  await pairkey.recoverAndSend(sent.jobId, {
+    chain: 'solana', connection, rebroadcast: true
+  });
+}</code></pre>
 <h2 id="approval">What your wallet authorizes</h2><p>Your wallet signs a domain-separated approval digest binding the identity, namespace, destination, derivation path, exact message commitment, request ID, policy revision and expiry. The browser recomputes these fields before asking for a signature. Both signers verify your authorization independently. Knowing your address or loading a public key does not authorize signing.</p><p>Account approval uses <code>signMessage</code>. It sends no Solana transaction and creates no per-message rent account. Solana, EVM, Zcash, NEAR and Bitcoin message signing use the same approval flow. Sessions are deferred in this API.</p>
 <h2 id="policy">Set optional account rules</h2><p>With no saved policy, every request still needs your wallet signature. To add persistent restrictions, write one compact policy account on Solana. The wallet authorizes edits, which reuse that account and increase its revision. Both signers read it on each signing request.</p>
 <pre><code>const current = await pairkey.rules(namespace);
@@ -58,4 +55,4 @@ await pairkey.setPolicy(namespace, wallet, update);</code></pre>
 const transcript = { request: prepared.signing_request, approval: prepared.request,
   key, result, identities: namespace.config.signer_identities };
 // cargo run -p pairkey-sdk --example verify_hosted -- transcript.json</code></pre><p>The client saves the public prepared request, key, deployment and deterministic job ID <strong>before submission</strong>. Keep that recovery record; it contains no wallet signature, JWT or passkey assertion, but it does contain your message. “Recover last job” only retrieves the original attempt. It never asks for another approval, submits another job or consumes another allowance. If the original submission never reached the service, recovery reports an unknown job. An uncertain outcome is not proof that no signature exists.</p>
-<h2 id="derivation">How addresses are scoped</h2><p>The authority scopes the namespace. Destination, signature scheme and numeric path select keys inside it. The default namespace ID is 32 zero bytes; use a different 32-byte ID for another namespace. Keep the deployment and namespace metadata to recover the same keys. Policy edits and program approval-mode changes preserve the authority.</p><p>The UI displays a Solana public key, a NEAR <code>ed25519:</code> public-key identifier or an EVM address where applicable. Zcash and Bitcoin display signing public keys. These guides do not construct shielded addresses, named NEAR accounts or destination transactions.</p>
+<h2 id="derivation">How addresses are scoped</h2><p>The authority and namespace label scope the namespace. Labels such as <code>org/acme/treasury</code> or <code>user/alice/trading</code> are case-sensitive NFC strings mapped to stable 32-byte IDs. Destination, signature scheme and numeric path select keys inside it. Keep the deployment and namespace metadata to recover the same keys.</p><p>The UI displays a Solana public key, a NEAR <code>ed25519:</code> public-key identifier or an EVM address where applicable. Zcash and Bitcoin display signing public keys. Solana, restricted EVM legacy transfers, and NEAR have typed transaction adapters; see <a href="docs/signing.html#today">transaction support</a>.</p>

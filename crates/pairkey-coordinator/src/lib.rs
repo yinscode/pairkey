@@ -48,6 +48,8 @@ pub struct SignRequest {
     pub authorization: pairkey_types::policy::Authorization,
     pub registration: Registration,
     pub commit: Commit,
+    #[serde(default)]
+    pub transaction: Option<pairkey_signing::transaction::Transaction>,
     pub message: Vec<u8>,
 }
 #[derive(Clone, Serialize, Deserialize)]
@@ -57,6 +59,23 @@ pub struct SignedResult {
     pub signature: Vec<u8>,
     pub receipts: [ResultResponse; 2],
     pub elapsed_ms: u64,
+}
+fn validate_signing_request(request: &SignRequest) -> anyhow::Result<()> {
+    if let Some(transaction) = &request.transaction {
+        let public = derive_public(&request.registration, &request.commit.account)?;
+        ensure!(
+            transaction.signing_bytes(&public)? == request.message,
+            "transaction signing payload changed"
+        );
+        request
+            .commit
+            .authorize(&request.registration, &transaction.bytes()?)?;
+    } else {
+        request
+            .commit
+            .authorize(&request.registration, &request.message)?;
+    }
+    Ok(())
 }
 #[derive(Clone)]
 pub struct Relay {
@@ -232,9 +251,7 @@ impl Relay {
         Ok([ac, bc])
     }
     pub async fn sign(&self, request: SignRequest) -> anyhow::Result<SignedResult> {
-        request
-            .commit
-            .authorize(&request.registration, &request.message)?;
+        validate_signing_request(&request)?;
         let attempt = Attempt {
             authorization: request.authorization.clone(),
             commit: request.commit.clone(),
@@ -247,9 +264,7 @@ impl Relay {
         request: SignRequest,
         attempt: Attempt,
     ) -> anyhow::Result<SignedResult> {
-        request
-            .commit
-            .authorize(&request.registration, &request.message)?;
+        validate_signing_request(&request)?;
         ensure!(
             attempt.commit == request.commit && attempt.authorization == request.authorization,
             "prepared attempt mismatch"
@@ -260,12 +275,14 @@ impl Relay {
             Begin {
                 registration: request.registration.clone(),
                 attempt: attempt.clone(),
+                transaction: request.transaction.clone(),
                 message: request.message.clone(),
                 peer: peers[1].clone(),
             },
             Begin {
                 registration: request.registration.clone(),
                 attempt: attempt.clone(),
+                transaction: request.transaction.clone(),
                 message: request.message.clone(),
                 peer: peers[0].clone(),
             },
@@ -319,10 +336,19 @@ impl Relay {
             let expected = derive_public(&request.registration, &attempt.commit.account)?;
             for i in 0..2 {
                 let r = &receipts[i].receipt;
-                pairkey_sdk::service::verify_receipt(
+                let approved = request
+                    .transaction
+                    .as_ref()
+                    .map(|transaction| transaction.bytes())
+                    .transpose()?
+                    .unwrap_or_else(|| request.message.clone());
+                pairkey_sdk::service::verify_receipt_payload(
                     &request.registration,
                     &attempt,
-                    &request.message,
+                    pairkey_sdk::service::ReceiptPayloads {
+                        approved: &approved,
+                        signed: &request.message,
+                    },
                     &receipts[i],
                     self.config.identities[i],
                     if i == 0 { Role::A } else { Role::B },
@@ -350,9 +376,10 @@ impl Relay {
                     .try_into()
                     .context("signature length")?;
                 ensure!(
-                    pairkey_sdk::verify_signature(
+                    pairkey_sdk::verify_signature_payload(
                         &request.registration,
                         &attempt.commit,
+                        &approved,
                         &request.message,
                         &signature
                     ),

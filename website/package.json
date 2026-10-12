@@ -1,0 +1,48 @@
+{
+  "name": "@pairkey/sdk",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Browser SDK for PairKey programmable threshold keys",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yinscode/pairkey.git",
+    "directory": "website"
+  },
+  "homepage": "https://pairkey.com/docs/api.html",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./pairkey-client.d.ts",
+      "import": "./pairkey-client.mjs"
+    },
+    "./program": {
+      "types": "./program-client.d.ts",
+      "import": "./program-client.mjs"
+    }
+  },
+  "files": [
+    "program-client.mjs",
+    "program-client.d.ts",
+    "pairkey-client.mjs",
+    "pairkey-client.d.ts",
+    "hosted-v2.mjs",
+    "hosted-client.mjs",
+    "hosted-session.mjs",
+    "approval-codec.mjs",
+    "PACKAGE-README.md"
+  ],
+  "peerDependencies": {
+    "@solana/web3.js": "^1.98.4"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test *.test.mjs",
+    "prepublishOnly": "npm test"
+  }
+}

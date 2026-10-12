@@ -29,8 +29,38 @@ pub struct Ack {
 pub struct Begin {
     pub registration: Registration,
     pub attempt: Attempt,
+    /// Present when the approved typed transaction envelope differs from the
+    /// destination chain's actual signing bytes (for example NEAR's tx hash).
+    #[serde(default)]
+    pub transaction: Option<pairkey_signing::transaction::Transaction>,
     pub message: Vec<u8>,
     pub peer: Attestation,
+}
+impl Begin {
+    pub fn approval_payload(&self) -> anyhow::Result<Vec<u8>> {
+        match &self.transaction {
+            Some(transaction) => transaction.bytes(),
+            None => Ok(self.message.clone()),
+        }
+    }
+    pub fn validate_signing_payload(&self) -> anyhow::Result<()> {
+        if let Some(transaction) = &self.transaction {
+            let public =
+                pairkey_types::derive_public(&self.registration, &self.attempt.commit.account)?;
+            anyhow::ensure!(
+                transaction.signing_bytes(&public)? == self.message,
+                "transaction signing payload changed"
+            );
+            self.attempt
+                .commit
+                .authorize(&self.registration, &transaction.bytes()?)?;
+        } else {
+            self.attempt
+                .commit
+                .authorize(&self.registration, &self.message)?;
+        }
+        Ok(())
+    }
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

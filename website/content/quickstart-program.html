@@ -1,4 +1,7 @@
 <p class="lead">Your program defines the rules. PairKey evaluates them before two independent signers produce the signature.</p>
+<h2 id="mental-model">What runs where</h2><p>The Solana program cannot call PairKey’s HTTP API, provision secret shares or synchronously receive a signature. It defines a stable authority PDA and checks whether an exact request is allowed. The frontend obtains the public namespace and derived key from hosted signers, asks the wallet to authenticate the exact request, submits a signing job, and retrieves the result. The application can then broadcast supported Solana, EVM, or NEAR transaction bytes through its own destination RPC.</p>
+<div class="table-scroll" role="region" aria-label="Program signing lifecycle" tabindex="0"><table><thead><tr><th>Step</th><th>Who calls what</th><th>What persists</th></tr></thead><tbody><tr><td>1. Authority</td><td>Frontend calls <code>connect</code> with a named namespace. The SDK verifies the program’s <code>["controller", owner]</code> PDA and both namespace attestations.</td><td>Public namespace metadata. No Solana registration transaction.</td></tr><tr><td>2. Rules</td><td>Owner calls <code>setPolicy</code>. The safer default sends <code>pairkey_policy/v2</code> with the exact namespace digest.</td><td>Program-owned <code>["pairkey-policy", owner, namespace_digest]</code> PDA. Shared v1 policy remains available explicitly.</td></tr><tr><td>3. Key</td><td>Frontend calls <code>deriveKey</code>. PairKey’s signers lazily derive or enroll the key; the program never receives a private share.</td><td>Public key and certificate. Namespace, destination, and path select the same key deterministically.</td></tr><tr><td>4. Exact approval</td><td><code>signMessage</code> or <code>signTransaction</code> prepares and authenticates the request. Onchain mode sends <code>pairkey_approve_commit/v1</code>; offchain mode has each signer simulate <code>pairkey_approve/v1</code>.</td><td>Onchain mode records an exact approval and consumes the example allowance. Offchain mode makes no approval write.</td></tr><tr><td>5. Signature and delivery</td><td>Both signers independently check authority and sign. The frontend retrieves, verifies, assembles, and optionally broadcasts supported transaction bytes.</td><td>A recoverable hosted job, signature, two receipts, and optional destination transaction status.</td></tr></tbody></table></div>
+<p>There is no <code>pairkey_policy_commit</code> instruction. <code>pairkey_policy/v1</code> creates or edits application rules; <code>pairkey_approve_commit/v1</code> consumes state and commits one exact approval. These are separate transactions at different points in the flow.</p>
 <h2 id="start">Try the example program</h2><p>Use the deployment’s example program or enter a program built with the v2 template below. Each wallet controls its own <code>["controller", owner]</code> authority PDA and policy account. No namespace registration transaction is needed.</p>
 <div class="hosted-quickstart" data-hosted-quickstart="program">
 <label for="hosted-program">Program ID</label><input id="hosted-program" type="text" spellcheck="false" placeholder="Your v2 program ID"><button class="button secondary" id="hosted-example" type="button">Use hosted example</button>
@@ -16,7 +19,30 @@
 <div class="hosted-actions"><button class="button secondary" id="hosted-verify" type="button" disabled>Verify signature</button><button class="button secondary" id="hosted-recover" type="button">Recover last job</button></div>
 </div>
 <script src="/assets/vendor/solana-web3-1.98.4.min.js"></script><script type="module" src="/hosted-quickstart.mjs?v=offchain-approval-1"></script>
-<h2 id="application">Connect your application</h2><p>Download the <a href="examples/hosted-client-v2.zip">browser SDK bundle</a> (keep all three modules together), and provide <code>@solana/web3.js</code> v1. Your application uses our hosted signers; no PairKey processes run locally.</p>
+<h2 id="application">Connect your application</h2><p>Start with the <a href="https://github.com/yinscode/pairkey/tree/main/website/examples/program-browser">runnable browser example on GitHub</a>. The package prepared for its first npm release exposes the unified client at <code>@pairkey/sdk</code> and the controller-specific helper at <code>@pairkey/sdk/program</code>; use the repository source until that release is published.</p>
+<pre><code>import * as web3 from '@solana/web3.js';
+import {ProgramClient} from '@pairkey/sdk/program';
+
+const program = new ProgramClient({
+  web3, wallet: window.phantom.solana,
+  programId: 'YOUR_DEPLOYED_EXAMPLE_CONTROLLER_ID',
+  mode: 'Onchain', policyScope: 'namespace', storage: localStorage,
+});
+await program.connect({namespace:'org/acme/treasury'});
+// Explicit owner transaction when creating or changing rules:
+await program.setPolicy({chain:'solana',pathPrefix:[0],remainingApprovals:5});
+const key = await program.deriveKey({chain:'solana',path:[0]});
+const signed = await program.signMessage({
+  chain:'solana',path:[0],message:'Approved by my program.'
+});
+console.log(key.public_key_hex, signed.signatureHex, signed.jobId);
+// Download signed.transcript as JSON for independent verification.
+// After a reload, read the same job without another wallet prompt or commit:
+const recovered = await program.recover(signed.jobId);
+// Optional Solana transaction: verify this message signature on chain.
+const proof = await program.verifyOnSolana(recovered);</code></pre>
+<p><code>setPolicy</code> is separate from signing and advances the selected policy revision once per deliberate edit. Use the unified <code>PairKeyClient</code> when you want <code>signTransaction</code>, <code>signAndSend</code>, and <code>recoverAndSend</code> with this same program authority. The proof transaction above only verifies a returned message signature on Solana. The browser and service checks are not full independent verification of both signer receipts. Save the transcript for the <a href="examples/verify_hosted.rs">Rust verifier</a> and pin trusted signer identities.</p>
+<details><summary>See the lower-level browser SDK calls</summary><p>Read the <a href="https://github.com/yinscode/pairkey/blob/main/website/hosted-v2.mjs">browser SDK source on GitHub</a>. Keep its companion modules from the same directory together and provide <code>@solana/web3.js</code> v1.</p>
 <pre><code>import * as web3 from '@solana/web3.js';
 import { PairKey } from './hosted-v2.mjs';
 
@@ -46,24 +72,98 @@ sessionStorage.setItem('my-pairkey-job', JSON.stringify(recovery));
 const submission = await pairkey.approve(namespace, wallet, prepared);
 if (mode === 'Onchain') await pairkey.commitProgram(namespace, wallet, prepared);
 const { job_id } = await pairkey.submit(submission);
-const result = await pairkey.wait(job_id, { prepared, key });</code></pre>
+const result = await pairkey.wait(job_id, { prepared, key });
+// wait checks request context and Ed25519 signatures in the browser.
+// For all suites, verify the key certificate, signature and two receipts
+// independently with the Rust hosted verifier before relying on the result.
+console.log(key.public_key_hex, result.signature_hex);
+
+// After a reload or lost response, use the saved public record. This reads the
+// same job; it never commits another allowance or starts a new signing attempt.
+const saved = JSON.parse(sessionStorage.getItem('my-pairkey-job'));
+await pairkey.recover(saved.job_id);
+const recovered = await pairkey.wait(saved.job_id, {
+  prepared: saved.prepared, key: saved.key
+});</code></pre><p>Keep <code>prepared</code> and its recovery record unchanged between <code>commitProgram</code> and <code>submit</code>. A new <code>prepare</code> call can have a different expiry and request digest, so it will not match the on-chain approval. The <code>recover</code> call only reads existing evidence; an unknown job or uncertain result requires investigation before another commit.</p></details>
 <h2 id="program-code">How the program authorizes signing</h2><p>The example has three instructions. The policy update requires the owner’s transaction signature. Read-only approval authenticates the signer-attested caller and exact request, then returns a decision bound to that input. On-chain approval authenticates the wallet, checks the same rules, decrements an allowance and approves the exact request through gateway CPI in one atomic Solana transaction.</p><pre><code>pairkey_policy/v1           // create or edit this owner's rules
 pairkey_approve/v1          // evaluate rules; return an input-bound decision
-pairkey_approve_commit/v1   // consume allowance + approve through PDA CPI</code></pre><p><code>AppPolicy::allows</code> is where you add application logic. This example checks the designated caller, enabled flag, destination, path prefix and canonical payload length. The complete implementation is included in the downloadable template.</p><details><summary>View the application policy implementation</summary>
+pairkey_approve_commit/v1   // consume allowance + approve through PDA CPI</code></pre>
+<p>These shortened excerpts follow <a href="examples/program-approval.rs">the actual example program</a> and show its decision points. They are reading aids, not standalone handlers. The complete source also validates account counts and PDAs, allocates the policy account, checks the gateway, and handles errors.</p>
+<h3>1. Define what the program permits</h3><p><code>AppPolicy::allows</code> is the application rule. This example accepts only its owner as caller, the configured destination and path prefix, and a nonempty payload within the size limit. Replace or extend this rule for your application.</p>
+<pre><code class="language-rust">fn allows(&amp;self, caller: [u8; 32], account: &amp;AccountPath, payload: &amp;[u8]) -&gt; bool {
+    self.enabled
+        &amp;&amp; self.owner == caller
+        &amp;&amp; account.destination == self.destination
+        &amp;&amp; account.path.starts_with(&amp;self.path_prefix)
+        &amp;&amp; !payload.is_empty()
+        &amp;&amp; payload.len() &lt;= self.max_payload_bytes as usize
+}</code></pre>
+<h3>2. Store or update the rules</h3><p>The owner signs the policy update. <code>pairkey_policy/v2</code> can derive <code>["pairkey-policy", owner, namespace_digest]</code>; <code>pairkey_policy/v1</code> retains the compatible shared <code>["pairkey-policy", owner]</code> account. The first write to either account uses revision 1 and every edit increments that account by exactly one. The <a href="https://github.com/yinscode/pairkey/blob/main/programs/example-controller/src/approval.rs">full handler on GitHub</a> performs account creation, rent funding, PDA selection, and serialization.</p>
+<pre><code class="language-rust">let p = AppPolicy::try_from_slice(bytes).map_err(|_| bad())?;
+p.validate()?;
+let [owner, target, system] = accounts else { return Err(bad()) };
+let (pda, _bump) = policy_address(program, owner.key);
+if !owner.is_signer || p.owner != owner.key.to_bytes() || *target.key != pda {
+    return Err(bad());
+}
+if target.owner == program {
+    let old = policy(program, target)?;
+    if old.revision.checked_add(1) != Some(p.revision) { return Err(bad()); }
+} else if p.revision != 1 {
+    return Err(bad());
+}
+// Full handler creates or resizes the PDA, then writes the encoded policy.</code></pre>
+<h3>3. Authorize one exact request</h3><p>For immutable, read-only rules, each signer simulates <code>pairkey_approve/v1</code>. The program authenticates that signer’s input, checks the authority and application rule, then returns a decision bound to the exact input digest. No allowance changes.</p>
+<pre><code class="language-rust">let input = Input::try_from_slice(bytes).map_err(|_| bad())?;
+let p = policy(program, &amp;accounts[2])?;
+pair_registry::program_approval::authenticate_input(
+    accounts, &amp;input,
+    &amp;pair_registry::set_address(&amp;pair_registry::id(), &amp;p.enclave_set).0,
+)?;
+let allowed = input.authority
+    == authority(program, &amp;Pubkey::new_from_array(p.owner)).0.to_bytes()
+    &amp;&amp; !p.require_commit
+    &amp;&amp; p.allows(input.caller, &amp;input.account, &amp;input.payload);
+set_return_data(&amp;borsh::to_vec(&amp;Output {
+    input_digest: input.digest(), allowed,
+}).map_err(|_| bad())?);</code></pre>
+<p>For state-changing rules, the wallet instead sends <code>pairkey_approve_commit/v1</code>. The program authenticates the caller and source, checks the same rule, decrements the example allowance, then signs the gateway’s <code>ApproveProgram</code> CPI with its authority PDA. The allowance decrement and exact approval succeed or fail together.</p>
+<pre><code class="language-rust">let call = CommitCall::try_from_slice(bytes).map_err(|_| bad())?;
+let source = call.validate(Clock::get()?.unix_timestamp).map_err(|_| bad())?;
+// Full handler verifies owner signature, source, authority PDA, gateway,
+// namespace, enclave set and ordered application accounts before this point.
+let mut p = policy(program, policy_info, &amp;call.namespace.digest())?;
+if !p.allows(owner.key.to_bytes(), &amp;call.request.commit.account, &amp;call.payload)
+    || p.remaining_approvals == 0
+{
+    return Err(bad());
+}
+p.remaining_approvals -= 1;
+policy_info.try_borrow_mut_data()?.copy_from_slice(&amp;borsh::to_vec(&amp;p).map_err(|_| bad())?);
+let ix = instruction(*registry.key, gateway_accounts, RegistryInstruction::ApproveProgram {
+    approval: call.approval(),
+});
+invoke_signed(&amp;ix, gateway_account_infos,
+    &amp;[&amp;[AUTHORITY_SEED, owner.key.as_ref(), &amp;[bump]]])?;</code></pre>
+<p><code>gateway_accounts</code> and <code>gateway_account_infos</code> above stand for the exact account lists in the complete handler. The excerpt is for reading the flow; use the <a href="https://github.com/yinscode/pairkey/blob/main/programs/example-controller/src/approval.rs">complete source on GitHub</a> when implementing it.</p>
+<details><summary>View the complete application policy implementation</summary>
 <!-- HOSTED_CONTROLLER_SOURCE -->
 </details>
-<h2 id="controller">Deploy your application logic</h2><p>Download the <a href="examples/hosted-controller.zip">self-contained program template</a>. It bundles the typed gateway ABI and this exact policy implementation. Edit <code>vendor/programs/example-controller/src/approval.rs</code>. You deploy only your application program; PairKey runs the signers and gateway.</p>
-<pre><code>unzip hosted-controller.zip
-cd hosted-controller
+<h2 id="controller">Deploy your application logic</h2><p>Browse the <a href="https://github.com/yinscode/pairkey/tree/main/examples/hosted-controller">program template on GitHub</a> and its <a href="https://github.com/yinscode/pairkey/blob/main/programs/example-controller/src/approval.rs">policy implementation</a>. Clone the repository and edit <code>programs/example-controller/src/approval.rs</code>. You deploy only your application program; PairKey runs the signers and gateway.</p>
+<pre><code>git clone https://github.com/yinscode/pairkey.git
+cd pairkey
 # Copy registry from your hosted /api/v2/config and pin it at build time.
-PAIRKEY_REGISTRY_ID=YOUR_HOSTED_GATEWAY cargo build-sbf -- --locked
+PAIRKEY_REGISTRY_ID=YOUR_HOSTED_GATEWAY cargo build-sbf \
+  --manifest-path programs/example-controller/Cargo.toml -- --locked
 solana program deploy --url devnet --keypair YOUR_DEVNET_WALLET.json \
   target/deploy/pairkey_hosted_controller_example.so</code></pre><p>Start with on-chain approval while developing an upgradeable program. Off-chain evaluation currently requires immutable deployed code. Removing upgrade authority is irreversible: test and review your program first. Standard RPC cannot simulate code stored only on your server.</p>
 <h2 id="cpi">Integrate another program</h2><p>The example helpers use the template’s PDA seeds, accounts and ABI. For another program, supply an explicit <code>Program</code> identity containing its program ID, authority PDA and seeds, application accounts, approval mode and pinned code hash for off-chain evaluation. Implement the typed <code>pairkey_approve</code> ABI or your own instruction that invokes the gateway’s <code>ApproveProgram</code> through <code>invoke_signed</code>. The generic path must validate your program’s own exact operation; the example helper cannot wrap arbitrary programs.</p><p>Both signers independently verify the caller proof. Each signer authenticates its own simulation context; an unsigned simulated transaction’s signer flags are not accepted as proof of a wallet signature. See <a href="docs/integration.html">Solana program integration</a> for the ABI and trust model.</p>
-<h2 id="policy">Choose which rules need on-chain approval</h2><p>Use <code>pairkey_approve</code> for read-only rules: allowed destinations and paths, membership checks or current application state. Both signers run the evaluation independently. No transaction is broadcast, account written or counter consumed.</p><p>Use <code>pairkey_approve_commit</code> for one-time allowances, cumulative budgets and nonce consumption. The example consumes one allowance and records approval atomically; failing approval rolls back the decrement. It does not parse financial transfers or implement a spending budget. A later signing failure does not refund a committed allowance automatically.</p><p>The application policy is shared by this owner’s namespaces under the program. Optional standard PairKey rules are namespace-specific and apply in addition. Policy updates are explicit transactions; reconnect after changing the program or approval mode. See the <a href="docs/policy-demo.html">Policy demo</a> for both code paths and setup steps, or <a href="docs/policy.html#program">program policy guidance</a> for the full model.</p>
+<h2 id="policy">Choose policy scope and approval mode</h2><p>Use <code>pairkey_approve</code> for read-only rules such as destinations, paths, membership, or current application state. Both signers run the evaluation independently. Use <code>pairkey_approve_commit</code> for one-time allowances, cumulative budgets, and nonce consumption. A later signing or delivery failure does not refund committed state automatically.</p><p>Choose <code>policyScope: 'namespace'</code> when named namespaces need independent rules and revisions. Choose <code>'shared'</code> only when every namespace for this program owner should intentionally use the same policy account. Standard PairKey rules are also namespace-specific and apply in addition. Policy updates are explicit owner transactions.</p>
 <h2 id="verify">Verify and recover</h2><p>The Verify button asks the service to verify the displayed message and signature. The browser also checks exact approval context and Ed25519 signatures locally. Use the <a href="examples/verify_hosted.rs">offline Rust verifier</a> for independent verification of all signature suites, key certificates and both signer receipts; service verification alone does not provide that independence.</p><pre><code>// Save this public transcript for the offline Rust verifier.
 // Check signer identities against a trusted deployment configuration.
 const transcript = { request: prepared.signing_request, approval: prepared.request,
   key, result, identities: namespace.config.signer_identities };
 // cargo run -p pairkey-sdk --example verify_hosted -- transcript.json</code></pre><p>The client saves the public prepared request, key, deployment and deterministic job ID <strong>before submission</strong>. Keep that recovery record; it contains no wallet signature, JWT or passkey assertion, but it does contain your message. “Recover last job” only retrieves the original attempt. It never asks for another approval, submits another job or consumes another allowance. If the original submission never reached the service, recovery reports an unknown job. An uncertain outcome is not proof that no signature exists.</p>
-<h2 id="derivation">How addresses are scoped</h2><p>The authority scopes the namespace. Destination, signature scheme and numeric path select keys inside it. The default namespace ID is 32 zero bytes; use a different 32-byte ID for another namespace. Keep the deployment and namespace metadata to recover the same keys. Policy edits and program approval-mode changes preserve the authority.</p><p>The UI displays a Solana public key, a NEAR <code>ed25519:</code> public-key identifier or an EVM address where applicable. Zcash and Bitcoin display signing public keys. These guides do not construct shielded addresses, named NEAR accounts or destination transactions.</p>
+<h2 id="derivation">How addresses are scoped</h2><p>The program authority and namespace label scope the namespace. Labels such as <code>org/acme/treasury</code> map deterministically to the existing 32-byte namespace ID. Destination, signature scheme and numeric path select keys inside it. Policy edits and approval mode changes preserve the authority; changing the label selects a different key family.</p><p>The SDK exposes Solana, restricted EVM legacy-transfer, and NEAR transaction adapters. Zcash and Bitcoin currently expose message-signing public keys and require additional transaction adapter work.</p>
+<h2 id="near-comparison">Compare with NEAR Chain Signatures</h2><p>NEAR’s <a href="https://docs.near.org/chain-abstraction/chain-signatures">Chain Signatures flow</a> derives a foreign address from a NEAR account, derivation path and MPC public key. A NEAR account or contract calls the MPC contract’s <code>sign</code> method; the contract waits for the MPC service and returns a signature, which the client assembles into and broadcasts as a destination transaction. Its <a href="https://docs.near.org/chain-abstraction/chain-signatures/getting-started">getting-started guide</a> shows derive → build transaction → request signature → relay.</p>
+<div class="table-scroll" role="region" aria-label="PairKey and NEAR Chain Signatures flow comparison" tabindex="0"><table><thead><tr><th>Question</th><th>PairKey hosted v2</th><th>NEAR Chain Signatures</th></tr></thead><tbody><tr><td>Who controls the key?</td><td>A Solana account or program authority PDA, plus exact caller proof and current rules.</td><td>A NEAR account or contract, identified by the account calling the MPC contract.</td></tr><tr><td>How do I get an address?</td><td>Call <code>connect</code>, then <code>key({chain,path})</code>. Named namespace plus numeric path provide app-friendly and deterministic scopes.</td><td>Derive from the NEAR account ID, string path and MPC public key.</td></tr><tr><td>How does the program request signing?</td><td>It authorizes an exact request through read-only evaluation or a finalized gateway CPI. The frontend submits the later HTTP signing job.</td><td>The NEAR contract calls the MPC <code>sign</code> method from an onchain transaction and awaits its result.</td></tr><tr><td>Where is the signature returned?</td><td>From the recoverable hosted job to the client, outside Solana CPI.</td><td>Through the NEAR contract call or promise result after MPC signing.</td></tr><tr><td>Who sends it to the destination?</td><td><code>signAndSend</code>, your client, or a relayer using an application-supplied destination RPC.</td><td>Your client or relayer after destination-specific assembly.</td></tr></tbody></table></div><p>PairKey now assembles Solana, restricted EVM legacy-transfer, and NEAR transactions. Bitcoin and Zcash transaction adapters remain future work. NEAR’s contract-return pattern still cannot be copied directly to Solana because this integration authorizes on Solana and returns the later signer result through a hosted job.</p>

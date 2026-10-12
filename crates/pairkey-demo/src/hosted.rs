@@ -331,6 +331,7 @@ async fn approval(
             key: q.key,
             request_id: q.request_id,
             message: q.message,
+            transaction: None,
         };
         let (commit, _, _) = prepared(&signing_request, &key)?;
         let controller = Pubkey::new_from_array(

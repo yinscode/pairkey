@@ -243,6 +243,7 @@ impl Fixture {
                 random_id: [6; 32],
                 authorization: Default::default(),
             },
+            transaction: None,
             message,
             peer: peer.attest(channel.boot_id()),
         };

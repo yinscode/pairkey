@@ -3,35 +3,43 @@
 import {same, check} from './approval-codec.mjs';
 import {ephemeralIdentity, passkeyAssertion} from './hosted-v2.mjs';
 export class HostedSession {
-  constructor(client, {storage = globalThis.sessionStorage, storageKey = 'pairkey-v2-recovery', onStage = () => {}, ephemeral = ephemeralIdentity, assertPasskey = passkeyAssertion} = {}) {
+  constructor(client, {storage = globalThis.sessionStorage, storageKey = 'pairkey-v2-recovery', onStage = () => {}, ephemeral = ephemeralIdentity, assertPasskey = passkeyAssertion, commitProgram} = {}) {
     this.client = client; this.storage = storage; this.storageKey = storageKey; this.onStage = onStage; this.ephemeral = ephemeral; this.assertPasskey = assertPasskey;
+    this.commitProgram = commitProgram ?? ((namespace, wallet, prepared) => this.client.commitProgram(namespace, wallet, prepared));
+  }
+  saveRecovery(recovery) {
+    const encoded = JSON.stringify(recovery);
+    // Keep every public job record, as well as the convenient "last job" pointer.
+    // Both writes finish before any wallet prompt or signing submission.
+    this.storage.setItem(`${this.storageKey}:${recovery.job_id}`, encoded);
+    this.storage.setItem(this.storageKey, encoded);
   }
   reset() { this.namespace = this.wallet = this.key = this.selection = this.result = undefined; }
-  async connect(wallet, {program, mode = 'Offchain'} = {}) {
+  async connect(wallet, {program, mode = 'Offchain', identity, namespace, namespaceId, policyScope = 'shared'} = {}) {
     this.reset();
     check(wallet?.connect && wallet?.signMessage, 'Connect a Solana wallet with message signing, such as Phantom or Solflare.');
     await wallet.connect();
-    const source = program ? await this.client.programSource(program, wallet.publicKey, mode) : undefined;
-    const namespace = await this.client.onboard(wallet, source ? {identity: source.identity} : {});
-    this.wallet = wallet; this.namespace = namespace; this.result = undefined;
-    this.onStage('ready', {namespace});
-    return namespace;
+    const source = program ? await this.client.programSource(program, wallet.publicKey, mode, {namespace, namespaceId, policyScope}) : undefined;
+    const connected = await this.client.onboard(wallet, {identity: source?.identity ?? identity, namespace, namespaceId});
+    this.wallet = wallet; this.namespace = connected; this.result = undefined;
+    this.onStage('ready', {namespace: connected});
+    return connected;
   }
-  async connectOidc(identity) {
+  async connectOidc(identity, {namespace, namespaceId} = {}) {
     this.reset();
     check(identity?.Oidc, 'Select an OIDC identity first.');
-    const namespace = await this.client.onboard(undefined, {identity});
-    this.namespace = namespace;
-    this.onStage('ready', {namespace});
-    return namespace;
+    const connected = await this.client.onboard(undefined, {identity, namespace, namespaceId});
+    this.namespace = connected;
+    this.onStage('ready', {namespace: connected});
+    return connected;
   }
-  async connectPasskey(identity) {
+  async connectPasskey(identity, {namespace, namespaceId} = {}) {
     this.reset();
     check(identity?.Passkey, 'Create or select a passkey first.');
-    const namespace = await this.client.onboard(undefined, {identity});
-    this.namespace = namespace;
-    this.onStage('ready', {namespace});
-    return namespace;
+    const connected = await this.client.onboard(undefined, {identity, namespace, namespaceId});
+    this.namespace = connected;
+    this.onStage('ready', {namespace: connected});
+    return connected;
   }
   async loadKey(chain, path) {
     check(this.namespace, 'Connect your authority first.');
@@ -41,28 +49,30 @@ export class HostedSession {
     this.key = structuredClone(key); this.selection = {chain, path: [...path]};
     return key;
   }
-  async sign({chain, path, message}) {
+  async sign({chain, path, message, transaction}) {
     check(this.key && same(this.selection, {chain, path}), 'Chain or path changed. Load its key first.');
     this.result = undefined;
     this.onStage('preparing');
-    const prepared = await this.client.prepare(this.namespace, this.wallet, {chain, path, message});
+    const prepared = await this.client.prepare(this.namespace, this.wallet, {chain, path, message, transaction});
     const recovery = await this.client.recovery(prepared);
     // Stop before the wallet prompt if safe recovery metadata cannot be saved.
-    this.storage.setItem(this.storageKey, JSON.stringify(recovery));
+    this.saveRecovery(recovery);
     this.onStage('authorizing', {prepared});
     const submission = await this.client.approve(this.namespace, this.wallet, prepared);
     if (this.namespace.identity.Program?.mode === 'Onchain') {
       this.onStage('committing', {prepared});
-      await this.client.commitProgram(this.namespace, this.wallet, prepared);
+      await this.commitProgram(this.namespace, this.wallet, prepared);
     }
     this.onStage('submitting', {jobId: recovery.job_id, prepared});
     const job = await this.client.submit(submission);
+    this.jobId = job.job_id;
     this.onStage('signing', {jobId: job.job_id, prepared});
     this.result = await this.client.wait(job.job_id, {prepared, key: this.key});
     this.onStage('complete', {result: this.result, jobId: job.job_id, prepared});
     return this.result;
   }
-  async prepareOidc({chain, path, message}) {
+  async signTransaction({chain,path,transaction}) { return this.sign({chain,path,message:'',transaction}); }
+  async prepareOidc({chain, path, message, transaction}) {
     check(this.namespace?.identity?.Oidc, 'Connect your OIDC identity first.');
     check(this.key && same(this.selection, {chain, path}), 'Chain or path changed. Load its key first.');
     this.result = undefined;
@@ -70,46 +80,49 @@ export class HostedSession {
     // The binding must predate the request, and its nonce must be requested
     // from the issuer only after the identity is known.
     const ephemeral = await this.ephemeral(this.namespace);
-    const prepared = await this.client.prepare(this.namespace, undefined, {chain, path, message});
+    const prepared = await this.client.prepare(this.namespace, undefined, {chain, path, message, transaction});
     const recovery = await this.client.recovery(prepared);
-    this.storage.setItem(this.storageKey, JSON.stringify(recovery));
+    this.saveRecovery(recovery);
     this.onStage('authorizing', {prepared});
     return {ephemeral, prepared, recovery, namespace: this.namespace, key: this.key};
   }
   async completeOidc(pending, idToken) {
     check(pending?.namespace === this.namespace && pending.key === this.key, 'OIDC identity or key changed. Prepare a new request.');
-    check(this.storage.getItem(this.storageKey) === JSON.stringify(pending.recovery), 'Saved recovery record changed. Prepare a new request.');
+    check(this.storage.getItem(`${this.storageKey}:${pending.recovery.job_id}`) === JSON.stringify(pending.recovery), 'Saved recovery record changed. Prepare a new request.');
     const submission = await pending.ephemeral.approve(pending.prepared, pending.key, {idToken});
     this.onStage('submitting', {jobId: pending.recovery.job_id, prepared: pending.prepared});
     const job = await this.client.submit(submission);
+    this.jobId = job.job_id;
     this.onStage('signing', {jobId: job.job_id, prepared: pending.prepared});
     this.result = await this.client.wait(job.job_id, {prepared: pending.prepared, key: pending.key});
     this.onStage('complete', {result: this.result, jobId: job.job_id, prepared: pending.prepared});
     return this.result;
   }
-  async signPasskey({chain, path, message}, credentialId) {
+  async signPasskey({chain, path, message, transaction}, credentialId) {
     check(this.namespace?.identity?.Passkey, 'Connect your passkey identity first.');
     check(this.key && same(this.selection, {chain, path}), 'Chain or path changed. Load its key first.');
     this.result = undefined;
     this.onStage('preparing');
     const ephemeral = await this.ephemeral(this.namespace);
-    const prepared = await this.client.prepare(this.namespace, undefined, {chain, path, message});
+    const prepared = await this.client.prepare(this.namespace, undefined, {chain, path, message, transaction});
     const recovery = await this.client.recovery(prepared);
-    this.storage.setItem(this.storageKey, JSON.stringify(recovery));
+    this.saveRecovery(recovery);
     this.onStage('authorizing', {prepared});
     const assertion = await this.assertPasskey(this.namespace.identity, ephemeral.challenge, credentialId);
     const submission = await ephemeral.approve(prepared, this.key, {assertion});
     this.onStage('submitting', {jobId: recovery.job_id, prepared});
     const job = await this.client.submit(submission);
+    this.jobId = job.job_id;
     this.onStage('signing', {jobId: job.job_id, prepared});
     this.result = await this.client.wait(job.job_id, {prepared, key: this.key});
     this.onStage('complete', {result: this.result, jobId: job.job_id, prepared});
     return this.result;
   }
-  async recover() {
-    const raw = this.storage.getItem(this.storageKey);
+  async recover(jobId) {
+    const raw = this.storage.getItem(jobId ? `${this.storageKey}:${jobId}` : this.storageKey);
     check(raw, 'No v2 signing job is saved in this browser tab.');
     const saved = JSON.parse(raw);
+    check(!jobId || saved.job_id === jobId, 'Saved recovery belongs to a different job.');
     check(saved.version === 2 && saved.endpoint === this.client.endpoint && saved.prepared && saved.key && saved.deployment, 'Recovery belongs to a different API or format.');
     check(await this.client.jobId(saved.prepared.request) === saved.job_id, 'Saved job ID does not match its request.');
     if (!this.client.deployment) this.client.deployment = structuredClone(saved.deployment);
@@ -117,6 +130,7 @@ export class HostedSession {
     await this.client.config();
     this.onStage('recovering', {jobId: saved.job_id});
     await this.client.recover(saved.job_id);
+    this.jobId = saved.job_id;
     this.result = await this.client.wait(saved.job_id, {prepared: saved.prepared, key: saved.key});
     this.onStage('complete', {result: this.result, jobId: saved.job_id, prepared: saved.prepared});
     return this.result;

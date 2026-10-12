@@ -61,6 +61,17 @@ export const sha256 = async bytes => new Uint8Array(await crypto.subtle.digest('
 export const digest = async (label, encoded) => { const name = utf8(label); return sha256(concat(u32(name.length), name, u32(encoded.length), encoded)); };
 export const registrationDigest = reg => digest('pairkey/registration/v1', encodeRegistration(reg));
 export const namespaceDigest = ns => digest('pairkey/namespace/v1', encodeNamespace(ns));
+/** Map a human-readable namespace label to the protocol's existing 32-byte ID.
+ * Labels are case-sensitive NFC strings. The domain and length framing are part
+ * of the stable v1 mapping; changing either would select different keys. */
+export async function namedNamespaceId(label) {
+  check(typeof label === 'string', 'Namespace label must be a string');
+  const canonical = label.normalize('NFC'), encoded = utf8(canonical);
+  check(canonical === label, 'Namespace label must use Unicode NFC normalization');
+  check(encoded.length > 0 && encoded.length <= 128, 'Namespace label must contain 1–128 UTF-8 bytes');
+  check(!/[\u0000-\u001f\u007f]/u.test(canonical), 'Namespace label must not contain control characters');
+  return [...await digest('pairkey/named-namespace/v1', bytes(encoded, 128))];
+}
 export const identityDigest = identity => digest('pairkey/approval-identity/v1', encodeIdentity(identity));
 export const requestDigest = request => digest('pairkey/offchain-approval/v1', encodeRequest(request));
 export const bindingChallenge = binding => digest('pairkey/identity-binding/v1', encodeBinding(binding));
@@ -88,12 +99,36 @@ export function encodeKey(v) {
   check(v.version === 1, 'Unsupported signing key');
   return concat(u16(v.version), enumeration(v.suite, ['Dkls23Secp256k1', 'FrostRedPallas', 'FrostSecp256k1Tr']), fixed(v.namespace, 32), encodeAccount(v.account), bytes(v.public_key, 65), fixed(v.registration, 32));
 }
+function transactionPayload(q, key) {
+  const transaction=q.transaction;
+  check(transaction && Object.keys(transaction).length===1 && q.message==='', 'Choose one typed transaction');
+  if(transaction.solana){
+    check(q.key.chain==='solana' && key.multi===null,'Solana transaction/key mismatch');
+    fields(transaction.solana,['message']);
+    return concat(utf8('pairkey/transaction-intent/v1\0'),byte(0),bytes(transaction.solana.message,1232));
+  }
+  if(transaction.near){
+    check(q.key.chain==='near' && key.multi===null,'NEAR transaction/key mismatch');
+    fields(transaction.near,['transaction']);
+    return concat(utf8('pairkey/transaction-intent/v1\0'),byte(1),bytes(transaction.near.transaction,1024));
+  }
+  if(transaction.evm_legacy){
+    check(q.key.chain==='evm' && key.multi?.key?.suite==='Dkls23Secp256k1','EVM transaction/key mismatch');
+    fields(transaction.evm_legacy,['transfer']);
+    const t=transaction.evm_legacy.transfer;
+    fields(t,['chain_id','nonce','gas_price','gas_limit','to','value']);
+    check(t.chain_id===84532 && t.gas_price>0 && t.gas_limit>=21000 && t.gas_limit<=1000000,'Unsupported EVM transaction bounds');
+    return concat(utf8('pairkey/signing-intent/v1\0'),u16(1),encodeKey(key.multi.key),byte(0),u64(t.chain_id),u64(t.nonce),u64(t.gas_price),u64(t.gas_limit),fixed(t.to,20),u64(t.value));
+  }
+  throw new Error('Unsupported transaction adapter');
+}
 export async function payload(q, key) {
   const { chain, path, registration } = q.key;
-  check(typeof q.message === 'string' && q.message.trim() && utf8(q.message).length <= 256, 'Message must contain 1–256 UTF-8 bytes');
   check(same(key.account, await account(chain, path)), 'Derived key path changed');
   const publicKey = fixed(key.public_key, chain === 'evm' ? 33 : 32);
   check(key.public_key_hex === `0x${hex(publicKey)}`, 'Public key encoding changed');
+  if(q.transaction!==undefined)return transactionPayload(q,key);
+  check(typeof q.message === 'string' && q.message.trim() && utf8(q.message).length <= 256, 'Message must contain 1–256 UTF-8 bytes');
   const message = utf8(q.message);
   if (chain === 'solana' || chain === 'near') { check(key.multi === null, 'Unexpected signing suite'); return message; }
   const expected = { evm: 'Dkls23Secp256k1', zcash: 'FrostRedPallas', bitcoin: 'FrostSecp256k1Tr' }[chain];
@@ -101,6 +136,13 @@ export async function payload(q, key) {
   check(same(key.multi.key.public_key, publicKey) && same(key.multi.key.account, key.account) && same(key.multi.key.namespace, await registrationDigest(registration)), 'Signing key namespace changed');
   const typed = chain === 'evm' ? concat(byte(2), u64(84532), bytes(message)) : chain === 'bitcoin' ? concat(byte(3), byte(1), bytes(message)) : concat(byte(1), bytes(message));
   return concat(utf8('pairkey/signing-intent/v1\0'), u16(1), encodeKey(key.multi.key), typed);
+}
+export async function signingPayload(q,key){
+  if(q.transaction?.solana)return fixed(q.transaction.solana.message,q.transaction.solana.message.length);
+  if(q.transaction?.near)return sha256(fixed(q.transaction.near.transaction,q.transaction.near.transaction.length));
+  if(q.transaction?.evm_legacy)return null;
+  if(q.key.chain==='solana'||q.key.chain==='near')return utf8(q.message);
+  return null;
 }
 export function interval(issued, expires, now, maximum) {
   u64(issued); u64(expires); u64(now);

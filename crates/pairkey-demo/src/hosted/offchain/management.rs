@@ -25,8 +25,16 @@ async fn app_policy(
     app: &App,
     program: Pubkey,
     owner: Pubkey,
+    namespace_scope: Option<[u8; 32]>,
 ) -> Result<Option<example_controller::approval::AppPolicy>> {
-    let address = example_controller::approval::policy_address(&program, &owner).0;
+    ensure!(
+        namespace_scope != Some([0; 32]),
+        "invalid namespace policy scope"
+    );
+    let address = namespace_scope.map_or_else(
+        || example_controller::approval::policy_address(&program, &owner).0,
+        |scope| example_controller::approval::scoped_policy_address(&program, &owner, &scope).0,
+    );
     let response = app
         .sol
         .call(
@@ -55,9 +63,14 @@ async fn read_example_policy(
     Json(q): Json<ExamplePolicyReadRequest>,
 ) -> ApiResult<Option<ExamplePolicyState>> {
     async {
-        app_policy(&app, q.program.parse()?, q.owner.parse()?)
-            .await
-            .map(|p| p.map(Into::into))
+        app_policy(
+            &app,
+            q.program.parse()?,
+            q.owner.parse()?,
+            q.namespace_scope,
+        )
+        .await
+        .map(|p| p.map(Into::into))
     }
     .await
     .map(Json)
@@ -236,7 +249,13 @@ async fn source(
         } else {
             [0; 32]
         };
-        example_source(program, q.owner.parse()?, q.mode, code_hash)
+        example_source(
+            program,
+            q.owner.parse()?,
+            q.mode,
+            code_hash,
+            q.namespace_scope,
+        )
     }
     .await
     .map(Json)
@@ -254,7 +273,7 @@ async fn example_policy(
             "hosted wallet cannot manage user program policy"
         );
         let policy = q.policy(app.journal.read().set_id)?;
-        let revision = app_policy(&app, program, owner)
+        let revision = app_policy(&app, program, owner, q.namespace_scope)
             .await?
             .map(|p| p.revision)
             .unwrap_or(0);
@@ -264,8 +283,10 @@ async fn example_policy(
         );
         instructions(
             owner,
-            vec![pairkey_sdk::program_approval::example_policy(
-                program, policy,
+            vec![pairkey_sdk::program_approval::example_policy_for_scope(
+                program,
+                policy,
+                q.namespace_scope,
             )],
         )
     }

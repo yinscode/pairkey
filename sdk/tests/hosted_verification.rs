@@ -122,3 +122,103 @@ fn offchain_preparation_preserves_all_existing_chain_encodings_and_checks_exact_
         );
     }
 }
+
+#[test]
+fn typed_transaction_preparation_binds_solana_evm_and_near_signing_payloads() {
+    use pairkey_sdk::hosted::{offchain::prepare_message, Chain, TransactionRequest};
+    use pairkey_signing::transaction::{NearAction, NearPublicKey, NearTransaction, Transaction};
+    use solana_sdk::{
+        hash::Hash,
+        message::{Message, VersionedMessage},
+        pubkey::Pubkey,
+        system_instruction,
+    };
+    let cases: Vec<Transcript> =
+        serde_json::from_str(include_str!("fixtures/hosted-devnet.json")).unwrap();
+    let find = |chain| {
+        cases
+            .iter()
+            .find(|case| case.request.key.chain == chain)
+            .unwrap()
+            .clone()
+    };
+
+    let mut sol = find(Chain::Solana);
+    let signer = Pubkey::new_from_array(sol.key.public_key.clone().try_into().unwrap());
+    let message = Message::new_with_blockhash(
+        &[system_instruction::transfer(
+            &signer,
+            &Pubkey::new_unique(),
+            1,
+        )],
+        Some(&signer),
+        &Hash::new_unique(),
+    );
+    let serialized = bincode::serialize(&VersionedMessage::Legacy(message)).unwrap();
+    sol.request.message.clear();
+    sol.request.transaction = Some(TransactionRequest::Solana {
+        message: serialized.clone(),
+    });
+    let (commit, payload, intent) = prepare_message(&sol.request, &sol.key).unwrap();
+    assert!(intent.is_none());
+    assert_eq!(
+        payload,
+        Transaction::Solana {
+            message: serialized.clone()
+        }
+        .bytes()
+        .unwrap()
+    );
+    commit
+        .authorize(&sol.request.key.registration, &payload)
+        .unwrap();
+
+    let mut near = find(Chain::Near);
+    let public: [u8; 32] = near.key.public_key.clone().try_into().unwrap();
+    let tx = NearTransaction {
+        signer_id: "alice.near".into(),
+        public_key: NearPublicKey::Ed25519(public),
+        nonce: 1,
+        receiver_id: "bob.near".into(),
+        block_hash: [9; 32],
+        actions: vec![NearAction::Transfer { deposit: 1 }],
+    };
+    let serialized = borsh::to_vec(&tx).unwrap();
+    near.request.message.clear();
+    near.request.transaction = Some(TransactionRequest::Near {
+        transaction: serialized.clone(),
+    });
+    let (_, near_payload, intent) = prepare_message(&near.request, &near.key).unwrap();
+    assert!(intent.is_none());
+    assert_eq!(
+        near_payload,
+        Transaction::Near {
+            transaction: serialized
+        }
+        .bytes()
+        .unwrap()
+    );
+
+    let mut evm = find(Chain::Evm);
+    let transfer = pairkey_signing::evm::Transfer {
+        chain_id: 84532,
+        nonce: 1,
+        gas_price: 2,
+        gas_limit: 21_000,
+        to: [3; 20],
+        value: 4,
+    };
+    evm.request.message.clear();
+    evm.request.transaction = Some(TransactionRequest::EvmLegacy {
+        transfer: transfer.clone(),
+    });
+    let (_, evm_payload, intent) = prepare_message(&evm.request, &evm.key).unwrap();
+    assert!(
+        matches!(intent.unwrap().payload,pairkey_signing::Payload::EvmTransfer(t) if t==transfer)
+    );
+    let mut changed = evm.request.clone();
+    if let Some(TransactionRequest::EvmLegacy { transfer }) = &mut changed.transaction {
+        transfer.value += 1;
+    }
+    assert_ne!(evm_payload, prepare_message(&changed, &evm.key).unwrap().1);
+}

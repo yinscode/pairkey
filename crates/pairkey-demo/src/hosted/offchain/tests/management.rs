@@ -167,10 +167,22 @@ async fn hosted_program_helpers_execute_policy_and_commit_before_signing() {
     let f = Fixture::new().await;
     let mut p = Programs::new(&f);
     let owner = p.owner_key();
+    let authority = example_controller::authority(&example_controller::id(), &p.owner.pubkey()).0;
+    let namespace_scope = pairkey_types::Namespace {
+        version: pairkey_types::VERSION,
+        scheme: pairkey_types::Scheme::FrostEd25519,
+        network: GENESIS.parse::<Pubkey>().unwrap().to_bytes(),
+        registry: pair_registry::id().to_bytes(),
+        derivation_authority: authority.to_bytes(),
+        namespace_id: [0; 32],
+        enclave_set: f.app.journal.read().set_id,
+    }
+    .digest();
     let q = ExampleSourceRequest {
         program: example_controller::id().to_string(),
         owner: p.owner.pubkey().to_string(),
         mode: Mode::Onchain,
+        namespace_scope: Some(namespace_scope),
     };
     let source: ExampleSourceResponse = f.client.post("/programs/example", &q).await.unwrap();
     assert_eq!(
@@ -196,6 +208,7 @@ async fn hosted_program_helpers_execute_policy_and_commit_before_signing() {
     let policy = ExamplePolicyRequest {
         program: q.program,
         owner: q.owner,
+        namespace_scope: Some(namespace_scope),
         revision: 1,
         enabled: true,
         chain: Chain::Solana,
@@ -298,6 +311,7 @@ async fn hosted_program_simulation_uses_deployed_code_and_never_consumes_a_count
         program: example_controller::id().to_string(),
         owner: p.owner.pubkey().to_string(),
         mode: Mode::Offchain,
+        namespace_scope: None,
     };
     let source: ExampleSourceResponse = f.client.post("/programs/example", &q).await.unwrap();
     let Identity::Program(ref src) = source.identity else {
@@ -315,6 +329,7 @@ async fn hosted_program_simulation_uses_deployed_code_and_never_consumes_a_count
     let policy = ExamplePolicyRequest {
         program: q.program,
         owner: q.owner,
+        namespace_scope: None,
         revision: 1,
         enabled: true,
         chain: Chain::Solana,
@@ -342,6 +357,7 @@ async fn hosted_program_simulation_uses_deployed_code_and_never_consumes_a_count
             &ExamplePolicyReadRequest {
                 program: example_controller::id().to_string(),
                 owner: p.owner.pubkey().to_string(),
+                namespace_scope: None,
             },
         )
         .await

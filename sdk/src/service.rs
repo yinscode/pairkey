@@ -51,10 +51,35 @@ impl Client {
         authorization: &pairkey_types::policy::Authorization,
     ) -> anyhow::Result<String> {
         commit.authorize(reg, message)?;
+        self.submit_authorized_payload(reg, commit, message, None, authorization)
+            .await
+    }
+    pub async fn submit_transaction_authorized(
+        &self,
+        reg: &Registration,
+        commit: &Commit,
+        transaction: &pairkey_signing::transaction::Transaction,
+        authorization: &pairkey_types::policy::Authorization,
+    ) -> anyhow::Result<String> {
+        let payload = transaction.bytes()?;
+        commit.authorize(reg, &payload)?;
+        let public = crate::derive_public(reg, &commit.account)?;
+        let message = transaction.signing_bytes(&public)?;
+        self.submit_authorized_payload(reg, commit, &message, Some(transaction), authorization)
+            .await
+    }
+    async fn submit_authorized_payload(
+        &self,
+        reg: &Registration,
+        commit: &Commit,
+        message: &[u8],
+        transaction: Option<&pairkey_signing::transaction::Transaction>,
+        authorization: &pairkey_types::policy::Authorization,
+    ) -> anyhow::Result<String> {
         let response = self
             .http
             .post(format!("{}/jobs", self.endpoint))
-            .json(&json!({"registration":reg,"commit":commit,"message":message,"authorization":authorization}))
+            .json(&json!({"registration":reg,"commit":commit,"transaction":transaction,"message":message,"authorization":authorization}))
             .send()
             .await
             .map_err(reqwest::Error::without_url)?;
@@ -155,6 +180,33 @@ pub fn verify_receipt(
     role: Role,
     allow_development: bool,
 ) -> anyhow::Result<()> {
+    verify_receipt_payload(
+        reg,
+        attempt,
+        ReceiptPayloads {
+            approved: message,
+            signed: message,
+        },
+        response,
+        identity,
+        role,
+        allow_development,
+    )
+}
+pub struct ReceiptPayloads<'a> {
+    pub approved: &'a [u8],
+    pub signed: &'a [u8],
+}
+pub fn verify_receipt_payload(
+    reg: &Registration,
+    attempt: &Attempt,
+    payloads: ReceiptPayloads<'_>,
+    response: &ResultResponse,
+    identity: [u8; 32],
+    role: Role,
+    allow_development: bool,
+) -> anyhow::Result<()> {
+    attempt.commit.authorize(reg, payloads.approved)?;
     let r = &response.receipt;
     pairkey_channel::verify_attestation(
         &response.attestation,
@@ -181,10 +233,9 @@ pub fn verify_receipt(
         .as_slice()
         .try_into()
         .context("signature length")?;
-    ensure!(
-        crate::verify_signature(reg, &attempt.commit, message, &sig),
-        "invalid native signature"
-    );
+    let public = crate::derive_public(reg, &attempt.commit.account)?;
+    ed25519_dalek::VerifyingKey::from_bytes(&public)?
+        .verify_strict(payloads.signed, &ed25519_dalek::Signature::from_bytes(&sig))?;
     ed25519_dalek::VerifyingKey::from_bytes(&identity)?.verify_strict(
         &receipt_message(r),
         &ed25519_dalek::Signature::from_slice(&response.identity_signature)?,

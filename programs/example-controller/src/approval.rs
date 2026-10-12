@@ -4,6 +4,7 @@ use super::*;
 use pairkey_types::program_approval::{CommitCall, Input, Output, APPROVE_PREFIX, COMMIT_PREFIX};
 use solana_program::{program::set_return_data, rent::Rent, sysvar::Sysvar};
 pub const POLICY_PREFIX: &[u8] = b"pairkey_policy/v1\0";
+pub const SCOPED_POLICY_PREFIX: &[u8] = b"pairkey_policy/v2\0";
 pub const POLICY_SEED: &[u8] = b"pairkey-policy";
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct AppPolicy {
@@ -17,15 +18,44 @@ pub struct AppPolicy {
     pub require_commit: bool,
     pub remaining_approvals: u64,
 }
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
+pub struct ScopedPolicyUpdate {
+    pub namespace_scope: Option<[u8; 32]>,
+    pub policy: AppPolicy,
+}
 pub fn policy_address(program: &Pubkey, owner: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[POLICY_SEED, owner.as_ref()], program)
+}
+pub fn scoped_policy_address(
+    program: &Pubkey,
+    owner: &Pubkey,
+    namespace_digest: &[u8; 32],
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[POLICY_SEED, owner.as_ref(), namespace_digest], program)
+}
+fn selected_policy_address(
+    program: &Pubkey,
+    owner: &Pubkey,
+    scope: Option<&[u8; 32]>,
+) -> (Pubkey, u8) {
+    scope.map_or_else(
+        || policy_address(program, owner),
+        |digest| scoped_policy_address(program, owner, digest),
+    )
 }
 fn bad() -> ProgramError {
     ProgramError::InvalidArgument
 }
-fn policy(program: &Pubkey, info: &AccountInfo) -> Result<AppPolicy, ProgramError> {
+fn policy(
+    program: &Pubkey,
+    info: &AccountInfo,
+    namespace_digest: &[u8; 32],
+) -> Result<AppPolicy, ProgramError> {
     let p: AppPolicy = pair_registry::read(info, program)?;
-    if policy_address(program, &Pubkey::new_from_array(p.owner)).0 != *info.key {
+    let owner = Pubkey::new_from_array(p.owner);
+    if policy_address(program, &owner).0 != *info.key
+        && scoped_policy_address(program, &owner, namespace_digest).0 != *info.key
+    {
         return Err(bad());
     }
     Ok(p)
@@ -57,15 +87,21 @@ impl AppPolicy {
     }
 }
 pub fn process(program: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+    if let Some(bytes) = data.strip_prefix(SCOPED_POLICY_PREFIX) {
+        let update = ScopedPolicyUpdate::try_from_slice(bytes).map_err(|_| bad())?;
+        let scope = update.namespace_scope.ok_or_else(bad)?;
+        return set_policy(program, accounts, update.policy, Some(scope));
+    }
     if let Some(bytes) = data.strip_prefix(POLICY_PREFIX) {
-        return set_policy(program, accounts, bytes);
+        let policy = AppPolicy::try_from_slice(bytes).map_err(|_| bad())?;
+        return set_policy(program, accounts, policy, None);
     }
     if let Some(bytes) = data.strip_prefix(APPROVE_PREFIX) {
         let input = Input::try_from_slice(bytes).map_err(|_| bad())?;
         if accounts.len() != 3 {
             return Err(bad());
         }
-        let p = policy(program, &accounts[2])?;
+        let p = policy(program, &accounts[2], &input.namespace_digest)?;
         pair_registry::program_approval::authenticate_input(
             accounts,
             &input,
@@ -110,7 +146,7 @@ pub fn process(program: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
     {
         return Err(bad());
     }
-    let mut p = policy(program, policy_info)?;
+    let mut p = policy(program, policy_info, &call.namespace.digest())?;
     if p.enclave_set != call.namespace.enclave_set {
         return Err(bad());
     }
@@ -153,13 +189,20 @@ pub fn process(program: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
         &[&[AUTHORITY_SEED, owner.key.as_ref(), &[bump]]],
     )
 }
-fn set_policy(program: &Pubkey, accounts: &[AccountInfo], bytes: &[u8]) -> ProgramResult {
-    let p = AppPolicy::try_from_slice(bytes).map_err(|_| bad())?;
+fn set_policy(
+    program: &Pubkey,
+    accounts: &[AccountInfo],
+    p: AppPolicy,
+    namespace_scope: Option<[u8; 32]>,
+) -> ProgramResult {
     p.validate()?;
+    if namespace_scope == Some([0; 32]) {
+        return Err(bad());
+    }
     let [owner, target, system] = accounts else {
         return Err(bad());
     };
-    let (pda, bump) = policy_address(program, owner.key);
+    let (pda, bump) = selected_policy_address(program, owner.key, namespace_scope.as_ref());
     if !owner.is_signer
         || p.owner != owner.key.to_bytes()
         || *target.key != pda
@@ -167,9 +210,10 @@ fn set_policy(program: &Pubkey, accounts: &[AccountInfo], bytes: &[u8]) -> Progr
     {
         return Err(bad());
     }
-    let rent = Rent::get()?.minimum_balance(bytes.len());
+    let encoded = borsh::to_vec(&p).map_err(|_| bad())?;
+    let rent = Rent::get()?.minimum_balance(encoded.len());
     if target.owner == program {
-        let old = policy(program, target)?;
+        let old: AppPolicy = pair_registry::read(target, program)?;
         if old.owner != p.owner || old.revision.checked_add(1) != Some(p.revision) {
             return Err(bad());
         }
@@ -183,7 +227,7 @@ fn set_policy(program: &Pubkey, accounts: &[AccountInfo], bytes: &[u8]) -> Progr
                 &[owner.clone(), target.clone(), system.clone()],
             )?;
         }
-        target.realloc(bytes.len(), false)?;
+        target.realloc(encoded.len(), false)?;
     } else {
         if p.revision != 1
             || target.owner != &solana_program::system_program::id()
@@ -191,18 +235,23 @@ fn set_policy(program: &Pubkey, accounts: &[AccountInfo], bytes: &[u8]) -> Progr
         {
             return Err(bad());
         }
-        let seeds: &[&[u8]] = &[POLICY_SEED, owner.key.as_ref(), &[bump]];
+        let bump_seed = [bump];
+        let mut seeds: Vec<&[u8]> = vec![POLICY_SEED, owner.key.as_ref()];
+        if let Some(scope) = namespace_scope.as_ref() {
+            seeds.push(scope);
+        }
+        seeds.push(&bump_seed);
         if target.lamports() == 0 {
             invoke_signed(
                 &solana_program::system_instruction::create_account(
                     owner.key,
                     target.key,
                     rent,
-                    bytes.len() as u64,
+                    encoded.len() as u64,
                     program,
                 ),
                 &[owner.clone(), target.clone(), system.clone()],
-                &[seeds],
+                &[&seeds],
             )?;
         } else {
             if target.lamports() < rent {
@@ -216,17 +265,17 @@ fn set_policy(program: &Pubkey, accounts: &[AccountInfo], bytes: &[u8]) -> Progr
                 )?;
             }
             invoke_signed(
-                &solana_program::system_instruction::allocate(target.key, bytes.len() as u64),
+                &solana_program::system_instruction::allocate(target.key, encoded.len() as u64),
                 &[target.clone(), system.clone()],
-                &[seeds],
+                &[&seeds],
             )?;
             invoke_signed(
                 &solana_program::system_instruction::assign(target.key, program),
                 &[target.clone(), system.clone()],
-                &[seeds],
+                &[&seeds],
             )?;
         }
     }
-    target.try_borrow_mut_data()?.copy_from_slice(bytes);
+    target.try_borrow_mut_data()?.copy_from_slice(&encoded);
     Ok(())
 }

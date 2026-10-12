@@ -74,6 +74,8 @@ pub struct ExampleSourceRequest {
     pub program: String,
     pub owner: String,
     pub mode: Mode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_scope: Option<[u8; 32]>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -86,6 +88,8 @@ pub struct ExampleSourceResponse {
 pub struct ExamplePolicyReadRequest {
     pub program: String,
     pub owner: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_scope: Option<[u8; 32]>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -122,10 +126,18 @@ pub fn example_source(
     owner: Pubkey,
     mode: Mode,
     code_hash: [u8; 32],
+    namespace_scope: Option<[u8; 32]>,
 ) -> Result<ExampleSourceResponse> {
     ensure!(owner.is_on_curve(), "program caller must be a wallet key");
+    ensure!(
+        namespace_scope != Some([0; 32]),
+        "invalid namespace policy scope"
+    );
     let authority = example_controller::authority(&program, &owner).0;
-    let policy = example_controller::approval::policy_address(&program, &owner).0;
+    let policy = namespace_scope.map_or_else(
+        || example_controller::approval::policy_address(&program, &owner).0,
+        |scope| example_controller::approval::scoped_policy_address(&program, &owner, &scope).0,
+    );
     let source = Source {
         program: program.to_bytes(),
         authority: authority.to_bytes(),
@@ -145,6 +157,8 @@ pub fn example_source(
 pub struct ExamplePolicyRequest {
     pub program: String,
     pub owner: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_scope: Option<[u8; 32]>,
     pub revision: u64,
     pub enabled: bool,
     pub chain: Chain,

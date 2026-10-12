@@ -455,6 +455,7 @@ async fn main() -> anyhow::Result<()> {
             authorization: Default::default(),
             registration: reg.clone(),
             commit: commit.clone(),
+            transaction: None,
             message: bytes.clone(),
         };
         let first = job(&client, &coordinator_url, &request).await?;
@@ -589,12 +590,14 @@ async fn main() -> anyhow::Result<()> {
                     Begin {
                         registration: reg.clone(),
                         attempt: attempt.clone(),
+                        transaction: None,
                         message: bytes.clone(),
                         peer: peers[1].clone(),
                     },
                     Begin {
                         registration: reg.clone(),
                         attempt: attempt.clone(),
+                        transaction: None,
                         message: bytes.clone(),
                         peer: peers[0].clone(),
                     },
@@ -751,6 +754,7 @@ async fn main() -> anyhow::Result<()> {
                 authorization: Default::default(),
                 registration: reg.clone(),
                 commit: expired_commit,
+                transaction: None,
                 message: expired_bytes,
             };
             let signed = job(&client, &coordinator_url, &expired_request).await?;
@@ -839,6 +843,7 @@ async fn main() -> anyhow::Result<()> {
                 authorization: Default::default(),
                 registration: reg.clone(),
                 commit: nonce_commit.clone(),
+                transaction: None,
                 message: nonce_bytes,
             };
             let a = job(&client, &coordinator_url, &req).await?;
@@ -1121,6 +1126,7 @@ async fn policy_demo(
             authorization: authorization.clone(),
             registration: reg.clone(),
             commit: commit.clone(),
+            transaction: None,
             message: bytes.clone(),
         };
         if stage == 0 {
