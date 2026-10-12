@@ -16,13 +16,14 @@
 <a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/supported-chains.html">Supported chains</a>
 <a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/policy.html" aria-current="page">Policy &amp; rules</a>
 <a href="../docs/policy-demo.html">Policy demo</a>
-<a href="../docs/sessions.html">Scoped sessions</a>
-<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/api.html">SDK &amp; API reference</a>
 <a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/local-development.html">Local development</a>
 <a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / POLICY &amp; RULES</p>
@@ -56,5 +57,5 @@ await pairkey.setPolicy(namespace, feePayerWallet, update, authentication);</cod
 <h2 id="sessions">Sessions are deferred for v2</h2><p>Bound ephemeral keys authenticate requests; they do not bypass policy or create a scoped session. The older native-transfer API retains its registered Policy, COMMIT, grant and revoke formats. It has different fields and supported payloads. New standard rules also constrain that legacy authorization path; switching endpoints does not remove them. An existing customized legacy policy needs explicit migration to v2 rules. See <a href="../docs/sessions.html">legacy sessions</a>.</p>
 <h2 id="next">Put rules into your flow</h2><p>See the <a href="../docs/policy-demo.html">Policy demo</a> for sample <code>pairkey_approve</code> and <code>pairkey_approve_commit</code> instructions and how to create their program-owned rules. Continue with <a href="../docs/quickstart-account.html#policy">account rules</a>, <a href="../docs/quickstart-program.html#policy">program rules</a> or <a href="../docs/api.html">the hosted API</a>.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/integration.html"><span>Previous</span><strong>Solana program integration →</strong></a><a href="../docs/policy-demo.html"><span>Next</span><strong>Policy demo →</strong></a></nav></main></div>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/signing.html"><span>Previous</span><strong>Signing schemes →</strong></a><a href="../docs/policy-demo.html"><span>Next</span><strong>Policy demo →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

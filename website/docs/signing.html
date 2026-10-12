@@ -16,13 +16,14 @@
 <a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/supported-chains.html">Supported chains</a>
 <a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/signing.html" aria-current="page">Signing schemes</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
 <a href="../docs/policy-demo.html">Policy demo</a>
-<a href="../docs/sessions.html">Scoped sessions</a>
-<a href="../docs/signing.html" aria-current="page">Signing schemes</a>
 <a href="../docs/api.html">SDK &amp; API reference</a>
 <a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/local-development.html">Local development</a>
 <a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / SIGNING SCHEMES</p>
@@ -104,5 +105,5 @@ const sent = await pairkey.signAndSend({
 <p>Hosted v2 is a public development deployment with two development signers on one host. The complete canonical approval payload is bounded to 1,232 bytes, leaving 1,197 bytes for Sui <code>TransactionData</code> after PairKey’s transaction envelope; NEAR unsigned transactions are bounded to 1,024 bytes. EVM numeric JSON fields must fit the SDK's browser-safe integer representation. Sui message signing in the live demo signs the displayed PairKey application envelope; it is not Sui personal-message signing. Transaction signing is not atomic with Solana approval or destination execution. Onchain program approval can consume an allowance even when signing or later delivery fails. Verify the key, chain signature, exact approval, and both worker receipts against trusted signer identities before relying on output.</p>
 <p>Implementation source: <a href="https://github.com/yinscode/pairkey/blob/main/crates/pairkey-signing/src/transaction.rs">Ed25519 transaction adapters</a>, <a href="https://github.com/yinscode/pairkey/blob/main/crates/pairkey-signing/src/sui.rs">Sui hashing and serialization</a>, <a href="https://github.com/yinscode/pairkey/blob/main/crates/pairkey-signing/src/evm.rs">EVM adapter</a>, and <a href="https://github.com/yinscode/pairkey/blob/main/website/pairkey-client.mjs">browser client</a>. Sui format references: <a href="https://www.docs.sui.io/develop/transactions/transaction-auth/auth-overview">transaction authentication</a> and <a href="https://sdk.mystenlabs.com/sui/transactions/signing-and-execution">SDK signing and execution</a>.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/sessions.html"><span>Previous</span><strong>Scoped sessions →</strong></a><a href="../docs/api.html"><span>Next</span><strong>SDK &amp; API reference →</strong></a></nav></main></div>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/integration.html"><span>Previous</span><strong>Solana program integration →</strong></a><a href="../docs/policy.html"><span>Next</span><strong>Policy &amp; rules →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

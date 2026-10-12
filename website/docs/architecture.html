@@ -16,13 +16,14 @@
 <a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html" aria-current="page">Architecture</a>
+<a href="../docs/supported-chains.html">Supported chains</a>
 <a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
 <a href="../docs/policy-demo.html">Policy demo</a>
-<a href="../docs/sessions.html">Scoped sessions</a>
-<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/api.html">SDK &amp; API reference</a>
 <a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/local-development.html">Local development</a>
 <a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / ARCHITECTURE</p>
@@ -40,7 +41,7 @@ destination message or transaction</code></pre><p>The ephemeral key does not hol
 <h2 id="keys">Separate shares throughout</h2><p>FROST Ed25519, DKLS23 ECDSA, FROST RedPallas and FROST secp256k1 (BIP-340) share the authorization model. FROST share construction and the DKLS Spike D integration have distinct cryptographic assumptions. New multi-suite keys require both signers’ enrollment; Ed25519 also has offline public derivation.</p><p>The target deployment places the two parties in independent TEEs. Development processes and identity-signed receipts alone do not establish hardware attestation or independent providers. See <a href="../docs/security.html">the security model</a>.</p>
 <h2 id="authorization">Two approval paths</h2><p><strong>Off-chain approval:</strong> a wallet or bound ephemeral key signs the exact request. Optional policy is read from Solana. For a program, each signer runs authenticated <code>pairkey_approve</code> simulation against finalized state and pinned immutable code. No authorization transaction is broadcast.</p><p><strong>On-chain approval:</strong> <code>pairkey_approve_commit</code> changes application state and records approval through PDA CPI in one transaction. Use it to consume an allowance or nonce. It supports upgradeable programs. This commit path is for program sources; account, passkey and OIDC approvals remain off-chain. Neither path makes later signing or destination execution atomic with Solana state.</p><p>Policy storage and approval execution are separate choices. A policy can live on Solana while ordinary approval happens off-chain. See <a href="../docs/policy.html">Policy &amp; rules</a>.</p>
 <h2 id="lifecycle">Issuance and recovery</h2><p>Workers persist request claims and order policy changes and negative controls with local issuance checks. A newer denial cannot be replaced with an older observed policy to authorize the same prepared request. RPC failure is not interpreted as absent policy.</p><p>After interruption, a job remains uncertain unless both workers’ saved public receipts establish completion. Recovery reads those records; it never assigns fresh signing randomness. A later policy change cannot retract an issued signature. File locking and atomic persistence do not protect against cloned machines or rolled-back snapshots.</p>
-<h2 id="next">Build on the model</h2><p>Continue to <a href="../docs/integration.html">program integration</a>, <a href="../docs/policy.html">policy management</a>, and <a href="../docs/api.html#jobs">job recovery</a>. V2 sessions are deferred; <a href="../docs/sessions.html">the session page</a> documents the older native-transfer integration.</p>
+<h2 id="next">Build on the model</h2><p>Continue to <a href="../docs/supported-chains.html">supported chains</a>, <a href="../docs/integration.html">program integration</a>, <a href="../docs/policy.html">policy management</a>, and <a href="../docs/api.html#jobs">job recovery</a>. V2 sessions are deferred; <a href="../docs/sessions.html">the session page</a> documents the older native-transfer integration.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/demo.html"><span>Previous</span><strong>Interactive demo →</strong></a><a href="../docs/integration.html"><span>Next</span><strong>Solana program integration →</strong></a></nav></main></div>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/demo.html"><span>Previous</span><strong>Interactive demo →</strong></a><a href="../docs/supported-chains.html"><span>Next</span><strong>Supported chains →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

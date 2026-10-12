@@ -1,0 +1,150 @@
+<p class="lead">Use the same PairKey client for every destination. Connect an account, program, passkey or OIDC authority once, then choose the chain, derivation path and operation.</p>
+<h2 id="coverage">Current coverage</h2>
+<div class="table-scroll" role="region" aria-label="PairKey supported chain operations" tabindex="0"><table><thead><tr><th>Chain</th><th><code>signMessage</code></th><th><code>signTransaction</code></th><th><code>signAndSend</code></th></tr></thead><tbody>
+<tr><td>Solana</td><td>Yes · Ed25519</td><td>Yes · legacy and v0 messages</td><td>Yes · Solana connection</td></tr>
+<tr><td>EVM</td><td>Yes · EIP-191 with secp256k1</td><td>Yes · EIP-155 legacy native transfer</td><td>Yes · EVM RPC URL</td></tr>
+<tr><td>NEAR</td><td>Yes · Ed25519</td><td>Yes · Borsh <code>Transaction</code></td><td>Yes · NEAR RPC URL</td></tr>
+<tr><td>Sui</td><td>Yes · Ed25519 application message</td><td>Yes · BCS <code>TransactionData</code></td><td>Yes · Sui client</td></tr>
+<tr><td>Bitcoin</td><td>Yes · BIP-340 tagged digest</td><td>Not yet</td><td>Not yet</td></tr>
+<tr><td>Zcash</td><td>Yes · RedPallas</td><td>Not yet</td><td>Not yet</td></tr>
+</tbody></table></div>
+<p>Read <code>GET /api/v2/config</code> at runtime before offering transaction actions. PairKey rejects transaction methods when the deployment does not advertise an adapter. <code>signMessage</code> signs application-supplied message bytes using the destination scheme; EVM applies EIP-191 and Bitcoin applies PairKey's BIP-340 tagged digest. These methods are not replacements for chain transaction signing or wallet login standards.</p>
+<pre><code>const pairkey = new PairKeyClient({web3, storage: localStorage});
+
+await pairkey.connect({
+  source: 'account',
+  wallet: window.phantom.solana,
+  namespace: 'org/acme/treasury'
+});
+
+// The same calls below also work after connecting a program, passkey or OIDC source.</code></pre>
+
+<h2 id="solana">Solana</h2>
+<p>PairKey derives an Ed25519 key. Message signing is an application message signature, not Sign-In with Solana. A transaction must list the key as a required signer; your application supplies its instructions, fee payer, recent blockhash, lookup tables and any other signatures.</p>
+<h3>Sign a message</h3>
+<pre><code>const messageResult = await pairkey.signMessage({
+  chain: 'solana', path: [0], message: 'Approve order 1842'
+});
+console.log(messageResult.signatureHex);</code></pre>
+<h3>Sign a transaction</h3>
+<pre><code>// transaction is a web3.Transaction or web3.VersionedTransaction.
+const signed = await pairkey.signTransaction({
+  chain: 'solana', path: [0], transaction
+});
+// signed.signedTransaction contains the serialized transaction with PairKey's signature.</code></pre>
+<h3>Sign and send</h3>
+<pre><code>const sent = await pairkey.signAndSend({
+  chain: 'solana', path: [0], transaction, connection
+});
+console.log(sent.transactionId, sent.status);</code></pre>
+
+<h2 id="evm">EVM</h2>
+<p>The hosted adapter currently targets Base Sepolia, chain ID <code>84532</code>. Transaction signing accepts an EIP-155 legacy native transfer. EIP-1559, calldata, contract calls, access lists and arbitrary RLP are not accepted yet.</p>
+<h3>Sign a message</h3>
+<pre><code>const messageResult = await pairkey.signMessage({
+  chain: 'evm', path: [0], message: 'Approve order 1842'
+});
+// EIP-191 personal_sign digest, signed with the derived secp256k1 key.</code></pre>
+<h3>Sign a transaction</h3>
+<pre><code>const transfer = {
+  chain_id: 84532,
+  nonce,
+  gas_price: gasPrice,
+  gas_limit: 21000,
+  to: recipientBytes, // exactly 20 bytes
+  value: amountWei
+};
+
+const signed = await pairkey.signTransaction({
+  chain: 'evm', path: [0], transaction: transfer
+});
+// signed.signedTransaction is the complete signed legacy transaction.</code></pre>
+<h3>Sign and send</h3>
+<pre><code>const sent = await pairkey.signAndSend({
+  chain: 'evm', path: [0], transaction: transfer,
+  rpcUrl: 'https://your-base-sepolia-rpc.example',
+  confirm: true
+});</code></pre>
+
+<h2 id="near">NEAR</h2>
+<p>PairKey derives an Ed25519 public key. Message signing is an application message signature, not NEP-413. Install the public key as an access key on the NEAR account before using it as the transaction signer. Your application supplies the signer account, nonce, recent block hash, receiver and actions.</p>
+<h3>Sign a message</h3>
+<pre><code>const messageResult = await pairkey.signMessage({
+  chain: 'near', path: [0], message: 'Approve order 1842'
+});</code></pre>
+<h3>Sign a transaction</h3>
+<pre><code>// nearTransactionBytes is a canonical Borsh-serialized NEAR Transaction.
+const signed = await pairkey.signTransaction({
+  chain: 'near', path: [0], transaction: nearTransactionBytes
+});
+// signed.signedTransaction is a Borsh-serialized SignedTransaction.</code></pre>
+<h3>Sign and send</h3>
+<pre><code>const sent = await pairkey.signAndSend({
+  chain: 'near', path: [0], transaction: nearTransactionBytes,
+  rpcUrl: 'https://your-near-rpc.example'
+});</code></pre>
+
+<h2 id="sui">Sui</h2>
+<p>PairKey derives a Sui Ed25519 address. Build the programmable transaction block with that address as sender and let the Sui client resolve gas and object data before signing.</p>
+<h3>Sign a message</h3>
+<pre><code>const messageResult = await pairkey.signMessage({
+  chain: 'sui', path: [0], message: 'Approve order 1842'
+});
+// This signs application message bytes, not Sui personal-message format.</code></pre>
+<h3>Sign a transaction</h3>
+<pre><code>import {Transaction} from '@mysten/sui/transactions';
+
+const key = await pairkey.key({chain: 'sui', path: [0]});
+const tx = new Transaction();
+tx.setSender(key.address);
+tx.transferObjects([tx.gas], tx.pure.address(recipient));
+const transaction = await tx.build({client: suiClient});
+
+const signed = await pairkey.signTransaction({
+  chain: 'sui', path: [0], transaction
+});
+// Use signed.signedTransaction and signed.serializedSignature together.</code></pre>
+<h3>Sign and send</h3>
+<pre><code>const sent = await pairkey.signAndSend({
+  chain: 'sui', path: [0], transaction, connection: suiClient
+});
+console.log(sent.transactionId, sent.status);</code></pre>
+
+<h2 id="bitcoin">Bitcoin</h2>
+<p>PairKey currently provides BIP-340 message signatures over its tagged message digest. This is not BIP-322. Transaction signing remains unavailable until the adapter can validate PSBT inputs, UTXOs, BIP-341 sighashes, fees, change, witnesses and supported sighash modes.</p>
+<h3>Sign a message</h3>
+<pre><code>const messageResult = await pairkey.signMessage({
+  chain: 'bitcoin', path: [0], message: 'Approve order 1842'
+});
+console.log(messageResult.signatureHex);</code></pre>
+<h3>Sign a transaction · not available</h3>
+<pre><code>const config = await fetch('/api/v2/config').then(response =&gt; response.json());
+console.log(config.transaction_signing.bitcoin.sign);   // false
+console.log(config.transaction_signing.bitcoin.reason); // Required PSBT adapter work
+
+// signTransaction({chain: 'bitcoin', ...}) rejects before approval or signing.</code></pre>
+<h3>Sign and send · not available</h3>
+<p><code>signAndSend({chain: 'bitcoin', ...})</code> uses the same capability check and rejects before contacting a Bitcoin node.</p>
+
+<h2 id="zcash">Zcash</h2>
+<p>PairKey currently provides raw RedPallas message signatures, not an Orchard transaction authorization. Transaction signing remains unavailable until the adapter implements the ZIP transaction digest, shielded authorization, note witnesses, proofs, bundle assembly and binding authorization.</p>
+<h3>Sign a message</h3>
+<pre><code>const messageResult = await pairkey.signMessage({
+  chain: 'zcash', path: [0], message: 'Approve order 1842'
+});
+console.log(messageResult.signatureHex);</code></pre>
+<h3>Sign a transaction · not available</h3>
+<pre><code>const config = await fetch('/api/v2/config').then(response =&gt; response.json());
+console.log(config.transaction_signing.zcash.sign);   // false
+console.log(config.transaction_signing.zcash.reason); // Required ZIP adapter work
+
+// signTransaction({chain: 'zcash', ...}) rejects before approval or signing.</code></pre>
+<h3>Sign and send · not available</h3>
+<p><code>signAndSend({chain: 'zcash', ...})</code> uses the same capability check and rejects before contacting a Zcash node.</p>
+
+<h2 id="delivery">Handle submission safely</h2>
+<p><code>signTransaction</code> never contacts the destination RPC. <code>signAndSend</code> uses the connection, RPC URL or custom <code>broadcast</code> callback supplied by your application. PairKey saves the exact signed output before the first broadcast attempt. If submission returns <code>status: "unknown"</code>, recover the original job and check the destination before replacing it.</p>
+<pre><code>const recovered = await pairkey.recoverAndSend(sent.jobId, {
+  chain: 'solana', connection, rebroadcast: true
+});</code></pre>
+<p>Continue to <a href="docs/signing.html">Signing schemes</a> for native digest and serialization details, or <a href="docs/api.html">SDK &amp; API reference</a> for result verification and recovery.</p>

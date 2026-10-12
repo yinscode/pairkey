@@ -16,13 +16,14 @@
 <a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/supported-chains.html">Supported chains</a>
 <a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
 <a href="../docs/policy-demo.html">Policy demo</a>
-<a href="../docs/sessions.html">Scoped sessions</a>
-<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/api.html">SDK &amp; API reference</a>
 <a href="../docs/security.html" aria-current="page">Security &amp; status</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/local-development.html">Local development</a>
 <a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / SECURITY &amp; STATUS</p>
@@ -37,5 +38,5 @@
 <h2 id="comparison">Latency and fees</h2><p>Off-chain approval avoids a new Solana authorization transaction and its finality wait. It still includes identity verification, fresh policy reads, optional program simulation, queueing and two-party signing. On-chain approval also waits for its committed decision. Signature scheme and provider conditions affect latency; no apples-to-apples benchmark or production latency guarantee is published.</p><p>“Zero authorization transaction fees” means no Solana transaction is broadcast for an ordinary off-chain signing request. Policy creation/edits, program commits, RPC/service charges and destination execution are separate costs. It is not a promise of a zero-priced hosted service.</p>
 <h2 id="hosted-onboarding">Hosted release and limits</h2><p>The v2 guides require a coordinated gateway, controller, worker, coordinator and API release. They do not imply that an older live deployment has been upgraded. The client requires <code>/api/v2/config</code> and checks deployment identity; operators must preserve existing roots, keys, journals and incident latches during migration.</p><p>The development service uses one host and explicitly reports its hardware status. Limits include a shared 120-call/minute budget, a signing/enrollment gate, 16 enrolled keys per namespace and bounded retained keys/jobs. HTTP 429 calls for backoff with the original request ID; it does not authorize an automatic fresh attempt.</p><p>Namespace metadata, messages and signatures are public to callers with their identifiers. Private authentication proofs are excluded from persisted public job records and receipts. Do not submit confidential messages or valuable funds to the development demo. Backups and operational recovery remain operator responsibilities.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/api.html"><span>Previous</span><strong>SDK &amp; API reference →</strong></a><a href="../docs/local-development.html"><span>Next</span><strong>Local development →</strong></a></nav></main></div>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/api.html"><span>Previous</span><strong>SDK &amp; API reference →</strong></a><a href="../docs/sessions.html"><span>Next</span><strong>Scoped sessions →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

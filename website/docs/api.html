@@ -16,13 +16,14 @@
 <a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/supported-chains.html">Supported chains</a>
 <a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
 <a href="../docs/policy-demo.html">Policy demo</a>
-<a href="../docs/sessions.html">Scoped sessions</a>
-<a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/api.html" aria-current="page">SDK &amp; API reference</a>
 <a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/local-development.html">Local development</a>
 <a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / SDK &amp; API REFERENCE</p>
@@ -51,5 +52,5 @@ await pairkey.signTransaction({chain:'near', transaction: nearBytes});</code></p
 <h2 id="internal-api">Internal coordinator and legacy APIs</h2><p>Internal worker routes are not public hosted APIs. The coordinator’s off-chain path privately distributes authentication, reserves durable request claims and recovers only original receipts. The hosted service adds its own durable public job journal.</p><p>The older <code>/api/v1</code> hosted API keeps registration and exact COMMIT behavior for compatible clients. Registered-policy and native-transfer sessions use separate types. Do not send a legacy session as a v2 identity proof.</p>
 <h2 id="http">Legacy lower-level integration</h2><p>The self-hosted multi-suite API retains <code>/multi/keys</code>, <code>/jobs</code> with a <code>signing</code> envelope, job polling/events/cancellation and <code>/multi/sign</code>. Its older retention and explicit-attempt semantics differ from v2 durable approval claims. <code>fresh_attempt</code> is not a recovery API for v2. See repository <code>docs/program-jobs-and-lifecycle.md</code> and <a href="../examples/program_jobs.rs">program_jobs.rs</a> for this compatibility path.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/signing.html"><span>Previous</span><strong>Signing schemes →</strong></a><a href="../docs/security.html"><span>Next</span><strong>Security &amp; status →</strong></a></nav></main></div>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/policy-demo.html"><span>Previous</span><strong>Policy demo →</strong></a><a href="../docs/security.html"><span>Next</span><strong>Security &amp; status →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>
