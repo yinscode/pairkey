@@ -1,6 +1,6 @@
 # Draft questions for Silence about the PairKey constructor
 
-Draft version 3, updated 2026-10-11 for Silence maintainers and the PairKey cryptographic reviewer.
+Draft version 4, updated 2026-10-11 for Silence maintainers and the PairKey cryptographic reviewer.
 **Draft only; not sent.** We seek the native input contract and evidence needed
 to assess PairKey's custom two-party key/setup construction. We retain Silence's
 DKLS23 implementation and locked parameters. The 2026 paper is optional background;
@@ -28,6 +28,11 @@ Any external review packet should identify the final exact tree/patch and hashes
   route-specific O1–O6 statuses in the
   [contract reconciliation](CONSTRUCTOR-SECURITY-CONTRACT.md#reconciliation-of-claudes-migration-and-pool-review).
   The proposal that either registration mode closes O1 is not an accepted premise.
+- [Focused O3/O4 results](O3-O4-DEEP-DIVE.md),
+  [Mode 2 lifecycle](MODE-2-MINIMAL-SPEC.md), and
+  [share flow and native OT reuse](SHARE-FLOW-AND-OT-REUSE.md).
+  The separate [shared native donor proposal](CLAUDE-CO-REVIEW-SHARED-SETUP.md)
+  has functional evidence, not an accepted cross-wallet security contract.
 
 PairKey's honest contributions are root-derived scalars `a,b`; public key
 `Q=(a+b)G` is represented as shares `a/2,-b` at coordinates 1,2. An immutable
@@ -103,6 +108,10 @@ distribution and prior-disclosure requirements. Does any review explicitly cover
 this use, beyond shared implementation with refresh? The README lists migration
 as unaudited.
 
+Ordering precision: local OT1 is prepared/fed before the expected-Q check;
+the check precedes processing peer OT1 and generating OT2/PPRF replies. Please
+assess that actual flow, not an assumed check before any OT message.
+
 Would you provide a separately typed initial derived-keygen mode, or another
 supported API, that fixes supplied local constant terms using fresh protocol
 randomness but learns Q inside the first run? Recovery would always require
@@ -118,6 +127,12 @@ sufficient under the proposed model? Alternatively, what native transcript state
 must be durably retained for exact recovery without a fresh adversarial choice?
 Previously disclosed contributions cannot be made fresh by changing identities
 or ceremony IDs while retaining the same KDF inputs.
+
+The minimal draft retires every reserved failed initial attempt. If a less
+conservative retry is supported before local R2 disclosure, what durable evidence
+and transport semantics establish non-disclosure across crash/restart and all
+earlier contexts? A local message-send flag alone is not an accepted recovery
+contract. What namespace binding is required if roots can serve multiple peers?
 
 Which chain-code policy is supported for initial mode: native jointly generated
 chain code, or a specified public deterministic rule? Our current H(key_id,Q)
@@ -170,6 +185,15 @@ Functionality 5.1 (`F_EOTE`), as required by the Protocol 5.2/Theorem 6.1 route.
 Which argument establishes the OT-output fixing order used by Claim 6.7 for a
 malicious sender? The source-level ordering is supporting evidence; we do not
 treat it alone as a complete proof excluding every adaptive strategy.
+
+The actual EndemicOT/PPRF probe in the O3/O4 report permits acceptance only for
+one selected base choice after a sender corrupts the other branch. This is
+selective-acceptance leakage, not a signing exploit. Please map the permitted
+leakage to the compiled realization, for both corrupt roles and multiple
+sessions, with output fixing/extraction in the required order. Matching
+all-honest output distributions is not the target. Distinguish setup leakage
+from leakage in repeated online extensions and state the concrete query/use
+bounds; repetition of one successful branch probe does not reveal new bits.
 
 Section 3.1 and Functionality 3.4 (printed p. 15) describe pairwise committed and
 revealed seeds with opposite-sign random-oracle masks. Both participants know our
@@ -228,6 +252,21 @@ the wallet-independent pool boundary disappears. What cache generation,
 agreement, lifetime and failure/refresh rules preserve the native reusable-seed
 contract across repeated signatures and process restarts?
 
+For a separate donor candidate, may one native DKG's directional OT seeds and
+zero seed be retained per pair and placed into packages for independently
+registered root-derived wallet keys? The tested package SID binds the wallet
+record and donor generation, with fresh native signing randomness per invocation.
+Please assess cross-key and concurrent composition separately from same-package
+reuse, including secret-storage provenance, zero-mask indexing, allowed adaptive
+queries, and concrete usage bounds. Native-origin seeds eliminate the custom
+setup execution but do not themselves certify this splice.
+
+Please state the complete freshness contract: RNG/PRG assumptions, SID/hash
+collision bounds, InstanceId routing, snapshots and package-generation agreement.
+Unique InstanceIds alone do not prevent private RNG replay. The split API's
+`PreSign` is `Clone, Copy` and `finish` reads it by reference; what external
+single-use authority is required? PairKey currently uses combined `sign::run`.
+
 ### Q5 Failure handling and session scope O5
 
 Which native failures mandate burning material, stopping concurrent sessions,
@@ -252,12 +291,20 @@ Cross-host authority and hostile rollback protection are outside the experiment.
 local boundary is sufficient for the claimed research model. Identify any
 additional attribution assumptions specific to the two-party case.
 
-The saved mismatch experiment reported peer-ban errors for mixed OT material
-and consistency-check-3 failures for differing zero seeds. Its assertions require
-only some error, so this is observed diagnostic evidence, not an exhaustive
-failure-classification test. Please confirm the required actions independently
-of that observation, including whether configuration changes may ever clear a
-pairing incident and under what authority.
+The strengthened saved mismatch experiment requires two bounded error outcomes
+and a typed detecting error (or a received abort on the other side) for mixed
+OT material, zero-seed mismatch and one-sided splice. Its additional mixed-share-
+generation case asserts only two errors; the logged check-3 classification for
+that case remains diagnostic. These tests do not exercise incident publication.
+Please confirm required actions independently, including whether configuration
+changes may ever clear a pairing incident and under what authority.
+
+With shared donor material, must every affected wallet and concurrent session
+be stopped under one persistent incident authority? Specify when a pure timeout
+can retain setup, when to retire it, and whether any restart after a ban is
+supported. Neither a fresh donor nor an operational rotation schedule is assumed
+to authorize restart. If periodic rotation is useful, supply a rationale and
+usage bound rather than an arbitrary daily or signature-count threshold.
 
 ### Q6 Audit correspondence and current native specification O6
 

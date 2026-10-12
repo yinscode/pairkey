@@ -1,6 +1,6 @@
 # Draft Spike C constructor security contract
 
-Draft version 3, 2026-10-11. This contract describes the PairKey replacement
+Draft version 4, 2026-10-11. This contract describes the PairKey replacement
 boundary around Silence DKLS23 signing. It separates implemented checks from
 environmental assumptions and unresolved cryptographic obligations. Finding C1
 (custom key generation and preprocessing composition) remains **OPEN**.
@@ -313,8 +313,8 @@ dependency is changed.
 |---|---|---|
 | O1 | **Open.** Neither proposed registration mode closes the root-input/functionality argument. | **Open.** Commitment-first registration or initial derived-keygen needs the KDF, commitment, first-disclosure and retry argument. |
 | O2 | Layout/interpolation supporting checks strengthened; admissibility and public child-key argument **open**. | Custom fixed-coordinate/constructor sub-obligation **not applicable**. Root-input distribution remains O1; public deterministic chain code and child derivation remain **open**. |
-| O3 | Direction, storage and primitive-call correspondence established locally; malicious joint distribution and zero-seed/abort composition **open**. | Separate PairKey preprocessing replacement **not applicable** if all native state is retained. Native OT realization and imported-input coverage remain upstream questions. |
-| O4 | MtA propagation and local single-use evidence strengthened; adaptive offline/online composition **open**. | Wallet-independent pool boundary **not applicable**. A warm cache still needs agreed generation, lifetime, invalidation and concurrency rules. |
+| O3 | Direction, storage and primitive-call correspondence established locally. Selective-acceptance probe rules out unconditional all-honest output equivalence; compiled malicious OT realization, permitted leakage and zero-mask invocation mapping **open**. | Separate PairKey preprocessing replacement **not applicable** if all native state is retained. Native OT realization and imported-input coverage remain upstream questions. |
+| O4 | Local provenance, request binding, ordering and honest single use supported, including 20 actual channel mismatch checks. Full adaptive/concurrent composition **conditional**, not closed. | Wallet-independent pool boundary **not applicable**. A warm cache still needs agreed generation, lifetime, invalidation and concurrency rules. |
 | O5 | Local error-action evidence strengthened; required cross-session/identity/configuration scope **open**. | Native failure duties and local enforcement still apply; cache eviction does not authorize retry after a ban-worthy error. |
 | O6 | **Open**, including audit-to-pin correspondence and historical TOB-SILA-13. | **Open**, including explicit migration/derived-input coverage. Shared implementation is not sufficient audit attribution. |
 
@@ -373,11 +373,16 @@ procedure or a test of pool-generated seed distribution. The excluded fields
 are intentional; random native coordinates prevent direct whole-buffer equality
 for this fixed-coordinate constructor, not all byte-identical splice tests.
 An identity splice preserving native coordinates/shares is still testable.
-Before promotion, require exactly two completed results, bounded completion,
-typed expected errors (the submitted negatives assert only `any(is_err)`),
-explicit signature verification and no accepted signature on either negative
-path. Use independent fresh material for each case and retain pin/patch/command
-provenance; do not add a production secret-state accessor just for the test.
+The version committed in `95d029f` now has bounded completion, exactly two
+results, explicit signature/recovery-ID verification, and typed negatives for
+mixed OT, zero-seed mismatch and one-sided splice. The helper permits a typed
+detecting error plus the other party's received abort; it does not require both
+parties to return identical variants. Case 5 (mixed share generations) asserts
+only that both results are errors: its logged check-3 failures remain diagnostic
+evidence, not an exact error-class regression assertion. Strengthen that case
+before automated-suite promotion. Retain independent fresh material and
+pin/patch/command provenance; do not add a production secret-state accessor just
+for the test. The current source/log were inspected, not rerun in this update.
 
 The option comparisons also need a cold-wallet qualification: a wallet-independent
 pool can hide setup latency for the first signature on a newly selected wallet,
@@ -412,6 +417,65 @@ eliminated, particularly where signing shares persist. Protocol 3.6 step 8
 must still be mapped to the local incident policy. Fresh material is not
 permission to resume with a peer after a
 failure that requires refusal under the selected argument.
+
+### Follow-up handoff and shared native setup qualifications
+
+The original handoff's full-polynomial commitment, seed-role mapping and
+zero-seed slot are confirmed. Its expected-key-before-first-OT claim is false;
+the earlier ordering correction above applies. Neither Mode 1 nor Mode 2 closes
+O1 automatically, and random native coordinates exclude whole-buffer equality
+for a resharing constructor, not an identity splice. The additive-tweak fallback
+remains an unproved research question. See the
+[minimal Mode 2 specification](MODE-2-MINIMAL-SPEC.md),
+[pool review requirements](OT-POOL-MINIMAL-REVIEW-SPEC.md) and
+[native reuse note](SHARE-FLOW-AND-OT-REUSE.md).
+
+The later [shared-setup review](CLAUDE-CO-REVIEW-SHARED-SETUP.md) and evidence in
+`2b1cfb8`/`73a5ef0` concern a distinct candidate: a native DKG donor supplies OT
+and zero seeds, while PairKey constructs packages for root-derived wallet keys.
+That removes PairKey's exported-primitive setup execution, not the constructor,
+registration or cross-key composition boundary. Native-origin material does not
+make every subsequent splice audited. The committed run logs are functional
+evidence; their reported independent reruns are Claude's, not this update's.
+
+Fresh online IDs are a necessary reuse condition, not the only security
+assumption. The honest seed supplies fresh R1 randomness under the RNG/PRG and
+state-continuity assumptions; hash collision bounds, ordered peers, agreed
+package generations, authentication, the compiled OT realization and global
+failure handling still matter. A fresh ID blocks the demonstrated same-ID
+matrix-cancellation mechanism, not every malicious strategy. Finite masks can
+also collide with distinct digests; mask equality alone does not prove RNG
+replay. A repeated instance-ID journal cannot detect replayed private RNG state
+presented under a new instance ID, nor survive rollback of its own authority.
+
+The split signing API does not enforce presignature single use by type:
+`sign/messages.rs:141-143` derives `Clone, Copy` for `PreSign`, and
+`sign/dsg.rs:730-747` finishes using a borrowed presignature. Caller-controlled
+copies can be supplied again. PairKey uses combined `sign::run`; retain that
+restriction, fresh invocation entropy and caller lifecycle enforcement. Do not
+claim the unused split API offers no reuse path.
+
+For the donor candidate, O1/O2 remain; O3's native-origin provenance improves but
+its compiled realization remains open; O4 becomes a cross-wallet reusable-setup
+composition obligation rather than the original single-use pool obligation;
+O5 must cover every wallet/session sharing the donor; O6 must cover the pin and
+the new composition. The existing incident namespace includes configuration:
+cross-configuration continuity and any incident-clearing authority remain
+unresolved, not implemented merely by proposing donor rotation.
+
+Do not derive a rotation period or a multi-session leakage bound from the
+one-branch selective-acceptance experiment. Repeating the same successful probe
+reveals the same base choice; it does not demonstrate one fresh bit per signing
+attempt. Counts from independently sampled setups do not measure accumulation
+against one fixed setup. Rotation may be an operational policy, but it is not
+a substitute for a proof or authorization to resume with a banned peer.
+
+KDF v1 binds role and key ID, not peer. A new derivation version may canonically
+bind pairing/namespace and root epoch, but identities used for this binding must
+be established independently of the wallet KDF to avoid a circular definition.
+An enforced fixed-pair root namespace is an alternative assumption to review.
+Neither a new KDF nor a rotation interval is adopted here. Public child-key and
+first-disclosure obligations survive any such namespace change.
 
 ### Registration decision remains pending
 
