@@ -109,6 +109,7 @@ async fn config(State(app): State<Arc<App>>) -> Json<Value> {
         "solana": {"sign": true, "send": "client_rpc"},
         "evm": {"sign": true, "send": "client_rpc", "formats": ["legacy_native_transfer"]},
         "near": {"sign": true, "send": "client_rpc"},
+        "sui": {"sign": true, "send": "client_rpc", "formats": ["bcs_transaction_data"], "max_transaction_bytes": 1197},
         "bitcoin": {"sign": false, "reason": "PSBT and BIP-341 input context adapter required"},
         "zcash": {"sign": false, "reason": "ZIP transaction digest and shielded authorization adapter required"}
     });
@@ -509,14 +510,20 @@ fn result(
                 "0x{}",
                 hex(&adapter.signing_bytes(&key.public_key)?)
             ));
-            if matches!(
-                adapter,
-                pairkey_signing::transaction::Transaction::Near { .. }
-            ) {
-                value["signed_transaction_hex"] = json!(format!(
-                    "0x{}",
-                    hex(&adapter.signed_bytes(&key.public_key, &signature)?)
-                ));
+            match adapter {
+                pairkey_signing::transaction::Transaction::Near { .. } => {
+                    value["signed_transaction_hex"] = json!(format!(
+                        "0x{}",
+                        hex(&adapter.signed_bytes(&key.public_key, &signature)?)
+                    ));
+                }
+                pairkey_signing::transaction::Transaction::Sui { .. } => {
+                    value["serialized_signature_hex"] = json!(format!(
+                        "0x{}",
+                        hex(&adapter.signed_bytes(&key.public_key, &signature)?)
+                    ));
+                }
+                pairkey_signing::transaction::Transaction::Solana { .. } => {}
             }
         }
     } else {

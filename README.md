@@ -2,7 +2,7 @@
 
 PairKey is a programmable key protocol: a Solana program, Solana account,
 passkey or OIDC identity authorizes an exact request, and two signers jointly
-produce a message signature for Solana, EVM, Zcash, NEAR or Bitcoin. The hosted
+produce a message signature for Solana, EVM, Zcash, NEAR, Bitcoin or Sui. The hosted
 v2 API runs at `https://pairkey.com/api/v2`; developers do not operate signing
 workers. Start with the [source quickstarts](website/docs/quickstart.html),
 [interactive demo](https://pairkey.com/demo), or [hosted API contract](docs/offchain-approval-api.md).
@@ -16,7 +16,8 @@ immutable-code evaluation or `pairkey_approve_commit` to consume state and recor
 approval in one transaction. Both signers check current rules independently.
 No namespace registration transaction or saved policy is required to start;
 optional Solana rules are versioned and reused across requests. V2 sessions are
-deferred. These APIs return message signatures, not destination transactions.
+deferred. The high-level client also signs supported Solana, EVM, NEAR and Sui
+transactions and leaves destination execution to the application.
 
 The [implementation record](docs/offchain-approval-plan.md) and [deployment
 evidence](docs/offchain-approval-deployment.md) distinguish local coverage from
@@ -53,7 +54,7 @@ The runtime test tier requires both compiled programs and is intentionally expli
 
 ## Legacy local message demo
 
-A loopback backend connects the website to per-message Solana program or account approval, FROST Ed25519 / DKLS23 secp256k1 / FROST RedPallas signing, derived public keys, and fresh signature verification for Solana, EVM, Zcash and NEAR. It does not broadcast destination transactions. The earlier Base transfer/session API is retained separately. It uses dedicated testnet wallets and two local development signer processes. See the [testnet setup guide](website/docs/testnet.html) for funding, limits, and reconciliation.
+A loopback backend connects the website to per-message Solana program or account approval, FROST Ed25519 / DKLS23 secp256k1 / FROST RedPallas signing, derived public keys, and fresh signature verification for Solana, EVM, Zcash, NEAR, Bitcoin and Sui. It does not broadcast destination transactions. The earlier Base transfer/session API is retained separately. It uses dedicated testnet wallets and two local development signer processes. See the [testnet setup guide](website/docs/testnet.html) for funding, limits, and reconciliation.
 
 ```sh
 bash scripts/demo-testnet.sh addresses

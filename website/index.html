@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f4f5ef">
-<meta name="description" content="Programmable keys across five chains. Authorize with a Solana program, Solana account, passkey or OIDC identity. Two independent TEE signers produce one signature.">
+<meta name="description" content="Programmable keys across six chains, including native Sui transaction signing. Authorize with a Solana program, account, passkey or OIDC identity.">
 <title>PairKey — The programmable key protocol</title>
 <link rel="icon" href="mark.svg?v=3" type="image/svg+xml">
 <link rel="stylesheet" href="style.css?v=easy-start-1">
@@ -50,7 +50,7 @@
 </section>
 <section class="chains wrap" aria-label="Signing destinations">
 <div>
-<p class="eyebrow">MULTICHAIN BY DESIGN.<br>FIVE CHAINS. ONE AUTHORITY.</p>
+<p class="eyebrow">MULTICHAIN BY DESIGN.<br>SIX CHAINS. ONE AUTHORITY.</p>
 </div>
 <div>
 <strong>Solana</strong>
@@ -72,6 +72,10 @@
 <strong>Bitcoin</strong>
 <span>FROST secp256k1 · BIP-340</span>
 </div>
+<div>
+<strong>Sui</strong>
+<span>FROST Ed25519 · native transactions</span>
+</div>
 </section>
 
 <section id="how-it-works" class="section wrap key-journey" aria-labelledby="journey-title">
@@ -81,7 +85,7 @@
 <ul class="authority-sources"><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/solana-program.svg?v=2" alt="" width="24" height="24"></span>Solana program</li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/solana-account.svg?v=2" alt="" width="24" height="24"></span>Solana account</li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/passkey.svg?v=2" alt="" width="24" height="24"></span>Passkey</li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/oauth.svg?v=2" alt="" width="24" height="24"></span>OAuth / OIDC</li></ul>
 <a class="journey-detail" href="docs/architecture.html#sources">One authorization model →</a></li>
 <li class="journey-card"><div class="journey-step"><span>02</span><p class="eyebrow">DERIVE</p></div><h3>Name the purpose and get an address.</h3><p>Choose a namespace, destination and numeric path. PairKey returns the same stable public key whenever you use that identity.</p>
-<div class="derivation-map" aria-label="Multiple derivation paths on each destination chain"><div class="derivation-root">Your authority <span>+ derivation path</span></div><ul><li><img src="assets/chains/solana.svg" alt="" width="18" height="18"><span>Solana</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/ethereum.svg" alt="" width="18" height="18"><span>EVM</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/bitcoin.svg?v=2" alt="" width="18" height="18"><span>Bitcoin</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/near.svg" alt="" width="18" height="18"><span>NEAR</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/zcash.svg" alt="" width="18" height="18"><span>Zcash</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li></ul></div></li>
+<div class="derivation-map" aria-label="Multiple derivation paths on each destination chain"><div class="derivation-root">Your authority <span>+ derivation path</span></div><ul><li><img src="assets/chains/solana.svg" alt="" width="18" height="18"><span>Solana</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/ethereum.svg" alt="" width="18" height="18"><span>EVM</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/bitcoin.svg?v=2" alt="" width="18" height="18"><span>Bitcoin</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/near.svg" alt="" width="18" height="18"><span>NEAR</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/zcash.svg" alt="" width="18" height="18"><span>Zcash</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/sui.svg" alt="" width="18" height="18"><span>Sui</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li></ul></div></li>
 <li class="journey-card"><div class="journey-step"><span>03</span><p class="eyebrow">SIGN</p></div><h3>Approve exactly what your app built.</h3><p>Call <code>signMessage</code>, <code>signTransaction</code> or <code>signAndSend</code>. PairKey handles the threshold signing flow.</p>
 <div class="journey-signing" aria-label="Two independent TEE signers produce one signature"><div class="journey-signers"><div><svg class="share-block share-block-a" viewBox="0 0 120 100" aria-hidden="true"><path d="M30 20h60v60H50V60H30z" transform="rotate(180 60 50)"/></svg><span>TEE signer A</span></div><div><svg class="share-block share-block-b" viewBox="0 0 120 100" aria-hidden="true"><path d="M30 20h60v60H50V60H30z"/></svg><span>TEE signer B</span></div></div><div class="journey-join" aria-hidden="true"></div><div class="journey-output"><span aria-hidden="true">σ</span>One verifiable signature</div></div>
 <p class="journey-key-note">The full private key never exists.</p><a class="journey-detail" href="/demo">Follow a live signature →</a></li>
@@ -212,7 +216,7 @@
 <div class="use-cases-heading"><div><p class="eyebrow">04 / WHAT YOU CAN BUILD</p><h2 id="use-cases-title">One PairKey.<br>Many use cases.</h2></div><p>Choose who can authorize, define what they can sign, and derive the addresses your application needs. The same PairKey signing flow serves different products.</p></div>
 <div class="use-case-grid">
 <article class="use-case-card"><div class="use-case-top"><span>01 / PROGRAM-CONTROLLED</span><img src="assets/sources/solana-program.svg?v=2" width="30" height="30" alt=""></div><h3>Keys for your program.</h3><p>Put application rules in a Solana program. Authorize an exact request by evaluating current state, or commit a decision that consumes an allowance.</p><span class="use-case-source">SOURCE · SOLANA PROGRAM</span></article>
-<article class="use-case-card"><div class="use-case-top"><span>02 / MULTICHAIN ACCOUNTS</span><img src="assets/sources/solana-account.svg?v=2" width="30" height="30" alt=""></div><h3>One wallet. Many chains.</h3><p>Use a Solana wallet to approve a message, then derive signing keys for Solana, EVM, Bitcoin, NEAR and Zcash from that authority.</p><span class="use-case-source">SOURCE · SOLANA ACCOUNT</span></article>
+<article class="use-case-card"><div class="use-case-top"><span>02 / MULTICHAIN ACCOUNTS</span><img src="assets/sources/solana-account.svg?v=2" width="30" height="30" alt=""></div><h3>One wallet. Many chains.</h3><p>Use a Solana wallet to approve a request, then derive signing keys for Solana, EVM, Bitcoin, NEAR, Zcash and Sui from that authority.</p><span class="use-case-source">SOURCE · SOLANA ACCOUNT</span></article>
 <article class="use-case-card"><div class="use-case-top"><span>03 / KEYLESS ACCESS</span><img src="assets/sources/passkey.svg?v=2" width="30" height="30" alt=""></div><h3>Sign in. Then sign.</h3><p>Start with a passkey or OAuth / OIDC identity. A bound, short-lived request key turns familiar sign-in into exact-message authorization.</p><span class="use-case-source">SOURCE · PASSKEY OR OAUTH / OIDC</span></article>
 <article class="use-case-card"><div class="use-case-top"><span>04 / AGENTIC WALLETS</span><img src="assets/sources/robot.svg?v=1" width="30" height="30" alt=""></div><h3>Let agents propose. Rules decide.</h3><p>Agentic wallets can request signatures while your program checks the caller, scope and current state for every action.</p><span class="use-case-source">SOURCE · PROGRAM-GOVERNED</span></article>
 </div>

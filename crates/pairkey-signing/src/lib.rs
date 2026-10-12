@@ -10,6 +10,7 @@ pub mod bitcoin;
 pub mod evm;
 pub mod evm_message;
 pub mod redpallas;
+pub mod sui;
 pub mod transaction;
 
 #[derive(

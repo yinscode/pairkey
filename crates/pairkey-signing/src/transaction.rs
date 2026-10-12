@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub const PREFIX: &[u8] = b"pairkey/transaction-intent/v1\0";
+pub const MAX_SUI_TRANSACTION: usize = pairkey_types::MAX_MESSAGE - PREFIX.len() - 1 - 4;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(deny_unknown_fields)]
@@ -15,6 +16,8 @@ pub enum Transaction {
     Solana { message: Vec<u8> },
     /// Canonical Borsh-serialized NEAR `Transaction`, without its signature.
     Near { transaction: Vec<u8> },
+    /// BCS-serialized Sui `TransactionData`, without its serialized signature.
+    Sui { transaction: Vec<u8> },
 }
 
 impl Transaction {
@@ -72,6 +75,13 @@ impl Transaction {
                 );
                 Ok(Sha256::digest(transaction).to_vec())
             }
+            Self::Sui { transaction } => {
+                ensure!(
+                    !transaction.is_empty() && transaction.len() <= MAX_SUI_TRANSACTION,
+                    "Sui transaction bounds"
+                );
+                Ok(crate::sui::transaction_digest(transaction).to_vec())
+            }
         }
     }
 
@@ -86,6 +96,7 @@ impl Transaction {
                 out.extend_from_slice(signature);
                 Ok(out)
             }
+            Self::Sui { .. } => crate::sui::serialized_signature(expected_public_key, signature),
             Self::Solana { .. } => anyhow::bail!(
                 "Solana assembly needs all signer positions; attach this signature in the client"
             ),
@@ -274,5 +285,27 @@ mod tests {
             bytes.len() + 65
         );
         assert!(intent.signing_bytes(&[6; 32]).is_err());
+    }
+
+    #[test]
+    fn sui_hashes_intent_and_returns_serialized_signature() {
+        let public = [7; 32];
+        let bytes = vec![1, 2, 3, 4];
+        let transaction = Transaction::Sui {
+            transaction: bytes.clone(),
+        };
+        assert_eq!(
+            transaction.signing_bytes(&public).unwrap(),
+            crate::sui::transaction_digest(&bytes)
+        );
+        let signed = transaction.signed_bytes(&public, &[9; 64]).unwrap();
+        assert_eq!(signed.len(), 97);
+        assert_eq!(signed[0], crate::sui::ED25519_FLAG);
+        assert_eq!(&signed[65..], &public);
+        assert!(Transaction::Sui {
+            transaction: vec![0; MAX_SUI_TRANSACTION + 1],
+        }
+        .signing_bytes(&public)
+        .is_err());
     }
 }

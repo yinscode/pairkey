@@ -27,7 +27,7 @@
 <a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / SIGNING SCHEMES</p>
 <h1>Signing schemes</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#methods">Choose the operation you need</a><a href="#today">Transaction support by chain</a><a href="#sdk-flow">Build, sign, and send</a><a href="#recovery">Handle uncertain outcomes</a><a href="#policy">What policy can enforce</a><a href="#limits">Operational limits</a></nav>
-<p class="lead">PairKey can sign a message on every configured suite and can sign complete Solana, EVM legacy-transfer, and NEAR transactions. Your application chooses whether and where to broadcast the signed bytes.</p>
+<p class="lead">PairKey can sign a message on every configured suite and can sign Solana, EVM legacy-transfer, NEAR and Sui transactions. Your application chooses whether and where to broadcast the result.</p>
 <h2 id="methods">Choose the operation you need</h2>
 <div class="table-scroll" role="region" aria-label="PairKey signing methods" tabindex="0"><table><thead><tr><th>Method</th><th>What it does</th><th>Contacts a destination RPC?</th></tr></thead><tbody><tr><td><code>signMessage</code></td><td>Authorizes and signs an application message.</td><td>No</td></tr><tr><td><code>signTransaction</code></td><td>Authorizes a typed transaction, signs its native payload and returns assembled bytes.</td><td>No</td></tr><tr><td><code>signAndSend</code></td><td>Signs, assembles and broadcasts through the connection, RPC URL or callback supplied by your application.</td><td>Yes</td></tr><tr><td><code>recover</code></td><td>Retrieves the original threshold-signing job and any saved signed bytes.</td><td>No</td></tr><tr><td><code>recoverAndSend</code></td><td>Retrieves saved identical bytes and checks or optionally rebroadcasts them.</td><td>Yes</td></tr></tbody></table></div>
 <p>All authority sources use these methods after <code>connect</code>. Account wallets approve directly; program sources evaluate or commit application rules; passkey and OIDC sources bind a fresh ephemeral approval key. None of these methods gives the browser a complete destination private key.</p>
@@ -36,6 +36,7 @@
 <tr><td>Solana · Ed25519</td><td>Serialized legacy or v0 transaction message. The derived key must be one of its required static signers.</td><td>Ed25519 signature; the browser SDK inserts it into <code>Transaction</code> or <code>VersionedTransaction</code>.</td><td>The application supplies recent blockhash, fee payer, address tables, instructions, and any other signatures.</td></tr>
 <tr><td>EVM · secp256k1</td><td>Typed EIP-155 legacy native transfer with chain ID, nonce, gas price/limit, recipient, and value.</td><td>Complete signed legacy transaction bytes.</td><td>Chain ID is currently 84532. EIP-1559, calldata, contract calls, access lists, and arbitrary RLP are not accepted.</td></tr>
 <tr><td>NEAR · Ed25519</td><td>Canonical Borsh <code>Transaction</code> with signer, matching access key, nonce, block hash, receiver, and bounded actions.</td><td>Complete Borsh <code>SignedTransaction</code>.</td><td>The derived key must already be installed as an account access key. PairKey does not create the NEAR account or add the key.</td></tr>
+<tr><td>Sui · Ed25519</td><td>BCS-serialized <code>TransactionData</code> bytes built with the derived Sui address as sender.</td><td>The original transaction bytes plus Sui’s 97-byte serialized signature: <code>0x00 || signature || public_key</code>.</td><td>PairKey binds up to 1,197 transaction bytes and signs <code>Blake2b-256([0,0,0] || transaction)</code>. The application builds the PTB and resolves gas; Sui validates BCS, sender and object state at execution.</td></tr>
 <tr><td>Bitcoin · BIP-340</td><td>Message signing only.</td><td>PairKey-tagged Schnorr message signature.</td><td>A transaction adapter still needs PSBT/UTXO validation, BIP-341 sighashes, per-input policy, witness assembly, fee/change checks, and supported sighash modes.</td></tr>
 <tr><td>Zcash · RedPallas</td><td>Message signing only.</td><td>RedPallas message signature.</td><td>A transaction adapter still needs ZIP-244/Orchard digest rules, randomized spend authorization, note witnesses, proofs, bundle assembly, and binding authorization.</td></tr>
 </tbody></table></div>
@@ -64,6 +65,28 @@ const sent = await pairkey.signAndSend({
   chain: 'solana', path: [0], transaction, connection
 });
 console.log(sent.jobId, sent.transactionId, sent.status);</code></pre>
+<h3 id="sui">Sui example</h3>
+<p>Build the transaction with the Sui SDK before asking PairKey to sign. PairKey returns <code>signedTransaction</code> for the unchanged BCS <code>TransactionData</code> and <code>serializedSignature</code> for Sui’s Base64 signature parameter.</p>
+<pre><code>import {Transaction} from '@mysten/sui/transactions';
+
+const key = await pairkey.key({chain: 'sui', path: [0]});
+const tx = new Transaction();
+tx.setSender(key.address);
+tx.transferObjects([tx.gas], tx.pure.address('0x…recipient'));
+
+// The Sui client resolves gas and returns BCS TransactionData bytes.
+const transaction = await tx.build({client: suiClient});
+
+const signed = await pairkey.signTransaction({
+  chain: 'sui', path: [0], transaction
+});
+console.log(signed.signedTransaction, signed.serializedSignature);
+
+// Uses suiClient.executeTransaction({transaction, signatures, include}).
+const sent = await pairkey.signAndSend({
+  chain: 'sui', path: [0], transaction, connection: suiClient
+});</code></pre>
+<p>A custom broadcaster receives the transaction bytes as its first argument and can read <code>signed.serializedSignature</code> from the second. This also works with account, program, passkey and OIDC authority sources; their difference is the PairKey approval proof, not the derived Sui key.</p>
 <ol><li><strong>Build:</strong> use the destination SDK and RPC to choose the current nonce or block hash, fees, recipient, value, instructions, and action data.</li><li><strong>Authorize:</strong> PairKey commits the complete typed transaction envelope to the exact request. Account/program approval or a passkey/OIDC ephemeral binding authenticates that request.</li><li><strong>Sign:</strong> both workers independently validate the envelope and derive the chain-native signing bytes before participating.</li><li><strong>Assemble:</strong> the SDK attaches the signature or returns complete signed transaction bytes.</li><li><strong>Send:</strong> <code>signAndSend</code> uses the connection, RPC URL, or broadcast callback supplied by your application. PairKey's signing service does not broadcast to destination chains.</li></ol>
 <h2 id="recovery">Handle uncertain outcomes</h2>
 <p>The SDK saves public signing recovery data before the authentication prompt and saves the exact signed transaction before the first broadcast call. A destination RPC timeout returns <code>status: "unknown"</code>; it does not claim the transaction failed or was never accepted.</p>
@@ -78,8 +101,8 @@ console.log(sent.jobId, sent.transactionId, sent.status);</code></pre>
 <p>Standard PairKey rules bind destination, derivation path, canonical payload length, and optional byte prefix. Program policies can decode the transaction envelope and enforce application-specific recipients, amounts, contracts, actions, or budgets. The supplied example controller demonstrates destination/path/payload limits and an approval counter; it does not decode every chain transaction into financial policy.</p>
 <p>A program can use a namespace-scoped policy PDA at <code>["pairkey-policy", owner, namespace_digest]</code> or the compatible shared PDA at <code>["pairkey-policy", owner]</code>. Namespace scope prevents one owner's policy update from silently changing another named namespace.</p>
 <h2 id="limits">Operational limits</h2>
-<p>Hosted v2 is a public development deployment with two development signers on one host. Solana message size is bounded by the transaction limit; NEAR unsigned transactions are currently bounded to 1,024 bytes; EVM numeric JSON fields must fit the SDK's browser-safe integer representation. Transaction signing is not atomic with Solana approval or destination execution. Onchain program approval can consume an allowance even when signing or later delivery fails. Verify the key, chain signature, exact approval, and both worker receipts against trusted signer identities before relying on output.</p>
-<p>Implementation source: <a href="https://github.com/yinscode/pairkey/blob/main/crates/pairkey-signing/src/transaction.rs">Ed25519 transaction adapters</a>, <a href="https://github.com/yinscode/pairkey/blob/main/crates/pairkey-signing/src/evm.rs">EVM adapter</a>, and <a href="https://github.com/yinscode/pairkey/blob/main/website/pairkey-client.mjs">browser client</a>.</p>
+<p>Hosted v2 is a public development deployment with two development signers on one host. The complete canonical approval payload is bounded to 1,232 bytes, leaving 1,197 bytes for Sui <code>TransactionData</code> after PairKey’s transaction envelope; NEAR unsigned transactions are bounded to 1,024 bytes. EVM numeric JSON fields must fit the SDK's browser-safe integer representation. Sui message signing in the live demo signs the displayed PairKey application envelope; it is not Sui personal-message signing. Transaction signing is not atomic with Solana approval or destination execution. Onchain program approval can consume an allowance even when signing or later delivery fails. Verify the key, chain signature, exact approval, and both worker receipts against trusted signer identities before relying on output.</p>
+<p>Implementation source: <a href="https://github.com/yinscode/pairkey/blob/main/crates/pairkey-signing/src/transaction.rs">Ed25519 transaction adapters</a>, <a href="https://github.com/yinscode/pairkey/blob/main/crates/pairkey-signing/src/sui.rs">Sui hashing and serialization</a>, <a href="https://github.com/yinscode/pairkey/blob/main/crates/pairkey-signing/src/evm.rs">EVM adapter</a>, and <a href="https://github.com/yinscode/pairkey/blob/main/website/pairkey-client.mjs">browser client</a>. Sui format references: <a href="https://www.docs.sui.io/develop/transactions/transaction-auth/auth-overview">transaction authentication</a> and <a href="https://sdk.mystenlabs.com/sui/transactions/signing-and-execution">SDK signing and execution</a>.</p>
 
 <nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/sessions.html"><span>Previous</span><strong>Scoped sessions →</strong></a><a href="../docs/api.html"><span>Next</span><strong>SDK &amp; API reference →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

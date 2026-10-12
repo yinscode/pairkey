@@ -28,7 +28,7 @@ pairkey_run clippy cargo clippy --workspace --all-targets --features pairkey-wor
 pairkey_run default-worker cargo check -p pairkey-worker --no-default-features --locked
 pairkey_run host-tests cargo test --workspace --features pairkey-worker/dev-simulation --locked
 pairkey_run hosted-dkls-tests cargo test -p pairkey-demo --locked hosted::offchain::tests::hosted_evm_offchain_approval_runs_real_dkls_signing -- --ignored
-pairkey_run hosted-browser-tests cargo test -p pairkey-demo --locked hosted_browser_sdk_runs_all_five_signing_flows_and_recovery -- --ignored
+pairkey_run hosted-browser-tests cargo test -p pairkey-demo --locked hosted_browser_sdk_runs_all_six_signing_flows_and_recovery -- --ignored
 pairkey_run sbf bash scripts/build-programs.sh
 pairkey_run registry-tests cargo test -p pairkey-platform-tests --test registry --locked -- --ignored
 pairkey_run approval-rules-tests cargo test -p pairkey-platform-tests --test approval_rules --locked -- --ignored

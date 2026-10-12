@@ -85,3 +85,35 @@ addendum, so the live OIDC signing path is still a preview rather than an
 end-to-end acceptance result. The earlier “No OIDC provider is configured” line
 records the state at the original deployment snapshot. Changing the OIDC
 audience changes namespace identity and derived keys for that source.
+
+## Sui signing addendum — October 15, 2026
+
+The hosted development deployment was upgraded in place to add Sui as a sixth
+destination. The service derives a FROST Ed25519 public key, returns its Sui
+address as `Blake2b-256(0x00 || public_key)`, and accepts bounded BCS
+`TransactionData` bytes. Both workers sign the native
+`Blake2b-256([0,0,0] || transaction_data)` digest. Results include Sui's 97-byte
+serialized signature, `0x00 || signature || public_key`, separately from the
+unchanged transaction bytes.
+
+Before activation, the staged Linux release passed 22 backend tests with eight
+environment-dependent tests explicitly ignored, including the complete hosted
+Sui transaction path through two development workers. The browser suite passed
+68 tests, and the site checker passed all 20 public pages. Existing signer roots,
+identities, journals, incident latches and 111 completed hosted jobs were
+preserved; a private state backup was taken while the service was stopped.
+
+After activation, `GET /api/v2/config` reported `ready: true`, listed `sui`, and
+advertised `bcs_transaction_data` transaction signing. Public homepage, demo,
+SDK, codec, Sui icon and signing-guide hashes matched the tested local files. A
+disposable live account approval derived Sui address
+`0xb0cef43a2e564ce6b55f879dab264c0f938458d46f12b5279d118490936b5cc7`
+and completed job `8tEia6n2Bk11qCUhuHDW1TfR3UQvWCezoYetqmnbvW8Z`; browser verification accepted
+the returned 97-byte serialized signature. No Sui transaction was broadcast.
+
+The adapter commits exact opaque BCS bytes; it does not decode Move calls,
+objects, gas choices or application-level spending policy. Applications must
+build the transaction with the derived address as sender and use a current Sui
+client or custom broadcaster for execution. The live message demo signs a
+PairKey application envelope, not Sui's personal-message format. This remains a
+single-host development deployment without independent hardware-backed TEEs.

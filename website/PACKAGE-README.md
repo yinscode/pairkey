@@ -42,9 +42,19 @@ console.log(sent.transactionId, sent.status);
 ```
 
 Solana legacy and v0 messages, EIP-155 legacy native transfers on chain 84532,
-and canonical NEAR transactions are supported. Bitcoin Taproot/PSBT and Zcash
-transaction adapters are not implemented. Message signing remains available on
-all five configured suites.
+canonical NEAR transactions, and BCS Sui `TransactionData` are supported. Sui
+returns unchanged transaction bytes plus `serializedSignature`; pass a Sui gRPC
+client as `connection` to execute them. Bitcoin Taproot/PSBT and Zcash transaction
+adapters are not implemented. Message signing remains available on all six suites.
+
+```js
+const key = await pairkey.key({chain: 'sui', path: [0]});
+tx.setSender(key.address);
+const transaction = await tx.build({client: suiClient});
+const sent = await pairkey.signAndSend({
+  chain: 'sui', path: [0], transaction, connection: suiClient,
+});
+```
 
 The SDK stores the public signing job before approval and the exact signed
 transaction before broadcast. If the destination RPC times out, keep the returned

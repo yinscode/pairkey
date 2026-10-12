@@ -3,14 +3,15 @@ import assert from 'node:assert/strict';
 import {PairKeyClient} from './pairkey-client.mjs';
 
 function fixture(identity) {
-  const events=[],namespace={identity},key={public_key_hex:'0x01'},stored=new Map(),config={transaction_signing:{solana:{sign:true},evm:{sign:true},near:{sign:true}}};
+  const events=[],namespace={identity},key={public_key_hex:'0x01'},stored=new Map(),config={transaction_signing:{solana:{sign:true},evm:{sign:true},near:{sign:true},sui:{sign:true}}};
+  const result=request=>request.transaction?{kind:'wallet',public_key_hex:'0x01',signature_hex:`0x${'02'.repeat(64)}`,transaction:request.transaction,signed_transaction_hex:'0x0102',serialized_signature_hex:`0x00${'02'.repeat(64)}${'01'.repeat(32)}`}:{kind:'wallet'};
   const session={namespace:undefined,key:undefined,selection:undefined,
     storageKey:'pairkey-test',storage:{getItem:key=>stored.get(key)??null,setItem:(key,value)=>stored.set(key,value)},jobId:'job-1',
     connect:async(_wallet,options)=>session.namespace={identity:options.identity ?? identity,options,config},
     connectPasskey:async(given,options)=>session.namespace={identity:given,options,config},
     connectOidc:async(given,options)=>session.namespace={identity:given,options,config},
     loadKey:async(chain,path)=>{events.push(['key',chain,path]);session.key=key;session.selection={chain,path};return key;},
-    sign:async request=>{events.push(['sign',request]);return request.transaction?{kind:'wallet',public_key_hex:'0x01',signature_hex:'0x02',signed_transaction_hex:'0x0102'}:{kind:'wallet'};},
+    sign:async request=>{events.push(['sign',request]);return result(request);},
     signPasskey:async(request,id)=>{events.push(['passkey',request,id]);return request.transaction?{kind:'passkey',public_key_hex:'0x01',signature_hex:'0x02',transaction:request.transaction,signed_transaction_hex:'0x0102'}:{kind:'passkey'};},
     prepareOidc:async request=>{events.push(['prepare-oidc',request]);return {ephemeral:{oidcNonce:'nonce'},prepared:{},key,request};},
     completeOidc:async(pending,token)=>{events.push(['oidc',token]);return pending.request.transaction?{kind:'oidc',public_key_hex:'0x01',signature_hex:'0x02',transaction:pending.request.transaction,signed_transaction_hex:'0x0102'}:{kind:'oidc'};},
@@ -28,6 +29,18 @@ test('one interface connects and signs with account and program sources',async()
     assert.equal((await f.client.signMessage({chain:'solana',message:'hello'})).result.kind,'wallet');
     assert.equal(f.events[0][0],'key');
   }
+});
+test('Sui signing returns BCS bytes plus the native serialized signature and sends through a Sui client',async()=>{
+  const identity={Account:{public_key:[1]}},f=fixture(identity);await f.client.connect({wallet:{},identity});
+  const calls=[];
+  const signed=await f.client.signAndSend({chain:'sui',transaction:Uint8Array.of(4,5,6),connection:{executeTransaction:async request=>{calls.push(request);return {$kind:'Transaction',Transaction:{digest:'sui-digest',effects:{status:{success:true}}}};}}});
+  assert.deepEqual([...signed.signedTransaction],[4,5,6]);
+  assert.equal(signed.serializedSignature.length,97);
+  assert.equal(signed.serializedSignature[0],0);
+  assert.deepEqual([...calls[0].transaction],[4,5,6]);
+  assert.equal(calls[0].signatures.length,1);
+  assert.equal(signed.transactionId,'sui-digest');
+  assert.equal(signed.status,'confirmed');
 });
 
 test('broadcast uncertainty preserves exact bytes for recovery and rebroadcast',async()=>{

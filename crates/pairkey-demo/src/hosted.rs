@@ -121,7 +121,7 @@ async fn config(State(app): State<Arc<App>>) -> Json<Value> {
         json!({"version":1,"network":"solana-devnet","genesis_hash":GENESIS,
         "registry":pair_registry::id().to_string(),"enclave_set":app.journal.read().set_id,
         "signer_identities":app.identities,"hardware_backed":false,
-        "chains":["solana","evm","zcash","near","bitcoin"],"evm_chain_id":CHAIN,
+        "chains":["solana","evm","zcash","near","bitcoin","sui"],"evm_chain_id":CHAIN,
         "bitcoin_network":"testnet","authorization":"per_message_commit",
         "ready":app.stage.lock().unwrap()["ready"],"limits":{"message_bytes":256,"keys_per_namespace":16,"retained_jobs":MAX_JOBS}}),
     )
@@ -278,6 +278,10 @@ async fn enrolled_metadata(app: &App, q: &KeyRequest) -> Result<KeyResponse> {
         Chain::Near => Some(format!(
             "ed25519:{}",
             Pubkey::new_from_array(public_key.as_slice().try_into()?)
+        )),
+        Chain::Sui => Some(format!(
+            "0x{}",
+            hex(&pairkey_signing::sui::address(&public_key)?)
         )),
         _ => None,
     };

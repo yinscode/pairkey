@@ -304,10 +304,10 @@ impl Fixture {
 
 #[tokio::test]
 #[ignore = "requires Node 22+ and the native DKLS sidecar"]
-async fn hosted_browser_sdk_runs_all_five_signing_flows_and_recovery() {
+async fn hosted_browser_sdk_runs_all_six_signing_flows_and_recovery() {
     use std::io::Write;
     let f = Fixture::new().await;
-    let input = serde_json::to_vec(&json!({"endpoint":f.endpoint,"seed":fresh(),"chains":["solana","evm","zcash","near","bitcoin"]})).unwrap();
+    let input = serde_json::to_vec(&json!({"endpoint":f.endpoint,"seed":fresh(),"chains":["solana","evm","zcash","near","bitcoin","sui"]})).unwrap();
     let output = tokio::task::spawn_blocking(move || {
         let mut child = std::process::Command::new("node")
             .arg(
@@ -334,7 +334,7 @@ async fn hosted_browser_sdk_runs_all_five_signing_flows_and_recovery() {
         1,
         "browser must not broadcast a registration or approval transaction"
     );
-    assert_eq!(f.app.hosted.lock().unwrap().snapshot.offchain_jobs.len(), 5);
+    assert_eq!(f.app.hosted.lock().unwrap().snapshot.offchain_jobs.len(), 6);
     f.close().await;
 }
 fn signed(prepared: &wire::Prepared, owner: &SigningKey) -> wire::SubmitRequest {
@@ -435,14 +435,14 @@ async fn hosted_account_signs_without_registration_and_recovers_exact_requests()
 }
 
 #[tokio::test]
-async fn hosted_account_signs_typed_solana_evm_and_near_transactions() {
+async fn hosted_account_signs_typed_solana_evm_near_and_sui_transactions() {
     use pairkey_signing::transaction::{NearAction, NearPublicKey, NearTransaction};
     use solana_sdk::{hash::Hash, message::Message, system_instruction};
 
     let f = Fixture::new().await;
     let owner = SigningKey::from_bytes(&fresh());
     let ns = f.metadata(&owner).await;
-    for chain in [Chain::Solana, Chain::Evm, Chain::Near] {
+    for chain in [Chain::Solana, Chain::Evm, Chain::Near, Chain::Sui] {
         let key_request = KeyRequest {
             registration: ns.proposal.registration.clone(),
             chain,
@@ -489,6 +489,9 @@ async fn hosted_account_signs_typed_solana_evm_and_near_transactions() {
                     value: 4,
                 },
             },
+            Chain::Sui => TransactionRequest::Sui {
+                transaction: vec![1, 2, 3, 4],
+            },
             _ => unreachable!(),
         };
         let request = wire::PrepareRequest {
@@ -524,7 +527,7 @@ async fn hosted_account_signs_typed_solana_evm_and_near_transactions() {
             result["transaction"],
             serde_json::to_value(transaction).unwrap()
         );
-        if chain == Chain::Solana || chain == Chain::Near {
+        if matches!(chain, Chain::Solana | Chain::Near | Chain::Sui) {
             assert!(result["signing_payload_hex"]
                 .as_str()
                 .unwrap()
@@ -535,6 +538,12 @@ async fn hosted_account_signs_typed_solana_evm_and_near_transactions() {
                 .as_str()
                 .unwrap()
                 .starts_with("0x"));
+        }
+        if chain == Chain::Sui {
+            assert_eq!(
+                result["serialized_signature_hex"].as_str().unwrap().len(),
+                2 + 97 * 2
+            );
         }
     }
     f.close().await;

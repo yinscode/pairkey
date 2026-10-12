@@ -4,6 +4,8 @@
 import {PairKey} from './hosted-v2.mjs';
 import {HostedSession} from './hosted-session.mjs';
 import {check, identityKind} from './approval-codec.mjs';
+const bytesFromHex=value=>Uint8Array.from(value.slice(2).match(/../g).map(part=>parseInt(part,16)));
+const base64=bytes=>btoa(String.fromCharCode(...bytes));
 
 export class PairKeyClient {
   constructor({web3, endpoint, deployment, storage = globalThis.sessionStorage,
@@ -68,7 +70,15 @@ export class PairKeyClient {
       `This PairKey deployment does not advertise ${chain} transaction signing`);
     const original=transaction,wire=this.#wireTransaction(chain,transaction);
     const signed=await this.#sign({chain,path,transaction:wire,credentialId,getIdToken});
-    return {...signed,signedTransaction:this.#assemble(chain,original,signed)};
+    const signedTransaction=this.#assemble(chain,original,signed);
+    if(chain==='sui'){
+      const value=signed.result?.serialized_signature_hex;
+      check(typeof value==='string'&&/^0x[0-9a-f]{194}$/i.test(value),'Sui serialized signature missing');
+      const serializedSignature=bytesFromHex(value);
+      check(serializedSignature[0]===0,'PairKey currently supports Sui Ed25519 signatures');
+      return {...signed,signedTransaction,serializedSignature};
+    }
+    return {...signed,signedTransaction};
   }
 
   #wireTransaction(chain,transaction){
@@ -84,6 +94,11 @@ export class PairKeyClient {
       check(transaction instanceof Uint8Array||Array.isArray(transaction),'Provide a Borsh-serialized NEAR transaction');
       return {near:{transaction:[...transaction]}};
     }
+    if(chain==='sui'){
+      if(transaction.sui)return transaction;
+      check(transaction instanceof Uint8Array||Array.isArray(transaction),'Build the Sui transaction first and provide its BCS TransactionData bytes');
+      return {sui:{transaction:[...transaction]}};
+    }
     throw new Error(`${chain} transaction signing is not implemented`);
   }
 
@@ -93,6 +108,7 @@ export class PairKeyClient {
       check(typeof hex==='string'&&/^0x[0-9a-f]+$/i.test(hex),'Signed transaction encoding missing');
       return Uint8Array.from(hex.slice(2).match(/../g).map(value=>parseInt(value,16)));
     }
+    if(chain==='sui')return Uint8Array.from(signed.result.transaction.sui.transaction);
     const signature=Uint8Array.from(signed.signatureHex.slice(2).match(/../g).map(value=>parseInt(value,16)));
     const key=this.client.pubkey(signed.publicKeyHex.slice(2).match(/../g).map(value=>parseInt(value,16)));
     if(!original){
@@ -124,7 +140,8 @@ export class PairKeyClient {
     let transactionId,status='submitted',receipt=null;
     const chain=options.chain ?? Object.keys(signed.result.transaction)[0].replace('_legacy','');
     const rawHex=[...signed.signedTransaction].map(b=>b.toString(16).padStart(2,'0')).join('');
-    const record={version:1,job_id:signed.jobId,chain,signed_transaction_hex:`0x${rawHex}`,transaction_id:null,status:'signed',receipt:null,updated_at:new Date().toISOString()};
+    const signatureHex=signed.serializedSignature?`0x${[...signed.serializedSignature].map(b=>b.toString(16).padStart(2,'0')).join('')}`:undefined;
+    const record={version:1,job_id:signed.jobId,chain,signed_transaction_hex:`0x${rawHex}`,serialized_signature_hex:signatureHex,transaction_id:null,status:'signed',receipt:null,updated_at:new Date().toISOString()};
     // Persist exact signed bytes before touching the destination RPC. A caller
     // can safely recover and rebroadcast this same transaction after a timeout.
     this.#saveBroadcast(record);
@@ -135,13 +152,22 @@ export class PairKeyClient {
         transactionId=await options.connection.sendRawTransaction(signed.signedTransaction);
         if(options.confirm!==false){receipt=await options.connection.confirmTransaction(transactionId,'confirmed');status=receipt?.value?.err==null?'confirmed':'failed';}
       }else{
-        check(options.rpcUrl,'Provide a destination RPC URL or broadcast callback');
-        const method=chain==='evm'?'eth_sendRawTransaction':'broadcast_tx_commit';
-        const value=chain==='evm'?`0x${rawHex}`:btoa(String.fromCharCode(...signed.signedTransaction));
-        const response=await fetch(options.rpcUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params:[value]})});
-        const body=await response.json();check(response.ok&&!body.error,body.error?.message??'Destination RPC rejected transaction');
-        receipt=body.result;transactionId=chain==='evm'?body.result:body.result?.transaction?.hash;
-        status=chain==='near'?'confirmed':'submitted';
+        if(chain==='sui'){
+          check(signed.serializedSignature,'Sui serialized signature missing');
+          check(options.connection?.executeTransaction,'Provide a Sui gRPC client or broadcast callback');
+          receipt=await options.connection.executeTransaction({transaction:signed.signedTransaction,signatures:[base64(signed.serializedSignature)],include:{effects:true}});
+          const completed=receipt?.Transaction??receipt;
+          transactionId=completed?.digest??null;
+          status=receipt?.$kind==='FailedTransaction'||completed?.effects?.status?.error?'failed':'confirmed';
+        }else{
+          check(options.rpcUrl,'Provide a destination RPC URL or broadcast callback');
+          const method=chain==='evm'?'eth_sendRawTransaction':'broadcast_tx_commit';
+          const value=chain==='evm'?`0x${rawHex}`:base64(signed.signedTransaction);
+          const response=await fetch(options.rpcUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params:[value]})});
+          const body=await response.json();check(response.ok&&!body.error,body.error?.message??'Destination RPC rejected transaction');
+          receipt=body.result;transactionId=chain==='evm'?body.result:body.result?.transaction?.hash;
+          status=chain==='near'?'confirmed':'submitted';
+        }
         if(chain==='evm'&&options.confirm){
           const checkResponse=await fetch(options.rpcUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:2,method:'eth_getTransactionReceipt',params:[transactionId]})});
           const checked=await checkResponse.json();receipt=checked.result;status=receipt?(receipt.status==='0x1'?'confirmed':'failed'):'submitted';
@@ -161,6 +187,7 @@ export class PairKeyClient {
     if(signed.result.transaction){
       const chain=Object.keys(signed.result.transaction)[0].replace('_legacy','');
       signed.signedTransaction=this.#assemble(chain,undefined,signed);
+      if(chain==='sui')signed.serializedSignature=bytesFromHex(signed.result.serialized_signature_hex);
     }
     return signed;
   }
@@ -174,6 +201,10 @@ export class PairKeyClient {
     const previous=raw?JSON.parse(raw):null;
     const currentHex=`0x${[...signed.signedTransaction].map(b=>b.toString(16).padStart(2,'0')).join('')}`;
     check(!previous||previous.signed_transaction_hex===currentHex,'Saved broadcast bytes do not match recovered signer output');
+    if(signed.serializedSignature){
+      const currentSignature=`0x${[...signed.serializedSignature].map(b=>b.toString(16).padStart(2,'0')).join('')}`;
+      check(!previous||previous.serialized_signature_hex===currentSignature,'Saved Sui signature does not match recovered signer output');
+    }
     if(previous&&['submitted','confirmed','failed'].includes(previous.status)&&!options.rebroadcast){
       return {...signed,transactionId:previous.transaction_id,status:previous.status,receipt:previous.receipt,recovered:true};
     }

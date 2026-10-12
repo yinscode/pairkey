@@ -358,7 +358,7 @@ h3{
 }
 .chains{
   display:grid;
-  grid-template-columns:1.35fr repeat(5,1fr);
+  grid-template-columns:1.35fr repeat(6,1fr);
   align-items:center;
   gap:24px;
   padding-top:30px;
@@ -1169,7 +1169,7 @@ button:disabled { cursor: not-allowed; opacity: .5; transform: none; }
 .principle-flow strong { font-size:16px; font-weight:500; }
 .principle-plus,.principle-arrow { font-size:24px; color:#bdccaf; }
 .principle-result>span { font-size:54px; line-height:1; color:var(--accent); }
-@media (min-width:761px) and (max-width:1000px) { .chains { grid-template-columns:repeat(5,1fr); } .chains>div:first-child { grid-column:1/-1; } }
+@media (min-width:761px) and (max-width:1000px) { .chains { grid-template-columns:repeat(3,1fr); } .chains>div:first-child { grid-column:1/-1; } }
 @media (max-width:760px) { .principle-flow { grid-template-columns:1fr auto 1fr; gap:12px; } .principle-share { flex-direction:column; align-items:flex-start; } .principle-arrow { grid-column:1/-1; text-align:center; transform:rotate(90deg); } .principle-result { grid-column:1/-1; justify-content:center; } .principle-flow strong { font-size:14px; } }
 
 /* Authority -> derived accounts -> threshold signature. */

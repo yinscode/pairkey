@@ -118,13 +118,14 @@ export class ProgramClient {
   }
 
   async signTransaction({chain, path=[0], transaction}={}) {
-    check(['solana','evm','near'].includes(chain), 'Transaction signing supports Solana, EVM and NEAR');
+    check(['solana','evm','near','sui'].includes(chain), 'Transaction signing supports Solana, EVM, NEAR and Sui');
     check(this.session.namespace?.config?.transaction_signing?.[chain]?.sign === true,
       `This PairKey deployment does not advertise ${chain} transaction signing`);
     if (!this.session.key || !same(this.session.selection, {chain, path})) await this.deriveKey({chain, path});
     const wire=chain==='solana'?{solana:{message:[...(transaction.message?.serialize?.()??transaction.serializeMessage?.()??[])]}}
       :chain==='evm'?(transaction.evm_legacy?transaction:{evm_legacy:{transfer:transaction}})
-      :transaction.near?transaction:{near:{transaction:[...transaction]}};
+      :chain==='near'?(transaction.near?transaction:{near:{transaction:[...transaction]}})
+      :transaction.sui?transaction:{sui:{transaction:[...transaction]}};
     const result=await this.session.signTransaction({chain,path,transaction:wire});
     const saved=JSON.parse(this.storage.getItem(this.storageKey));
     return this.finish(result,saved);

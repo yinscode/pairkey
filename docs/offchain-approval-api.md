@@ -21,7 +21,7 @@ wallet's funds on behalf of a developer.
    namespace. Existing account and controller-PDA derivation authorities are
    preserved byte-for-byte.
 3. `POST /keys` with `{registration, chain, path}` lazily obtains the derived key.
-   `chain` is `solana`, `evm`, `zcash`, `near` or `bitcoin`. Use `offchain_key` to
+   `chain` is `solana`, `evm`, `zcash`, `near`, `bitcoin` or `sui`. Use `offchain_key` to
    verify the public derivation or multi-suite certificate.
 4. `POST /approvals` with `{signing_request, identity}` prepares the exact request.
    `signing_request` contains `{key, request_id, message}`; `key` is the input from
@@ -39,8 +39,14 @@ wallet's funds on behalf of a developer.
 
 The default approval lifetime is five minutes. Raw messages are limited to 256
 UTF-8 bytes. Standard rules constrain the committed payload: raw message bytes for
-Solana and NEAR, or the serialized signing Intent for EVM, Zcash and Bitcoin.
+Solana, NEAR and Sui, or the serialized signing Intent for EVM, Zcash and Bitcoin.
 These are message rules, not transaction parsing or cumulative spending limits.
+
+For transaction signing, set `message` to an empty string and include exactly one
+transaction variant: `{solana:{message}}`, `{evm_legacy:{transfer}}`,
+`{near:{transaction}}`, or `{sui:{transaction}}`. The Sui variant contains BCS
+`TransactionData`; the result returns those unchanged bytes and the native
+`flag || signature || public_key` serialized signature separately.
 
 Account proof:
 
@@ -187,7 +193,7 @@ audience, nonce flow and each worker's HTTPS key retrieval have been tested.
 
 1. Record the deployed gateway/controller program IDs, enclave set and signer
    identities. Save public namespace and derived-key certificates for existing
-   account and program authorities across all five suites. Compare them after the
+   account and program authorities across all six destinations. Compare them after the
    upgrade; policy revisions and approval mode must not rotate those keys.
 2. Drain new admissions and inspect hosted/coordinator jobs. Reconcile incomplete
    attempts through their original job IDs before restarting. If an outcome stays
@@ -218,7 +224,7 @@ that the older binary understands the current durable formats and restrictions;
 otherwise leave the service stopped and reconcile forward.
 
 The repository gate is `bash scripts/ci.sh`. It includes legacy native transfers
-and sessions, new hosted five-suite signing and recovery, actual SBF policy/program
+and sessions, hosted six-destination signing and recovery, actual SBF policy/program
 tests, browser vectors, documentation checks and the extracted program download.
 Local fixture results establish behavior in that environment; they do not establish
 public RPC availability, production OIDC login or hardware attestation.

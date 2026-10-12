@@ -5,7 +5,7 @@ import {readGoogleClaims,showGoogleButton} from './google-oidc.mjs';
 import {createDemoPasskey,passkeyIdentity,validPasskeyRecord} from './passkey-demo.mjs';
 const $=id=>document.getElementById(id),short=(s,n=10)=>s?`${s.slice(0,n)}…${s.slice(-6)}`:'—';
 const recoveryKey='pairkey-v2-demo-recovery',historyKey='pairkey-v2-demo-history',passkeyKey='pairkey-v2-demo-passkey';
-const schemes={solana:'FROST Ed25519',evm:'DKLS23 · secp256k1',zcash:'FROST RedPallas',near:'FROST Ed25519',bitcoin:'FROST secp256k1 · BIP-340'};
+const schemes={solana:'FROST Ed25519',evm:'DKLS23 · secp256k1',zcash:'FROST RedPallas',near:'FROST Ed25519',bitcoin:'FROST secp256k1 · BIP-340',sui:'FROST Ed25519'};
 let config,googleIssuer,googleGeneration=0,pendingOidc,connectedScope,busy=false,verifying=false,currentOp,activeOp,verificationFor;
 const passkeySupported=!!(globalThis.PublicKeyCredential&&navigator.credentials?.create&&navigator.credentials?.get&&crypto.subtle);
 function savedPasskey(){try{const record=JSON.parse(localStorage.getItem(passkeyKey)||'null');return validPasskeyRecord(record,location.origin)?record:undefined;}catch{return undefined;}}

@@ -247,6 +247,13 @@ pub fn prepare_message(
                 );
                 None
             }
+            TransactionRequest::Sui { .. } => {
+                ensure!(
+                    q.key.chain == Chain::Sui && key.multi.is_none(),
+                    "Sui transaction/key mismatch"
+                );
+                None
+            }
         }
     } else {
         ensure!(

@@ -1,6 +1,6 @@
 import type * as web3 from '@solana/web3.js';
 
-export type Chain = 'solana' | 'evm' | 'zcash' | 'near' | 'bitcoin';
+export type Chain = 'solana' | 'evm' | 'zcash' | 'near' | 'bitcoin' | 'sui';
 export type ApprovalMode = 'Onchain' | 'Offchain';
 export interface Wallet {
   publicKey: web3.PublicKey;
@@ -72,7 +72,7 @@ export declare class ProgramClient {
   }): Promise<{transactionSignature: string; revision: number}>;
   deriveKey(options: {chain: Chain; path?: number[]}): Promise<KeyResponse>;
   signMessage(options: {chain: Chain; path?: number[]; message: string}): Promise<SigningResult>;
-  signTransaction(options: {chain: 'solana' | 'evm' | 'near'; path?: number[]; transaction: unknown}): Promise<SigningResult>;
+  signTransaction(options: {chain: 'solana' | 'evm' | 'near' | 'sui'; path?: number[]; transaction: unknown}): Promise<SigningResult>;
   /** Reads the same saved job without a new wallet prompt, commit or signing attempt. */
   recover(jobId?: string): Promise<SigningResult>;
   /** Broadcasts native Ed25519 verification on Solana; does not transfer assets. */

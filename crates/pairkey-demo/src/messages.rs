@@ -22,6 +22,7 @@ pub enum Chain {
     Zcash,
     Near,
     Bitcoin,
+    Sui,
 }
 impl Chain {
     pub fn label(self) -> &'static str {
@@ -31,6 +32,7 @@ impl Chain {
             Self::Zcash => "Zcash / RedPallas",
             Self::Near => "NEAR",
             Self::Bitcoin => "Bitcoin / BIP-340",
+            Self::Sui => "Sui",
         }
     }
     fn destination(self) -> [u8; 32] {
@@ -81,6 +83,7 @@ pub fn display_key(chain: Chain, bytes: &[u8]) -> Result<String> {
                 key
             }
         }
+        Chain::Sui => format!("0x{}", hex(&pairkey_signing::sui::address(bytes)?)),
         _ => format!("0x{}", hex(bytes)),
     })
 }
@@ -90,8 +93,8 @@ pub fn public_keys(s: &Snapshot) -> Vec<Value> {
         "controller":Pubkey::new_from_array(ns.registration.namespace.derivation_authority).to_string(),
         "public_key":display_key(key.chain,&key.public_key).unwrap_or_default(),
         "public_key_hex":format!("0x{}",hex(&key.public_key)),
-        "address":match key.chain {Chain::Evm=>multi::evm::address(&key.public_key).ok().map(|a|format!("0x{}",hex(&a))),_=>None},
-        "address_label":"EVM address",
+        "address":match key.chain {Chain::Evm=>multi::evm::address(&key.public_key).ok().map(|a|format!("0x{}",hex(&a))),Chain::Sui=>pairkey_signing::sui::address(&key.public_key).ok().map(|a|format!("0x{}",hex(&a))),_=>None},
+        "address_label":match key.chain {Chain::Sui=>"Sui address",_=>"EVM address"},
         "path":"7 / 4","format":match key.chain {Chain::Bitcoin=>"BIP-340 Schnorr over the PairKey tagged message digest · x-only Taproot output key",Chain::Evm=>"EIP-191 personal_sign over the displayed UTF-8 envelope",Chain::Zcash=>"Raw RedPallas message signature; not an Orchard transaction",_=>"Ed25519 over the displayed UTF-8 envelope; not a chain transaction"}
     }))).collect()
 }
@@ -243,6 +246,7 @@ impl App {
                 Chain::Zcash,
                 Chain::Near,
                 Chain::Bitcoin,
+                Chain::Sui,
             ] {
                 if self
                     .journal
@@ -262,7 +266,7 @@ impl App {
                     chain.label()
                 ));
                 let key = match chain {
-                    Chain::Solana | Chain::Near => MessageKey {
+                    Chain::Solana | Chain::Near | Chain::Sui => MessageKey {
                         chain,
                         public_key: pairkey_sdk::derive_public(&registration, &chain.path())?
                             .to_vec(),
@@ -535,7 +539,7 @@ impl Verification {
         let public = decode(&self.public_key_hex, 65)?;
         let sig = decode(&self.signature_hex, 65)?;
         let valid = match self.chain {
-            Chain::Solana | Chain::Near => {
+            Chain::Solana | Chain::Near | Chain::Sui => {
                 let key: [u8; 32] = public.as_slice().try_into().context("Ed25519 key length")?;
                 let signature = ed25519_dalek::Signature::from_slice(&sig)?;
                 ed25519_dalek::VerifyingKey::from_bytes(&key)?

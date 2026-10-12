@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as codec from './approval-codec.mjs';
 const vectors=JSON.parse(readFileSync(new URL('./fixtures/offchain-vectors.json',import.meta.url)));
+test('Blake2b-256 matches the standard empty-input vector',()=>{
+  assert.equal(codec.hex(codec.blake2b256(new Uint8Array())), '0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8');
+});
 test('all five chains match Rust request, payload, policy, binding and job encodings',async()=>{
   assert.equal(vectors.cases.length,5);
   for(const v of vectors.cases){
@@ -44,6 +47,19 @@ test('typed Solana, EVM and NEAR transaction envelopes bind exact transaction fi
   assert.notDeepEqual(evmBytes,await codec.payload(evm,byChain.evm.key));
   sol.transaction.solana.message[0]^=1;assert.notDeepEqual(solBytes,await codec.payload(sol,byChain.solana.key));
   near.transaction.near.transaction[0]^=1;assert.notDeepEqual(nearBytes,await codec.payload(near,byChain.near.key));
+});
+test('typed Sui transaction uses the native intent digest',async()=>{
+  const source=vectors.cases.find(v=>v.prepared.signing_request.key.chain==='solana');
+  const registration=structuredClone(source.prepared.signing_request.key.registration),path=[0];
+  const account=await codec.account('sui',path),publicKey=Array(32).fill(7);
+  const key={account,public_key:publicKey,public_key_hex:`0x${codec.hex(publicKey)}`,address:null,multi:null};
+  const q={key:{registration,chain:'sui',path},request_id:Array(32).fill(8),message:'',transaction:{sui:{transaction:[1,2,3,4]}}};
+  const approved=await codec.payload(q,key),signing=await codec.signingPayload(q,key);
+  assert.deepEqual([...signing],[...codec.blake2b256(Uint8Array.of(0,0,0,1,2,3,4))]);
+  q.transaction.sui.transaction[0]^=1;
+  assert.notDeepEqual(approved,await codec.payload(q,key));
+  q.transaction.sui.transaction=Array(1198).fill(0);
+  await assert.rejects(()=>codec.payload(q,key),/protocol bound/);
 });
 test('message, chain, path, source, policy, expiry and wallet-byte substitutions fail locally',async()=>{
   for(const v of vectors.cases){

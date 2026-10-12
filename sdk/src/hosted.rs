@@ -13,6 +13,7 @@ pub enum Chain {
     Zcash,
     Near,
     Bitcoin,
+    Sui,
 }
 impl Chain {
     pub fn account(self, path: Vec<u32>) -> Result<AccountPath> {
@@ -145,6 +146,9 @@ pub enum TransactionRequest {
     Near {
         transaction: Vec<u8>,
     },
+    Sui {
+        transaction: Vec<u8>,
+    },
 }
 impl TransactionRequest {
     pub fn ed25519(&self) -> Option<pairkey_signing::transaction::Transaction> {
@@ -153,6 +157,9 @@ impl TransactionRequest {
                 message: message.clone(),
             }),
             Self::Near { transaction } => Some(pairkey_signing::transaction::Transaction::Near {
+                transaction: transaction.clone(),
+            }),
+            Self::Sui { transaction } => Some(pairkey_signing::transaction::Transaction::Sui {
                 transaction: transaction.clone(),
             }),
             Self::EvmLegacy { .. } => None,

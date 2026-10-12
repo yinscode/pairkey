@@ -47,7 +47,7 @@ adds explicit example-controller policy management. They form the publishable
 `hosted-session.mjs` is shared by the quickstarts and demo. It saves public recovery
 metadata for each job before submission and never reauthenticates, recommits or
 resubmits on recovery. `testnet.js` connects visitor wallets, passkeys or a Google account, exposes program
-setup, and shows message signing across five destinations. History is tab-local and contains
+setup, and shows message signing across six destinations. History is tab-local and contains
 public transcripts only. Saved results are not labelled freshly verified.
 
 `message-demo.mjs` projects lifecycle evidence into signer cards. Joint work does
@@ -85,7 +85,7 @@ python3 scripts/check-controller-bundle.py --sbf
 ```
 
 CI also runs the shared browser lifecycle against a real local hosted API and two
-workers for all five signing suites. Its in-memory chain refuses broadcasts in the
+workers for all six signing destinations. Its in-memory chain refuses broadcasts in the
 account test. Program tests exercise actual SBF simulation and atomic commit.
 For manual browser QA, the ignored `hosted_manual_browser_preview` test uses only
 isolated generated workers, an in-memory Solana chain, and an explicit stop file.
