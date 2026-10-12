@@ -17,6 +17,11 @@
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/supported-chains.html">Supported chains</a>
+<a href="../docs/tutorial-program-keys.html">Tutorial: Program keys</a>
+<a href="../docs/tutorial-hyperliquid.html">Tutorial: Hyperliquid</a>
+<a href="../docs/tutorial-aave.html">Tutorial: Aave lending</a>
+<a href="../docs/tutorial-zcash-escrow.html">Tutorial: Zcash escrow</a>
+<a href="../docs/tutorial-btcfi.html">Tutorial: BTCFi</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
@@ -43,7 +48,7 @@
 <div class="hosted-actions"><button class="button secondary" id="hosted-verify" type="button" disabled>Verify signature</button><button class="button secondary" id="hosted-recover" type="button">Recover last job</button></div>
 </div>
 <script src="/assets/vendor/solana-web3-1.98.4.min.js"></script><script type="module" src="/hosted-quickstart.mjs?v=offchain-approval-1"></script>
-<h2 id="application">Use it in your application</h2><p>The <code>@pairkey/sdk</code> package is prepared for its first npm release. Until it is published, use the <a href="https://github.com/yinscode/pairkey/blob/main/website/pairkey-client.mjs">SDK source on GitHub</a>; the import below is the package API. Your application uses the hosted signers; it never sends a wallet private key.</p>
+<h2 id="application">Use it in your application</h2><p>Install <code>@pairkey/sdk</code> and <code>@solana/web3.js</code>; the import below uses the released package. Your application uses the hosted signers; it never sends a wallet private key.</p>
 <pre><code>import * as web3 from '@solana/web3.js';
 import {PairKeyClient} from '@pairkey/sdk';
 

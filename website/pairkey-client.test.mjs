@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {PairKeyClient} from './pairkey-client.mjs';
 
 function fixture(identity) {
-  const events=[],namespace={identity},key={public_key_hex:'0x01'},stored=new Map(),config={transaction_signing:{solana:{sign:true},evm:{sign:true},near:{sign:true},sui:{sign:true}}};
-  const result=request=>request.transaction?{kind:'wallet',public_key_hex:'0x01',signature_hex:`0x${'02'.repeat(64)}`,transaction:request.transaction,signed_transaction_hex:'0x0102',serialized_signature_hex:`0x00${'02'.repeat(64)}${'01'.repeat(32)}`}:{kind:'wallet'};
+  const events=[],namespace={identity},key={public_key_hex:'0x01'},stored=new Map(),config={transaction_signing:{solana:{sign:true},evm:{sign:true},near:{sign:true},sui:{sign:true},bitcoin:{sign:true}},typed_data_signing:{evm:true}};
+  const result=request=>request.transaction?{kind:'wallet',public_key_hex:'0x01',signature_hex:`0x${'02'.repeat(64)}`,transaction:request.transaction,signed_transaction_hex:'0x0102',signed_psbt_hex:'0x70736274ff',serialized_signature_hex:`0x00${'02'.repeat(64)}${'01'.repeat(32)}`}:{kind:'wallet'};
   const session={namespace:undefined,key:undefined,selection:undefined,
     storageKey:'pairkey-test',storage:{getItem:key=>stored.get(key)??null,setItem:(key,value)=>stored.set(key,value)},jobId:'job-1',
     connect:async(_wallet,options)=>session.namespace={identity:options.identity ?? identity,options,config},
@@ -64,6 +64,41 @@ test('transaction signing assembles hosted EVM bytes for account and program sou
     assert.equal(f.events.filter(([kind])=>kind==='sign').length,1);
     assert.equal(f.events.find(([kind])=>kind==='sign')[1].transaction.evm_legacy.transfer.value,4);
   }
+});
+
+test('EVM chainId selects a distinct exact destination and binds the transfer',async()=>{
+  const f=fixture({Account:{public_key:[1]}});await f.client.connect({wallet:{}});
+  const transaction={chain_id:1,nonce:1,gas_price:2,gas_limit:21000,to:Array(20).fill(3),value:4};
+  await f.client.signTransaction({chain:'evm',chainId:1,transaction});
+  assert.deepEqual(f.events.find(([kind])=>kind==='key')[1],{evm_chain:{chain_id:1}});
+  assert.deepEqual(f.events.find(([kind])=>kind==='sign')[1].chain,{evm_chain:{chain_id:1}});
+  await assert.rejects(()=>f.client.signTransaction({chain:'evm',chainId:0,transaction}),/Invalid EVM chain ID/);
+});
+
+test('EIP-712 signs full typed data on its domain chain',async()=>{
+  const f=fixture({Account:{public_key:[1]}});await f.client.connect({wallet:{}});
+  f.session.sign=async request=>{f.events.push(['sign',request]);return {public_key_hex:'0x01',signature_hex:`0x${'02'.repeat(64)}01`};};
+  const typedData={types:{EIP712Domain:[{name:'chainId',type:'uint256'}],Vote:[{name:'support',type:'bool'}]},
+    primaryType:'Vote',domain:{chainId:1},message:{support:true}};
+  const signed=await f.client.signTypedData({chainId:1,typedData});
+  assert.equal(signed.evmSignatureHex,`0x${'02'.repeat(64)}1c`);
+  assert.deepEqual(f.events.find(([kind])=>kind==='key')[1],{evm_chain:{chain_id:1}});
+  const wire=f.events.find(([kind])=>kind==='sign')[1].transaction.evm_typed_data.typed_data;
+  assert.equal(wire.chain_id,1);
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(Uint8Array.from(wire.json))),typedData);
+  await assert.rejects(()=>f.client.signTypedData({chainId:84532,typedData}),/domain chainId/);
+});
+
+test('Bitcoin PSBT returns finalized bytes and preserves them for recovery',async()=>{
+  const f=fixture({Account:{public_key:[1]}});await f.client.connect({wallet:{}});
+  const spend={network:'testnet',psbt:[112,115,98,116,255],outputs:[{value_sats:99000,script_pubkey:[81]}],max_fee_sats:1000,max_fee_rate_sat_vb:10};
+  const signed=await f.client.signAndSend({chain:'bitcoin',transaction:spend,broadcast:async bytes=>{assert.deepEqual([...bytes],[1,2]);return 'btc-txid';}});
+  assert.deepEqual([...signed.signedPsbt],[112,115,98,116,255]);
+  assert.equal(signed.transactionId,'btc-txid');
+  assert.deepEqual(f.events.find(([kind])=>kind==='sign')[1].transaction,{bitcoin_psbt:{spend}});
+  f.session.recover=async()=>({transaction:{bitcoin_psbt:{spend}},public_key_hex:'0x01',signature_hex:'0x02',signed_transaction_hex:'0x0102',signed_psbt_hex:'0x70736274ff'});
+  const recovered=await f.client.recoverAndSend('job-1',{chain:'bitcoin',broadcast:async bytes=>{assert.deepEqual([...bytes],[1,2]);return 'btc-txid';}});
+  assert.deepEqual([...recovered.signedPsbt],[112,115,98,116,255]);
 });
 
 test('one interface keeps passkey and OIDC ephemeral authentication source-specific',async()=>{

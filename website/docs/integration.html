@@ -17,6 +17,11 @@
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/supported-chains.html">Supported chains</a>
+<a href="../docs/tutorial-program-keys.html">Tutorial: Program keys</a>
+<a href="../docs/tutorial-hyperliquid.html">Tutorial: Hyperliquid</a>
+<a href="../docs/tutorial-aave.html">Tutorial: Aave lending</a>
+<a href="../docs/tutorial-zcash-escrow.html">Tutorial: Zcash escrow</a>
+<a href="../docs/tutorial-btcfi.html">Tutorial: BTCFi</a>
 <a href="../docs/integration.html" aria-current="page">Solana program integration</a>
 <a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
@@ -44,5 +49,5 @@ set_return_data(&amp;borsh::to_vec(&amp;Output {
 <h2 id="authority">Manage authority and policy</h2><p>Your program can manage optional namespace-specific PairKey rules through owner-authorized <code>SetRules</code> CPI. Its application policy may use <code>["pairkey-policy", owner, namespace_digest]</code> for independent named namespaces or <code>["pairkey-policy", owner]</code for an intentional shared policy. The program source binds the selected policy account, so workers cannot substitute another scope.</p><p>Program authorities differ from direct account authorities and derive different keys. Solana remains the control plane; Solidity contracts are not direct controllers in this implementation. Simulation relies on RPC correctness and a state snapshot and cannot make later cross-chain execution atomic.</p>
 <h2 id="advanced">Legacy and self-hosted integrations</h2><p><a href="../examples/program_jobs.rs">program_jobs.rs</a> demonstrates the older registered-namespace, COMMIT and transfer-session coordinator path. It remains useful for compatibility and native-transfer tests, but it is not the hosted v2 onboarding flow. Internal interfaces are documented in <a href="../docs/api.html#internal-api">the API reference</a>.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/supported-chains.html"><span>Previous</span><strong>Supported chains →</strong></a><a href="../docs/signing.html"><span>Next</span><strong>Signing schemes →</strong></a></nav></main></div>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/tutorial-btcfi.html"><span>Previous</span><strong>Tutorial: BTCFi →</strong></a><a href="../docs/signing.html"><span>Next</span><strong>Signing schemes →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

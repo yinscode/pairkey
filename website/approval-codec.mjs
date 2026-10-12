@@ -96,6 +96,26 @@ export const policyChallenge = update => digest('pairkey/policy-update/v1', enco
 export const signingMessage = async request => utf8(`PairKey off-chain approval v1\nRequest: ${hex(await requestDigest(request))}`);
 export const jobDigest = async request => digest('pairkey/offchain-job/v1', await requestDigest(request));
 export const messageHash = message => sha256(concat(utf8('pairkey/exact-message/v1'), u32(message.length), message));
+/** Stable JSON for EIP-712 approval bytes; preserves array order and rejects cycles. */
+export const canonicalTypedDataJson = value => {
+  const seen=new Set();
+  const sorted=item=>{
+    if(Array.isArray(item)){
+      check(!seen.has(item),'Cyclic typed data');seen.add(item);
+      const result=Array.from(item,sorted);seen.delete(item);return result;
+    }
+    if(item&&typeof item==='object'){
+      check(Object.getPrototypeOf(item)===Object.prototype||Object.getPrototypeOf(item)===null,'Typed data must use plain objects');
+      check(!seen.has(item),'Cyclic typed data');seen.add(item);
+      const result=Object.fromEntries(Object.keys(item).sort().map(key=>[key,sorted(item[key])]));
+      seen.delete(item);return result;
+    }
+    check(item===null||typeof item==='string'||typeof item==='boolean'||Number.isSafeInteger(item),
+      'Typed data values must be strings, booleans, null or safe integers');
+    return item;
+  };
+  return JSON.stringify(sorted(value));
+};
 export async function authority(identity) {
   encodeIdentity(identity);
   if (identity.Account) return fixed(identity.Account.public_key, 32);
@@ -103,10 +123,22 @@ export async function authority(identity) {
   return digest('pairkey/identity-authority/v1', encodeIdentity(identity));
 }
 const chains = ['solana', 'evm', 'zcash', 'near', 'bitcoin', 'sui'];
+export const destinationChain=(chain,chainId)=>{
+  if(chain!=='evm') { check(chainId===undefined,'chainId is only valid for EVM'); return chain; }
+  if(chainId===undefined || chainId===84532) return 'evm';
+  check(Number.isSafeInteger(chainId)&&chainId>0&&chainId<=(Number.MAX_SAFE_INTEGER-36)/2,'Invalid EVM chain ID');
+  return {evm_chain:{chain_id:chainId}};
+};
+const evmChainId = chain => chain === 'evm' ? 84532
+  : chain?.evm_chain && Object.keys(chain).length === 1 && Object.keys(chain.evm_chain).length === 1 ? chain.evm_chain.chain_id : null;
 export async function account(chain, derivationPath) {
   path(derivationPath);
   let destination;
-  if (chain === 'evm') destination = await digest('pairkey/evm-destination/v1', u64(84532));
+  if (evmChainId(chain) !== null) {
+    const chainId=evmChainId(chain);
+    check(chainId>0 && chainId<=(Number.MAX_SAFE_INTEGER-36)/2,'EVM chain ID bounds');
+    destination = await digest('pairkey/evm-destination/v1', u64(chainId));
+  }
   else if (chain === 'bitcoin') destination = await digest('pairkey/bitcoin-bip340-destination/v1', byte(1));
   else destination = await digest('pairkey/hosted-message-destination/v1', enumeration(chain, chains));
   return { destination: [...destination], path: [...derivationPath] };
@@ -135,28 +167,63 @@ function transactionPayload(q, key) {
     return concat(utf8('pairkey/transaction-intent/v1\0'),byte(2),bytes(transaction.sui.transaction,1197));
   }
   if(transaction.evm_legacy){
-    check(q.key.chain==='evm' && key.multi?.key?.suite==='Dkls23Secp256k1','EVM transaction/key mismatch');
+    check(evmChainId(q.key.chain)!==null && key.multi?.key?.suite==='Dkls23Secp256k1','EVM transaction/key mismatch');
     fields(transaction.evm_legacy,['transfer']);
     const t=transaction.evm_legacy.transfer;
     fields(t,['chain_id','nonce','gas_price','gas_limit','to','value']);
-    check(t.chain_id===84532 && t.gas_price>0 && t.gas_limit>=21000 && t.gas_limit<=1000000,'Unsupported EVM transaction bounds');
+    check(t.chain_id===evmChainId(q.key.chain) && t.gas_price>0 && (t.gas_limit===21000 || (t.chain_id===421614 && t.gas_limit>=21000 && t.gas_limit<=1000000)),'Unsupported EVM transaction bounds');
     return concat(utf8('pairkey/signing-intent/v1\0'),u16(1),encodeKey(key.multi.key),byte(0),u64(t.chain_id),u64(t.nonce),u64(t.gas_price),u64(t.gas_limit),fixed(t.to,20),u64(t.value));
+  }
+  if(transaction.evm_typed_data){
+    check(evmChainId(q.key.chain)!==null && key.multi?.key?.suite==='Dkls23Secp256k1','EVM typed-data/key mismatch');
+    fields(transaction.evm_typed_data,['typed_data']);
+    const data=transaction.evm_typed_data.typed_data;
+    fields(data,['chain_id','json']);
+    check(data.chain_id===evmChainId(q.key.chain),'EVM typed-data chain mismatch');
+    const json=fixed(data.json,data.json.length);
+    check(json.length>0&&json.length<=1000,'EVM typed-data bounds');
+    const jsonText=new TextDecoder('utf-8',{fatal:true}).decode(json);
+    const typed=JSON.parse(jsonText);
+    check(canonicalTypedDataJson(typed)===jsonText,'EVM typed data must use canonical JSON');
+    check(typed&&typeof typed==='object'&&!Array.isArray(typed)&&typed.domain?.chainId===data.chain_id
+      && typed.primaryType && typed.primaryType!=='EIP712Domain' && typed.message && typeof typed.message==='object',
+    'EVM typed-data domain or message mismatch');
+    return concat(utf8('pairkey/signing-intent/v1\0'),u16(1),encodeKey(key.multi.key),byte(4),u64(data.chain_id),bytes(json,1000));
+  }
+  if(transaction.bitcoin_psbt){
+    check(q.key.chain==='bitcoin' && key.multi?.key?.suite==='FrostSecp256k1Tr','Bitcoin PSBT/key mismatch');
+    fields(transaction.bitcoin_psbt,['spend']);
+    const spend=transaction.bitcoin_psbt.spend;
+    fields(spend,['network','psbt','outputs','max_fee_sats','max_fee_rate_sat_vb']);
+    check(spend.network==='testnet','The hosted Bitcoin key is testnet only');
+    const psbt=fixed(spend.psbt,spend.psbt?.length);
+    check(psbt.length>0&&psbt.length<=1024,'Bitcoin PSBT size');
+    check(Array.isArray(spend.outputs)&&spend.outputs.length>=1&&spend.outputs.length<=2,'Bitcoin output count');
+    const outputs=list(spend.outputs,output=>{
+      fields(output,['value_sats','script_pubkey']);
+      check(output.value_sats>0,'Bitcoin output value');
+      return concat(u64(output.value_sats),bytes(output.script_pubkey,100));
+    },2);
+    check(spend.max_fee_sats>0&&spend.max_fee_rate_sat_vb>0,'Bitcoin fee limits required');
+    return concat(utf8('pairkey/signing-intent/v1\0'),u16(1),encodeKey(key.multi.key),byte(5),byte(1),bytes(psbt,1024),outputs,u64(spend.max_fee_sats),u64(spend.max_fee_rate_sat_vb));
   }
   throw new Error('Unsupported transaction adapter');
 }
 export async function payload(q, key) {
   const { chain, path, registration } = q.key;
   check(same(key.account, await account(chain, path)), 'Derived key path changed');
-  const publicKey = fixed(key.public_key, chain === 'evm' ? 33 : 32);
+  const publicKey = fixed(key.public_key, evmChainId(chain) !== null ? 33 : 32);
   check(key.public_key_hex === `0x${hex(publicKey)}`, 'Public key encoding changed');
+  if(key.multi) check(same(key.multi.key.public_key, publicKey) && same(key.multi.key.account, key.account)
+    && same(key.multi.key.namespace, await registrationDigest(registration)), 'Signing key namespace changed');
   if(q.transaction!==undefined)return transactionPayload(q,key);
   check(typeof q.message === 'string' && q.message.trim() && utf8(q.message).length <= 256, 'Message must contain 1–256 UTF-8 bytes');
   const message = utf8(q.message);
   if (chain === 'solana' || chain === 'near' || chain === 'sui') { check(key.multi === null, 'Unexpected signing suite'); return message; }
-  const expected = { evm: 'Dkls23Secp256k1', zcash: 'FrostRedPallas', bitcoin: 'FrostSecp256k1Tr' }[chain];
+  const expected = evmChainId(chain)!==null ? 'Dkls23Secp256k1' : { zcash: 'FrostRedPallas', bitcoin: 'FrostSecp256k1Tr' }[chain];
   check(key.multi?.key?.suite === expected && expected, 'Signing suite changed');
   check(same(key.multi.key.public_key, publicKey) && same(key.multi.key.account, key.account) && same(key.multi.key.namespace, await registrationDigest(registration)), 'Signing key namespace changed');
-  const typed = chain === 'evm' ? concat(byte(2), u64(84532), bytes(message)) : chain === 'bitcoin' ? concat(byte(3), byte(1), bytes(message)) : concat(byte(1), bytes(message));
+  const typed = evmChainId(chain) !== null ? concat(byte(2), u64(evmChainId(chain)), bytes(message)) : chain === 'bitcoin' ? concat(byte(3), byte(1), bytes(message)) : concat(byte(1), bytes(message));
   return concat(utf8('pairkey/signing-intent/v1\0'), u16(1), encodeKey(key.multi.key), typed);
 }
 export async function signingPayload(q,key){
@@ -164,6 +231,8 @@ export async function signingPayload(q,key){
   if(q.transaction?.near)return sha256(fixed(q.transaction.near.transaction,q.transaction.near.transaction.length));
   if(q.transaction?.sui)return blake2b256(concat(Uint8Array.of(0,0,0),fixed(q.transaction.sui.transaction,q.transaction.sui.transaction.length)));
   if(q.transaction?.evm_legacy)return null;
+  if(q.transaction?.evm_typed_data)return null;
+  if(q.transaction?.bitcoin_psbt)return null;
   if(q.key.chain==='solana'||q.key.chain==='near'||q.key.chain==='sui')return utf8(q.message);
   return null;
 }

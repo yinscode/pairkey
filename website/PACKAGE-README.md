@@ -7,9 +7,6 @@ Solana account, Solana program, passkey, and OIDC authorities.
 npm install @pairkey/sdk @solana/web3.js
 ```
 
-Until the first npm release is available, use the source from
-[the PairKey repository](https://github.com/yinscode/pairkey/tree/main/website).
-
 ## Connect and derive a key
 
 ```js
@@ -41,11 +38,18 @@ const sent = await pairkey.signAndSend({
 console.log(sent.transactionId, sent.status);
 ```
 
-Solana legacy and v0 messages, EIP-155 legacy native transfers on chain 84532,
+Solana legacy and v0 messages, EIP-155 legacy native transfers on a selected EVM chain ID (default 84532),
 canonical NEAR transactions, and BCS Sui `TransactionData` are supported. Sui
 returns unchanged transaction bytes plus `serializedSignature`; pass a Sui gRPC
-client as `connection` to execute them. Bitcoin Taproot/PSBT and Zcash transaction
-adapters are not implemented. Message signing remains available on all six suites.
+client as `connection` to execute them. A testnet, single-input Taproot PSBT
+adapter is available in repository source and requires a matching service release;
+the current public service does not advertise it. Zcash Orchard PCZT transaction
+signing is not implemented. Message signing remains available on all six suites.
+
+For EVM, `signTypedData({chainId, typedData})` signs the complete EIP-712 object
+after checking `domain.chainId`. The returned `evmSignatureHex` has a 27/28
+recovery byte. The hosted service limits serialized typed data to 1,000 bytes;
+check `typed_data_signing.evm` in `/api/v2/config` before offering this action.
 
 ```js
 const key = await pairkey.key({chain: 'sui', path: [0]});

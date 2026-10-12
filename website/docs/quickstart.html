@@ -17,6 +17,11 @@
 <a href="../docs/demo.html">Interactive demo</a>
 <a href="../docs/architecture.html">Architecture</a>
 <a href="../docs/supported-chains.html">Supported chains</a>
+<a href="../docs/tutorial-program-keys.html">Tutorial: Program keys</a>
+<a href="../docs/tutorial-hyperliquid.html">Tutorial: Hyperliquid</a>
+<a href="../docs/tutorial-aave.html">Tutorial: Aave lending</a>
+<a href="../docs/tutorial-zcash-escrow.html">Tutorial: Zcash escrow</a>
+<a href="../docs/tutorial-btcfi.html">Tutorial: BTCFi</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
@@ -29,6 +34,7 @@
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / QUICKSTART</p>
 <h1>Build with hosted signers.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#choose">Choose an authority</a><a href="#compare">What changes between sources?</a><a href="#common">The common application flow</a><a href="#transactions">Sign or send a transaction</a><a href="#policy">Add policy deliberately</a><a href="#recovery">Recover the original attempt</a><a href="#status">Check availability</a></nav>
 <p class="lead">All four authority sources follow the same derive, sign, send and recover lifecycle. Choose the proof your users can safely operate.</p>
+<pre><code>npm install @pairkey/sdk @solana/web3.js</code></pre>
 <h2 id="choose">Choose an authority</h2>
 <div class="doc-link-grid"><a href="../docs/quickstart-account.html"><strong>Account wallet →</strong><span>A Solana wallet directly approves each exact request off-chain.</span></a><a href="../docs/quickstart-program.html"><strong>Solana program →</strong><span>A controller PDA applies application rules through evaluation or commit.</span></a><a href="../docs/quickstart-passkey.html"><strong>Passkey →</strong><span>WebAuthn binds a fresh ephemeral approval key to a stable credential identity.</span></a><a href="../docs/quickstart-oidc.html"><strong>OAuth / OIDC →</strong><span>An issuer ID token binds a fresh ephemeral approval key to a stable subject.</span></a></div>
 <h2 id="compare">What changes between sources?</h2>
@@ -38,8 +44,12 @@
 <tr><td>Passkey</td><td>Verified credential identity and ID</td><td>Complete a WebAuthn assertion</td><td>No transaction or rent</td></tr>
 <tr><td>OIDC</td><td>Issuer, audience, subject and token callback</td><td>Complete provider login for a fresh nonce</td><td>No transaction or rent</td></tr>
 </tbody></table></div>
+<p>Passkey and OIDC sign-in authenticate the authority for an exact PairKey request. The derived destination key uses its own <a href="../docs/signing.html#messages">chain signing scheme</a>; a sign-in token or WebAuthn assertion is not the destination signature.</p>
 <h2 id="common">The common application flow</h2>
-<pre><code>const pairkey = new PairKeyClient({web3, storage: localStorage});
+<pre><code>import * as web3 from '@solana/web3.js';
+import {PairKeyClient} from '@pairkey/sdk';
+
+const pairkey = new PairKeyClient({web3, storage: localStorage});
 
 // Source-specific. See one of the four guides above.
 await pairkey.connect({source, namespace, ...authentication});
@@ -71,7 +81,7 @@ if (sent.status === 'unknown') {
 }</code></pre>
 <p>Recovery retrieves the same job and signed bytes. It does not request another approval or create another signature. Save the public recovery record before submission and treat a timeout as uncertain until signing and destination status are checked.</p>
 <h2 id="status">Check availability</h2>
-<p>The hosted configuration advertises supported sources, signer identities, transaction adapters and example program. The package API shown in these guides is prepared for the first <code>@pairkey/sdk</code> npm release; use the <a href="https://github.com/yinscode/pairkey/tree/main/website">repository source</a> until it is published. See <a href="../docs/supported-chains.html">supported chain operations</a> and <a href="../docs/security.html">development deployment status</a>.</p>
+<p>The hosted configuration advertises supported sources, signer identities, transaction adapters and example program. Use the released <code>@pairkey/sdk</code> package with the <a href="../docs/supported-chains.html#use-cases">destination use cases and supported operations</a>. Check <a href="../docs/security.html">development deployment status</a> before using valuable funds.</p>
 
 <nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs.html"><span>Previous</span><strong>Overview →</strong></a><a href="../docs/keys-and-namespaces.html"><span>Next</span><strong>Keys &amp; namespaces →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

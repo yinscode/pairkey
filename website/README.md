@@ -40,7 +40,7 @@ explicit management transactions. They reuse wallet transaction compatibility fr
 `hosted-client.mjs` (the v1 client). `pairkey-client.mjs` provides one interface
 for account, program, passkey and OIDC sources with message signing, typed
 transaction signing, client-side broadcast and recovery. `program-client.mjs`
-adds explicit example-controller policy management. They form the publishable
+adds explicit example-controller policy management. They form the published
 `@pairkey/sdk` package with type declarations. The docs generator includes them in
 `examples/hosted-client-v2.zip`.
 

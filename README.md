@@ -28,9 +28,11 @@ and recovery.
 
 ## The short version
 
+Install the browser SDK with `npm install @pairkey/sdk @solana/web3.js`.
+
 ```js
 import * as web3 from '@solana/web3.js';
-import {PairKeyClient} from './website/pairkey-client.mjs';
+import {PairKeyClient} from '@pairkey/sdk';
 
 const pairkey = new PairKeyClient({web3, storage: localStorage});
 
@@ -58,9 +60,8 @@ console.log(signed.jobId, signed.signatureHex);
 That same `key`, `signMessage`, `signTransaction`, `signAndSend`, and `recover`
 interface works after connecting any authority source.
 
-The browser package is prepared for its first npm release. Until it is
-published, use [the SDK source in this repository](website/pairkey-client.mjs)
-and follow the [package usage guide](website/PACKAGE-README.md).
+See the [package usage guide](website/PACKAGE-README.md) and
+[destination use cases](https://pairkey.com/docs/supported-chains.html#use-cases).
 
 ## Why developers use PairKey
 
@@ -156,16 +157,17 @@ or custom broadcast callback supplied by the application.
 | Destination | Message signing | Transaction signing | `signAndSend` |
 | --- | --- | --- | --- |
 | Solana | Ed25519 | Legacy and v0 transaction messages | Solana connection |
-| EVM | EIP-191 with secp256k1 | Restricted EIP-155 legacy native transfer | EVM RPC URL |
+| EVM | EIP-191 and EIP-712 with secp256k1 | Restricted EIP-155 legacy native transfer on a selected chain ID | EVM RPC URL |
 | NEAR | Ed25519 | Canonical Borsh transaction | NEAR RPC URL |
 | Sui | Ed25519 application message | BCS `TransactionData` | Sui client |
-| Bitcoin | BIP-340 tagged message digest | Adapter pending | Adapter pending |
-| Zcash | RedPallas message signature | Adapter pending | Adapter pending |
+| Bitcoin | BIP-340 tagged message digest | Single-input testnet Taproot PSBT in source preview | Bitcoin RPC in source preview |
+| Zcash | RedPallas message signature | Restricted testnet Ironwood PCZT library alpha; no hosted API or ZIP 2005 recovery guarantee | Adapter pending |
 
-The public deployment advertises current capabilities at
+The Bitcoin PSBT path requires a coordinated SDK and service release; the current
+public deployment does not advertise it. The public deployment advertises current capabilities at
 [`GET /api/v2/config`](https://pairkey.com/api/v2/config). See
 [Supported chains](https://pairkey.com/docs/supported-chains.html) for working
-examples for all three operations on every destination.
+examples and the status of each destination adapter.
 
 ## Recover an uncertain result
 

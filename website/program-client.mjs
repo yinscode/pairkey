@@ -4,7 +4,7 @@
  */
 import {PairKey} from './hosted-v2.mjs';
 import {HostedSession} from './hosted-session.mjs';
-import {check, same, namespaceDigest} from './approval-codec.mjs';
+import {check, same, namespaceDigest, destinationChain, canonicalTypedDataJson} from './approval-codec.mjs';
 
 export class ProgramClient {
   constructor({web3, wallet, programId, source, sourceProvider, policyAdapter, mode = 'Onchain', policyScope = 'namespace', endpoint, deployment,
@@ -48,10 +48,11 @@ export class ProgramClient {
   }
 
   /** Explicit owner transaction. Call for setup or a deliberate rules edit. */
-  async setPolicy({chain, pathPrefix, maxPayloadBytes = 1232,
+  async setPolicy({chain, chainId, pathPrefix, maxPayloadBytes = 1232,
     remainingApprovals = 0, enabled = true} = {}) {
     check(this.session.namespace, 'Connect the program first');
     check(chain && Array.isArray(pathPrefix), 'Choose a destination chain and path prefix');
+    chain=destinationChain(chain,chainId);
     if (this.policyAdapter?.set) {
       const result = await this.policyAdapter.set({namespace: this.session.namespace, wallet: this.wallet, client: this.client,
         policy: {chain, pathPrefix, maxPayloadBytes, remainingApprovals, enabled, requireCommit: this.mode === 'Onchain'}});
@@ -74,9 +75,9 @@ export class ProgramClient {
     return {transactionSignature: signature, revision};
   }
 
-  async deriveKey({chain, path = [0]} = {}) {
+  async deriveKey({chain, chainId, path = [0]} = {}) {
     check(chain, 'Choose a destination chain');
-    return this.session.loadKey(chain, path);
+    return this.session.loadKey(destinationChain(chain,chainId), path);
   }
 
   async finish(result, saved) {
@@ -107,8 +108,9 @@ export class ProgramClient {
     };
   }
 
-  async signMessage({chain, path = [0], message} = {}) {
+  async signMessage({chain, chainId, path = [0], message} = {}) {
     check(this.session.namespace, 'Connect the program first');
+    chain=destinationChain(chain,chainId);
     if (!this.session.key || !same(this.session.selection, {chain, path})) {
       await this.deriveKey({chain, path});
     }
@@ -117,16 +119,36 @@ export class ProgramClient {
     return this.finish(result, saved);
   }
 
-  async signTransaction({chain, path=[0], transaction}={}) {
+  async signTypedData({chainId,path=[0],typedData}={}) {
+    check(this.session.namespace?.config?.typed_data_signing?.evm===true,
+      'This PairKey deployment does not advertise EIP-712 signing');
+    check(Number.isSafeInteger(chainId)&&chainId>0&&typedData?.domain?.chainId===chainId,
+      'EIP-712 domain chainId must match the selected EVM chain');
+    const json=[...new TextEncoder().encode(canonicalTypedDataJson(typedData))];
+    check(json.length>0&&json.length<=1000,'EIP-712 typed data exceeds 1000 bytes');
+    const chain=destinationChain('evm',chainId);
+    if(!this.session.key||!same(this.session.selection,{chain,path}))await this.deriveKey({chain:'evm',chainId,path});
+    const result=await this.session.signTransaction({chain,path,
+      transaction:{evm_typed_data:{typed_data:{chain_id:chainId,json}}}});
+    const saved=JSON.parse(this.storage.getItem(this.storageKey));
+    const signed=await this.finish(result,saved);
+    check(/^0x[0-9a-f]{130}$/i.test(signed.signatureHex),'EIP-712 signature encoding missing');
+    const recovery=parseInt(signed.signatureHex.slice(-2),16);
+    check(recovery===0||recovery===1,'EIP-712 recovery ID invalid');
+    return {...signed,evmSignatureHex:`${signed.signatureHex.slice(0,-2)}${(27+recovery).toString(16)}`};
+  }
+
+  async signTransaction({chain, chainId, path=[0], transaction}={}) {
     check(['solana','evm','near','sui'].includes(chain), 'Transaction signing supports Solana, EVM, NEAR and Sui');
     check(this.session.namespace?.config?.transaction_signing?.[chain]?.sign === true,
       `This PairKey deployment does not advertise ${chain} transaction signing`);
-    if (!this.session.key || !same(this.session.selection, {chain, path})) await this.deriveKey({chain, path});
+    const destination=destinationChain(chain,chainId);
+    if (!this.session.key || !same(this.session.selection, {chain:destination, path})) await this.deriveKey({chain,chainId,path});
     const wire=chain==='solana'?{solana:{message:[...(transaction.message?.serialize?.()??transaction.serializeMessage?.()??[])]}}
       :chain==='evm'?(transaction.evm_legacy?transaction:{evm_legacy:{transfer:transaction}})
       :chain==='near'?(transaction.near?transaction:{near:{transaction:[...transaction]}})
       :transaction.sui?transaction:{sui:{transaction:[...transaction]}};
-    const result=await this.session.signTransaction({chain,path,transaction:wire});
+    const result=await this.session.signTransaction({chain:destination,path,transaction:wire});
     const saved=JSON.parse(this.storage.getItem(this.storageKey));
     return this.finish(result,saved);
   }

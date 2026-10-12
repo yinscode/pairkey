@@ -17,6 +17,11 @@
 <a href="docs/demo.html">Interactive demo</a>
 <a href="docs/architecture.html">Architecture</a>
 <a href="docs/supported-chains.html">Supported chains</a>
+<a href="docs/tutorial-program-keys.html">Tutorial: Program keys</a>
+<a href="docs/tutorial-hyperliquid.html">Tutorial: Hyperliquid</a>
+<a href="docs/tutorial-aave.html">Tutorial: Aave lending</a>
+<a href="docs/tutorial-zcash-escrow.html">Tutorial: Zcash escrow</a>
+<a href="docs/tutorial-btcfi.html">Tutorial: BTCFi</a>
 <a href="docs/integration.html">Solana program integration</a>
 <a href="docs/signing.html">Signing schemes</a>
 <a href="docs/policy.html">Policy &amp; rules</a>
@@ -29,7 +34,9 @@
 <main id="main" class="docs-content"><p class="eyebrow"><a href="docs.html">DOCS</a> / OVERVIEW</p>
 <h1 id="overview">Build with programmable keys.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#model">The complete model</a><a href="#sources">Choose who controls the key</a><a href="#keys">Give each key a purpose</a><a href="#api">One SDK after connection</a><a href="#policy">Authentication and policy are separate</a><a href="#availability">Current development availability</a></nav>
 <p class="lead">Choose who controls a key, give it a purpose, approve one exact request, and receive a native signature from two independent signers.</p>
-<div class="docs-note"><p>New to PairKey? Follow the lifecycle below, then choose <a href="docs/quickstart.html">Account, Program, Passkey or OIDC</a>. Each source reaches the same key and transaction APIs; the authorization proof is what changes.</p></div>
+<div class="docs-note"><p>New to PairKey? Follow the lifecycle below, then choose <a href="docs/quickstart.html">Account, Program, Passkey or OIDC</a>. Each source uses the same key and signing interface; transaction support depends on the destination.</p></div>
+<p>Install the released browser SDK with <code>npm install @pairkey/sdk @solana/web3.js</code>. See <a href="docs/supported-chains.html#use-cases">destination signature use cases</a> for transactions on Solana, EVM, NEAR and Sui, EIP-712 typed data on EVM (source preview), and application message signatures on Bitcoin and Zcash.</p>
+<p>Explore the tutorials for <a href="docs/tutorial-program-keys.html">program-controlled keys</a>, <a href="docs/tutorial-hyperliquid.html">Hyperliquid</a>, <a href="docs/tutorial-aave.html">Aave lending</a>, <a href="docs/tutorial-zcash-escrow.html">Zcash escrow</a> and <a href="docs/tutorial-btcfi.html">BTCFi</a>. Each guide identifies the signing features available today and the adapters still required.</p>
 <h2 id="model">The complete model</h2>
 <ol class="architecture-flow"><li><strong>Choose a source</strong><span>A wallet, Solana program, passkey or OIDC identity controls the namespace.</span></li><li><strong>Name the purpose</strong><span>A namespace such as <code>org/acme/treasury</code> creates a stable authority and policy boundary.</span></li><li><strong>Derive a key</strong><span>The namespace, destination chain and numeric path select a stable public key. No complete private key is assembled.</span></li><li><strong>Approve exactly one request</strong><span>The source authenticates the destination, path, payload commitment, request ID, expiry and current policy revision.</span></li><li><strong>Threshold sign</strong><span>Both signers independently verify the request and policy, then produce one chain-native signature.</span></li><li><strong>Send or recover</strong><span>Your application broadcasts through its destination RPC. A saved job ID retrieves the original attempt after interruption.</span></li></ol>
 <h2 id="sources">Choose who controls the key</h2>
@@ -47,7 +54,11 @@ path [0]: operating account
 path [1]: reserve account</code></pre>
 <p>The stable key is selected by the source identity, PairKey deployment, namespace, destination and path. Policy edits do not rotate it. Changing the source, namespace, destination or path selects another key. See <a href="docs/keys-and-namespaces.html">Keys &amp; namespaces</a>.</p>
 <h2 id="api">One SDK after connection</h2>
-<pre><code>await pairkey.connect({source, namespace, ...authentication});
+<pre><code>import * as web3 from '@solana/web3.js';
+import {PairKeyClient} from '@pairkey/sdk';
+
+const pairkey = new PairKeyClient({web3, storage: localStorage});
+await pairkey.connect({source, namespace, ...authentication});
 
 const key = await pairkey.key({chain, path});
 const signed = await pairkey.signMessage({chain, path, message});
@@ -58,8 +69,9 @@ const recovered = await pairkey.recover(jobId);</code></pre>
 <h2 id="policy">Authentication and policy are separate</h2>
 <p>Exact-request authentication proves who approved the operation. Optional standard rules restrict destination, path, payload size or availability. A program can additionally enforce application logic such as membership, recipient, amount, proposal state or a consumable budget. Setting or editing policy is an administrative transaction; it is not repeated before every signature.</p>
 <h2 id="availability">Current development availability</h2>
-<div class="table-scroll" role="region" aria-label="Current signing support" tabindex="0"><table><thead><tr><th>Destination</th><th>Messages</th><th>Transactions</th></tr></thead><tbody><tr><td>Solana</td><td>Supported</td><td>Legacy and v0</td></tr><tr><td>EVM</td><td>Supported</td><td>Restricted EIP-155 legacy native transfers</td></tr><tr><td>NEAR</td><td>Supported</td><td>Canonical Borsh transactions; key must already be installed</td></tr><tr><td>Bitcoin</td><td>Supported</td><td>Adapter pending</td></tr><tr><td>Zcash</td><td>Supported</td><td>Adapter pending</td></tr></tbody></table></div>
-<p>The SDK package is prepared for its first npm release; use the <a href="https://github.com/yinscode/pairkey/blob/main/website/pairkey-client.mjs">repository SDK source</a> until publication. Hosted passkey and Google OIDC flows remain development previews. Review <a href="docs/security.html">Security &amp; status</a> before using valuable funds.</p>
+<div class="table-scroll" role="region" aria-label="Current signing support" tabindex="0"><table><thead><tr><th>Destination</th><th>Application messages</th><th>Transactions</th></tr></thead><tbody><tr><td>Solana</td><td>Ed25519</td><td>Legacy and v0</td></tr><tr><td>EVM</td><td>EIP-191</td><td>Restricted EIP-155 legacy native transfers on Base Sepolia</td></tr><tr><td>NEAR</td><td>Ed25519</td><td>Canonical Borsh transactions; key must already be installed</td></tr><tr><td>Sui</td><td>Ed25519</td><td>BCS TransactionData</td></tr><tr><td>Bitcoin</td><td>PairKey-tagged BIP-340</td><td>Restricted testnet Taproot PSBT source preview; not yet live</td></tr><tr><td>Zcash</td><td>RedPallas</td><td>Restricted testnet Ironwood PCZT library alpha; not yet hosted; no recovery guarantee</td></tr></tbody></table></div>
+<p>EVM EIP-712 typed data, selectable chain IDs, and restricted Bitcoin Taproot PSBT signing are source previews that need a coordinated SDK and service release. See <a href="docs/signing.html#messages">Signing schemes</a> for what each message method signs and <a href="docs/supported-chains.html#coverage">Supported chains</a> for operation availability.</p>
+<p>Hosted passkey and Google OIDC flows remain development previews. Review <a href="docs/security.html">Security &amp; status</a> before using valuable funds.</p>
 
 <nav class="docs-pagination" aria-label="Next and previous pages"><a href="docs/quickstart.html"><span>Next</span><strong>Quickstart →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="index.html"><img src="mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="docs/security.html">Security &amp; status →</a></footer></body></html>

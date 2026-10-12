@@ -1,0 +1,19 @@
+<p class="lead">Use a program-controlled EVM key to set token allowance, supply to Aave, and later withdraw under application rules.</p>
+<div class="docs-note"><p><strong>Integration status:</strong> the hosted EVM adapter accepts legacy native transfers. On a deployment advertising <code>evm_chain_selection</code>, it can select an EIP-155 chain ID, but it does not accept ERC-20 approvals, Aave <code>Pool.supply</code> calls or EIP-1559 transactions. This guide defines the contract-call and policy work required before lending is enabled.</p></div>
+<h2 id="market">1. Select the market</h2>
+<p>Choose an Aave market and chain from the <a href="https://aave.com/docs/aave-v3/smart-contracts/pool">Aave Pool documentation</a>. Read the market's current <code>PoolAddressesProvider</code>, Pool proxy, token address, decimals, reserve status and risk parameters from that chain. Never copy an address from another network into a signing request.</p>
+<h2 id="key">2. Derive a dedicated EVM key</h2>
+<pre><code>import * as web3 from '@solana/web3.js';
+import {PairKeyClient} from '@pairkey/sdk';
+
+const pairkey = new PairKeyClient({web3, storage: localStorage});
+await pairkey.connect({
+  source: 'program', wallet, program: controllerProgramId,
+  mode: 'Onchain', namespace: 'org/acme/aave',
+});
+const key = await pairkey.key({chain: 'evm', chainId: marketChainId, path: [0]});</code></pre>
+<p>Pass <code>chainId</code> to <code>key</code> when the deployment supports chain selection. The current transaction adapter still cannot sign the contract calls needed to lend.</p>
+<h2 id="approve">3. Approve only the needed allowance</h2>
+<p>Aave's <code>Pool.supply(asset, amount, onBehalfOf, referralCode)</code> requires the Pool to have token allowance. The application builds an ERC-20 <code>approve(Pool, amount)</code> transaction first, then builds the supply call. The program checks the token, Pool, beneficiary, amount and deadline in both exact payloads. Avoid an unlimited allowance unless your policy explicitly accepts it.</p>
+<h2 id="supply">4. Sign and monitor lending actions</h2>
+<p>The planned EVM adapter must support calldata and the destination chain's transaction format. Once available, pass the built transaction to <code>signAndSend</code> with that chain's RPC, save the job ID, and confirm the transaction receipt and resulting aToken balance. For withdrawal, approve an exact <code>Pool.withdraw</code> call under a separate rule. See <a href="https://aave.com/docs/aave-v3/markets/operations">Aave market operations</a> for the contract sequence.</p>

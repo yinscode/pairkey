@@ -65,14 +65,16 @@ export declare class ProgramClient {
   /** Sends an explicit owner-signed Solana transaction; never called by signMessage. */
   setPolicy(options: {
     chain: Chain;
+    chainId?: number;
     pathPrefix: number[];
     maxPayloadBytes?: number;
     remainingApprovals?: number;
     enabled?: boolean;
   }): Promise<{transactionSignature: string; revision: number}>;
-  deriveKey(options: {chain: Chain; path?: number[]}): Promise<KeyResponse>;
-  signMessage(options: {chain: Chain; path?: number[]; message: string}): Promise<SigningResult>;
-  signTransaction(options: {chain: 'solana' | 'evm' | 'near' | 'sui'; path?: number[]; transaction: unknown}): Promise<SigningResult>;
+  deriveKey(options: {chain: Chain; chainId?: number; path?: number[]}): Promise<KeyResponse>;
+  signMessage(options: {chain: Chain; chainId?: number; path?: number[]; message: string}): Promise<SigningResult>;
+  signTypedData(options: {chainId: number; path?: number[]; typedData: {types: Record<string, {name: string; type: string}[]>; primaryType: string; domain: {chainId: number; [key: string]: unknown}; message: Record<string, unknown>}}): Promise<SigningResult & {evmSignatureHex: string}>;
+  signTransaction(options: {chain: 'solana' | 'evm' | 'near' | 'sui'; chainId?: number; path?: number[]; transaction: unknown}): Promise<SigningResult>;
   /** Reads the same saved job without a new wallet prompt, commit or signing attempt. */
   recover(jobId?: string): Promise<SigningResult>;
   /** Broadcasts native Ed25519 verification on Solana; does not transfer assets. */

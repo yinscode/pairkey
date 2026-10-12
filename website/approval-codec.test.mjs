@@ -48,6 +48,36 @@ test('typed Solana, EVM and NEAR transaction envelopes bind exact transaction fi
   sol.transaction.solana.message[0]^=1;assert.notDeepEqual(solBytes,await codec.payload(sol,byChain.solana.key));
   near.transaction.near.transaction[0]^=1;assert.notDeepEqual(nearBytes,await codec.payload(near,byChain.near.key));
 });
+test('EVM chain selection binds the key account and transaction chain ID',async()=>{
+  const source=vectors.cases.find(v=>v.prepared.signing_request.key.chain==='evm');
+  const q=structuredClone(source.prepared.signing_request),key=structuredClone(source.key);
+  q.key.chain={evm_chain:{chain_id:1}};
+  key.account=await codec.account(q.key.chain,q.key.path);
+  key.multi.key.account=key.account;
+  q.message='';q.transaction={evm_legacy:{transfer:{chain_id:1,nonce:1,gas_price:2,gas_limit:21000,to:Array(20).fill(3),value:4}}};
+  const signed=await codec.payload(q,key);
+  assert.ok(signed.length>0);
+  q.transaction.evm_legacy.transfer.chain_id=84532;
+  await assert.rejects(()=>codec.payload(q,key),/Unsupported EVM transaction bounds/);
+  assert.notDeepEqual(await codec.account('evm',[0]),await codec.account({evm_chain:{chain_id:1}},[0]));
+  q.transaction=undefined;q.message='chain-bound hello';
+  assert.ok((await codec.payload(q,key)).length>0);
+});
+test('EIP-712 approval binds complete typed JSON and selected chain',async()=>{
+  const source=vectors.cases.find(v=>v.prepared.signing_request.key.chain==='evm');
+  const q=structuredClone(source.prepared.signing_request),key=structuredClone(source.key);
+  q.message='';
+  const typed={types:{EIP712Domain:[{name:'chainId',type:'uint256'}],Vote:[{name:'support',type:'bool'}]},
+    primaryType:'Vote',domain:{chainId:84532},message:{support:true}};
+  q.transaction={evm_typed_data:{typed_data:{chain_id:84532,json:[...new TextEncoder().encode(codec.canonicalTypedDataJson(typed))]}}};
+  const first=await codec.payload(q,key);
+  typed.message.support=false;
+  q.transaction.evm_typed_data.typed_data.json=[...new TextEncoder().encode(codec.canonicalTypedDataJson(typed))];
+  assert.notDeepEqual(first,await codec.payload(q,key));
+  typed.domain.chainId=1;
+  q.transaction.evm_typed_data.typed_data.json=[...new TextEncoder().encode(codec.canonicalTypedDataJson(typed))];
+  await assert.rejects(()=>codec.payload(q,key),/domain or message mismatch/);
+});
 test('typed Sui transaction uses the native intent digest',async()=>{
   const source=vectors.cases.find(v=>v.prepared.signing_request.key.chain==='solana');
   const registration=structuredClone(source.prepared.signing_request.key.registration),path=[0];
@@ -60,6 +90,22 @@ test('typed Sui transaction uses the native intent digest',async()=>{
   assert.notDeepEqual(approved,await codec.payload(q,key));
   q.transaction.sui.transaction=Array(1198).fill(0);
   await assert.rejects(()=>codec.payload(q,key),/protocol bound/);
+});
+test('Bitcoin PSBT approval binds the PSBT, outputs, and fee limits',async()=>{
+  const source=vectors.cases.find(v=>v.prepared.signing_request.key.chain==='bitcoin');
+  const q=structuredClone(source.prepared.signing_request),key=structuredClone(source.key);
+  q.message='';q.transaction={bitcoin_psbt:{spend:{network:'testnet',psbt:[112,115,98,116,255],outputs:[{value_sats:99000,script_pubkey:[81]}],max_fee_sats:1000,max_fee_rate_sat_vb:10}}};
+  const first=await codec.payload(q,key);
+  q.transaction.bitcoin_psbt.spend.psbt[0]^=1;
+  assert.notDeepEqual(first,await codec.payload(q,key));
+  q.transaction.bitcoin_psbt.spend.psbt[0]^=1;
+  q.transaction.bitcoin_psbt.spend.outputs[0].value_sats++;
+  assert.notDeepEqual(first,await codec.payload(q,key));
+  q.transaction.bitcoin_psbt.spend.outputs[0].value_sats--;
+  q.transaction.bitcoin_psbt.spend.max_fee_sats++;
+  assert.notDeepEqual(first,await codec.payload(q,key));
+  q.transaction.bitcoin_psbt.spend.network='mainnet';
+  await assert.rejects(()=>codec.payload(q,key),/testnet only/);
 });
 test('message, chain, path, source, policy, expiry and wallet-byte substitutions fail locally',async()=>{
   for(const v of vectors.cases){

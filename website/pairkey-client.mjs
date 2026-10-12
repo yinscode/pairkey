@@ -3,7 +3,7 @@
  * recovery have one application-facing shape. */
 import {PairKey} from './hosted-v2.mjs';
 import {HostedSession} from './hosted-session.mjs';
-import {check, identityKind} from './approval-codec.mjs';
+import {check, identityKind, same, destinationChain, canonicalTypedDataJson} from './approval-codec.mjs';
 const bytesFromHex=value=>Uint8Array.from(value.slice(2).match(/../g).map(part=>parseInt(part,16)));
 const base64=bytes=>btoa(String.fromCharCode(...bytes));
 
@@ -32,19 +32,36 @@ export class PairKeyClient {
     return this.session.namespace;
   }
 
-  async key({chain, path = [0]} = {}) {
+  async key({chain, chainId, path = [0]} = {}) {
     check(chain, 'Choose a destination chain');
-    return this.session.loadKey(chain, path);
+    return this.session.loadKey(destinationChain(chain,chainId), path);
   }
 
-  async signMessage({chain, path = [0], message, credentialId, getIdToken} = {}) {
-    return this.#sign({chain,path,message,credentialId,getIdToken});
+  async signMessage({chain, chainId, path = [0], message, credentialId, getIdToken} = {}) {
+    return this.#sign({chain:destinationChain(chain,chainId),path,message,credentialId,getIdToken});
+  }
+
+  /** Sign complete EIP-712 data with the domain's selected EVM chain. */
+  async signTypedData({chainId, path=[0], typedData, credentialId, getIdToken}={}) {
+    check(Number.isSafeInteger(chainId)&&chainId>0,'Choose an EVM chainId');
+    check(this.session.namespace?.config?.typed_data_signing?.evm===true,
+      'This PairKey deployment does not advertise EIP-712 signing');
+    check(typedData&&typeof typedData==='object'&&!Array.isArray(typedData),'Provide EIP-712 typed data');
+    check(typedData.domain?.chainId===chainId,'EIP-712 domain chainId must match the selected chain');
+    const json=[...new TextEncoder().encode(canonicalTypedDataJson(typedData))];
+    check(json.length>0&&json.length<=1000,'EIP-712 typed data exceeds 1000 bytes');
+    const chain=destinationChain('evm',chainId);
+    const signed=await this.#sign({chain,path,transaction:{evm_typed_data:{typed_data:{chain_id:chainId,json}}},credentialId,getIdToken});
+    check(/^0x[0-9a-f]{130}$/i.test(signed.signatureHex),'EIP-712 signature encoding missing');
+    const recovery=parseInt(signed.signatureHex.slice(-2),16);
+    check(recovery===0||recovery===1,'EIP-712 recovery ID invalid');
+    return {...signed,evmSignatureHex:`${signed.signatureHex.slice(0,-2)}${(27+recovery).toString(16)}`};
   }
 
   async #sign({chain,path=[0],message='',transaction,credentialId,getIdToken}) {
     check(this.session.namespace, 'Connect an authority first');
-    if (!this.session.key || this.session.selection?.chain !== chain
-      || JSON.stringify(this.session.selection.path) !== JSON.stringify(path)) await this.key({chain, path});
+    if (!this.session.key || !same(this.session.selection?.chain,chain)
+      || !same(this.session.selection?.path,path)) await this.key({chain, path});
     const kind = identityKind(this.session.namespace.identity);
     if (kind === 'Passkey') {
       const id = credentialId ?? this.credentialId;
@@ -64,12 +81,12 @@ export class PairKeyClient {
 
   #result(result){return {jobId:this.session.jobId,publicKeyHex:result.public_key_hex,signatureHex:result.signature_hex,result};}
 
-  async signTransaction({chain, path=[0], transaction, credentialId, getIdToken}={}) {
+  async signTransaction({chain, chainId, path=[0], transaction, credentialId, getIdToken}={}) {
     check(transaction, 'Provide a destination transaction');
     check(this.session.namespace?.config?.transaction_signing?.[chain]?.sign === true,
       `This PairKey deployment does not advertise ${chain} transaction signing`);
     const original=transaction,wire=this.#wireTransaction(chain,transaction);
-    const signed=await this.#sign({chain,path,transaction:wire,credentialId,getIdToken});
+    const signed=await this.#sign({chain:destinationChain(chain,chainId),path,transaction:wire,credentialId,getIdToken});
     const signedTransaction=this.#assemble(chain,original,signed);
     if(chain==='sui'){
       const value=signed.result?.serialized_signature_hex;
@@ -77,6 +94,11 @@ export class PairKeyClient {
       const serializedSignature=bytesFromHex(value);
       check(serializedSignature[0]===0,'PairKey currently supports Sui Ed25519 signatures');
       return {...signed,signedTransaction,serializedSignature};
+    }
+    if(chain==='bitcoin'){
+      const value=signed.result?.signed_psbt_hex;
+      check(typeof value==='string'&&/^0x[0-9a-f]+$/i.test(value),'Signed PSBT encoding missing');
+      return {...signed,signedTransaction,signedPsbt:bytesFromHex(value)};
     }
     return {...signed,signedTransaction};
   }
@@ -99,11 +121,16 @@ export class PairKeyClient {
       check(transaction instanceof Uint8Array||Array.isArray(transaction),'Build the Sui transaction first and provide its BCS TransactionData bytes');
       return {sui:{transaction:[...transaction]}};
     }
+    if(chain==='bitcoin'){
+      const spend=transaction.bitcoin_psbt?.spend??transaction;
+      check(spend&&typeof spend==='object','Provide a Bitcoin PSBT spend request');
+      return {bitcoin_psbt:{spend}};
+    }
     throw new Error(`${chain} transaction signing is not implemented`);
   }
 
   #assemble(chain,original,signed){
-    if(chain==='evm'||chain==='near'){
+    if(chain==='evm'||chain==='near'||chain==='bitcoin'){
       const hex=signed.result?.signed_transaction_hex;
       check(typeof hex==='string'&&/^0x[0-9a-f]+$/i.test(hex),'Signed transaction encoding missing');
       return Uint8Array.from(hex.slice(2).match(/../g).map(value=>parseInt(value,16)));
@@ -161,11 +188,11 @@ export class PairKeyClient {
           status=receipt?.$kind==='FailedTransaction'||completed?.effects?.status?.error?'failed':'confirmed';
         }else{
           check(options.rpcUrl,'Provide a destination RPC URL or broadcast callback');
-          const method=chain==='evm'?'eth_sendRawTransaction':'broadcast_tx_commit';
-          const value=chain==='evm'?`0x${rawHex}`:base64(signed.signedTransaction);
+          const method=chain==='evm'?'eth_sendRawTransaction':chain==='bitcoin'?'sendrawtransaction':'broadcast_tx_commit';
+          const value=chain==='evm'?`0x${rawHex}`:chain==='bitcoin'?rawHex:base64(signed.signedTransaction);
           const response=await fetch(options.rpcUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params:[value]})});
           const body=await response.json();check(response.ok&&!body.error,body.error?.message??'Destination RPC rejected transaction');
-          receipt=body.result;transactionId=chain==='evm'?body.result:body.result?.transaction?.hash;
+          receipt=body.result;transactionId=chain==='evm'||chain==='bitcoin'?body.result:body.result?.transaction?.hash;
           status=chain==='near'?'confirmed':'submitted';
         }
         if(chain==='evm'&&options.confirm){
@@ -185,9 +212,10 @@ export class PairKeyClient {
   async recover(jobId) {
     const signed=this.#result(await this.session.recover(jobId));
     if(signed.result.transaction){
-      const chain=Object.keys(signed.result.transaction)[0].replace('_legacy','');
+      const chain=Object.keys(signed.result.transaction)[0].replace('_legacy','').replace('_psbt','');
       signed.signedTransaction=this.#assemble(chain,undefined,signed);
       if(chain==='sui')signed.serializedSignature=bytesFromHex(signed.result.serialized_signature_hex);
+      if(chain==='bitcoin')signed.signedPsbt=bytesFromHex(signed.result.signed_psbt_hex);
     }
     return signed;
   }

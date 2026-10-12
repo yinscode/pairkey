@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Three ways to use program-controlled keys. PairKey developer documentation: Tutorial: Program keys.">
+<title>Tutorial: Program keys — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
+<body><a class="skip" href="#main">Skip to content</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
+<nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
+<a class="button small" href="../docs/quickstart.html">Get started →</a></header>
+<div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
+<a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/keys-and-namespaces.html">Keys &amp; namespaces</a>
+<a href="../docs/quickstart-account.html">Quickstart: Account</a>
+<a href="../docs/quickstart-program.html">Quickstart: Program</a>
+<a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
+<a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
+<a href="../docs/demo.html">Interactive demo</a>
+<a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/supported-chains.html">Supported chains</a>
+<a href="../docs/tutorial-program-keys.html" aria-current="page">Tutorial: Program keys</a>
+<a href="../docs/tutorial-hyperliquid.html">Tutorial: Hyperliquid</a>
+<a href="../docs/tutorial-aave.html">Tutorial: Aave lending</a>
+<a href="../docs/tutorial-zcash-escrow.html">Tutorial: Zcash escrow</a>
+<a href="../docs/tutorial-btcfi.html">Tutorial: BTCFi</a>
+<a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/signing.html">Signing schemes</a>
+<a href="../docs/policy.html">Policy &amp; rules</a>
+<a href="../docs/policy-demo.html">Policy demo</a>
+<a href="../docs/api.html">SDK &amp; API reference</a>
+<a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
+<a href="../docs/local-development.html">Local development</a>
+<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
+<main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / TUTORIAL: PROGRAM KEYS</p>
+<h1>Three ways to use program-controlled keys.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#setup">Connect a program authority</a><a href="#treasury">1. Read-only treasury rules</a><a href="#governance">2. Governance execution</a><a href="#payments">3. Capped payments</a></nav>
+<p class="lead">A Solana program can authorize the same derived key in different ways: read-only rules, a one-time governance decision, or a payment allowance.</p>
+<p>This tutorial uses the released <code>@pairkey/sdk</code>. The example controller is a starting point; your program must validate the actual request payload and application accounts for each rule.</p>
+<h2 id="setup">Connect a program authority</h2>
+<pre><code>npm install @pairkey/sdk @solana/web3.js</code></pre>
+<pre><code>import * as web3 from '@solana/web3.js';
+import {PairKeyClient} from '@pairkey/sdk';
+
+const pairkey = new PairKeyClient({web3, storage: localStorage});
+await pairkey.connect({
+  source: 'program',
+  wallet,
+  program: controllerProgramId,
+  mode: 'Onchain',
+  policyScope: 'namespace',
+  namespace: 'org/acme/treasury',
+});
+const operating = await pairkey.key({chain: 'solana', path: [0]});
+const reserve = await pairkey.key({chain: 'solana', path: [1]});</code></pre>
+<p>The two paths yield separate keys under one namespace. The program’s authority PDA approves requests; it does not store a destination private key. See the <a href="../docs/quickstart-program.html">program quickstart</a> for policy setup and the runnable browser example.</p>
+<h2 id="treasury">1. Read-only treasury rules</h2>
+<p>Use <code>Offchain</code> mode when an immutable program can decide from current state without consuming anything. For example, read a treasury configuration account and accept only an allowed destination, path and exact transfer payload. Both signers evaluate <code>pairkey_approve</code>. The application then calls <code>signTransaction</code> or <code>signAndSend</code> for a supported destination.</p>
+<pre><code>// Reconnect in Offchain mode for immutable, read-only program rules.
+await pairkey.connect({
+  source: 'program', wallet, program: controllerProgramId,
+  mode: 'Offchain', namespace: 'org/acme/treasury',
+});
+const signed = await pairkey.signTransaction({
+  chain: 'solana', path: [0], transaction: treasuryTransaction,
+});
+// Submit signed.signedTransaction with your Solana connection.</code></pre>
+<p>The transaction must list the derived key as a required signer. Read-only evaluation is suitable only when the program's code is immutable and its decision does not need an atomic state change.</p>
+<h2 id="governance">2. Governance execution</h2>
+<p>Use <code>Onchain</code> mode for a passed proposal that can execute once. Your controller checks the proposal ID, quorum, timelock and exact destination payload, marks the proposal used, and invokes the gateway approval CPI in the same Solana transaction. After finality, the SDK retrieves a signature for that approved request.</p>
+<pre><code>await pairkey.connect({
+  source: 'program', wallet, program: controllerProgramId,
+  mode: 'Onchain', namespace: 'org/acme/treasury',
+});
+const signed = await pairkey.signTransaction({
+  chain: 'solana', path: [1], transaction: proposalTransaction,
+});
+saveJobId(signed.jobId);</code></pre>
+<p>The example controller only demonstrates an allowance. Add proposal-state checks to your own program; a generic “proposal passed” message does not enforce what gets signed. A later destination failure does not automatically undo a consumed proposal.</p>
+<p><strong>Source preview:</strong> EIP-712 and selectable EVM chain IDs require a coordinated SDK and service release; this example does not run against the current public deployment. For an EVM governor that accepts EIP-712 votes, the same program authority can approve a vote signature on its selected chain. Bind the governor contract, proposal ID, support choice and domain to the proposal state before consuming it:</p>
+<pre><code>const vote = await pairkey.signTypedData({
+  chainId: governorChainId,
+  path: [2],
+  typedData: {
+    types: {
+      EIP712Domain: [
+        {name: 'name', type: 'string'},
+        {name: 'chainId', type: 'uint256'},
+        {name: 'verifyingContract', type: 'address'}
+      ],
+      Vote: [{name: 'proposalId', type: 'uint256'}, {name: 'support', type: 'bool'}]
+    },
+    primaryType: 'Vote',
+    domain: {name: governorName, chainId: governorChainId, verifyingContract: governorAddress},
+    message: {proposalId: String(proposalId), support: true}
+  }
+});
+console.log(vote.evmSignatureHex);</code></pre>
+<p>This returns a signature for the governor's own verification flow; it does not cast a vote or execute a transaction. Confirm the governor's exact EIP-712 schema and nonce or replay rules before using the signature.</p>
+<h2 id="payments">3. Capped payments</h2>
+<p>Use a separate payment namespace and path for each budget or payee group. The program checks recipient, amount, currency and remaining allowance in the typed transaction payload, decrements the allowance, then commits the exact approval. The client stores the job ID and recovers the original signed bytes after an uncertain result.</p>
+<pre><code>await pairkey.connect({
+  source: 'program', wallet, program: controllerProgramId,
+  mode: 'Onchain', namespace: 'org/acme/payments',
+});
+const payment = await pairkey.signAndSend({
+  chain: 'solana', path: [0], transaction: paymentTransaction,
+  connection,
+});
+if (payment.status === 'unknown') {
+  await pairkey.recoverAndSend(payment.jobId, {
+    chain: 'solana', connection, rebroadcast: true,
+  });
+}</code></pre>
+<p>Payment recipients and amounts must be parsed by the program from the canonical transaction, not inferred from a label supplied by the caller. The <a href="../docs/integration.html#approval">program integration guide</a> explains the approval CPI and recovery model.</p>
+
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/supported-chains.html"><span>Previous</span><strong>Supported chains →</strong></a><a href="../docs/tutorial-hyperliquid.html"><span>Next</span><strong>Tutorial: Hyperliquid →</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

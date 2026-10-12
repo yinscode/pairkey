@@ -62,6 +62,15 @@ test('policy setup is explicit and sign saves each job before the wallet prompt'
   assert.equal(f.events.findIndex(e=>e==='approve') > f.events.findIndex(e=>Array.isArray(e)&&e[0]==='key'),true);
 });
 
+test('program policy and key selection use the requested EVM chain ID', async () => {
+  const f=fixture();
+  await f.program.connect({namespace:'org/acme/treasury'});
+  await f.program.setPolicy({chain:'evm',chainId:1,pathPrefix:[0]});
+  assert.deepEqual(f.events.find(e=>Array.isArray(e)&&e[0]==='set-policy')[1].chain,{evm_chain:{chain_id:1}});
+  await f.program.deriveKey({chain:'evm',chainId:1,path:[0]});
+  assert.deepEqual(f.events.find(e=>Array.isArray(e)&&e[0]==='key')[1],{evm_chain:{chain_id:1}});
+});
+
 test('recovering an older job never approves, commits, or submits again', async () => {
   const f = fixture();
   await f.program.connect();

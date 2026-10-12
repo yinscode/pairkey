@@ -1,0 +1,23 @@
+<p class="lead">Authorize a Solana asset action and a Hyperliquid action under one application policy while the Solana assets stay on Solana.</p>
+<div class="docs-note"><p><strong>Integration status:</strong> PairKey can sign supported Solana transactions, but Hyperliquid exchange actions need an exact action-encoding and signing adapter. This is a dual-signature design guide, not a working cross-chain trade or an atomic settlement protocol.</p></div>
+<h2 id="vault">1. Keep assets in a Solana program vault</h2>
+<p>Use a Solana program to hold or control the asset and record its own balance, owner, allowed strategy and withdrawal conditions. PairKey signs only the Solana transaction that the vault actually requires. Solana custody does not give the Hyperliquid account a balance or collateral by itself; an off-chain risk engine must track both systems and enforce the application's exposure and settlement rules.</p>
+<h2 id="key">2. Derive separate signing keys</h2>
+<pre><code>import * as web3 from '@solana/web3.js';
+import {PairKeyClient} from '@pairkey/sdk';
+
+const pairkey = new PairKeyClient({web3, storage: localStorage});
+await pairkey.connect({
+  source: 'program', wallet, program: controllerProgramId,
+  mode: 'Onchain', namespace: 'org/acme/hyperliquid',
+});
+const solanaKey = await pairkey.key({chain: 'solana', path: [0]});
+const tradingKey = await pairkey.key({chain: 'evm', path: [1]});
+console.log(solanaKey.address, tradingKey.address);</code></pre>
+<p>Base Sepolia remains the default EVM chain. The updated SDK can select another EIP-155 chain ID when the hosted deployment advertises <code>evm_chain_selection</code>, but that is not a Hyperliquid action adapter. Do not register this address as a live trading key until exact Hyperliquid signing has been implemented and independently tested.</p>
+<h2 id="authorize">3. Bind both sides to one application decision</h2>
+<p>The risk engine proposes an approved market, side, maximum size, limit price, expiry and nonce after checking the vault state and current Hyperliquid exposure. The controller validates the proposal and exact Solana vault transaction or state transition. Commit a one-time decision through <code>pairkey_approve_commit</code>, then request the two signatures as separate jobs. Store both job IDs and reconcile each chain independently. Two signatures do not make execution atomic; the risk engine needs a defined response if only one side succeeds.</p>
+<h2 id="sign">4. Add the Hyperliquid signing adapter</h2>
+<p>Hyperliquid documents separate signing schemes for <a href="https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/signing">L1 actions and user-signed actions</a>. An adapter must reproduce its exact action hash, field ordering, nonce and domain, then return the recoverable signature expected by the <a href="https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/exchange-endpoint">exchange endpoint</a>. Generic EIP-191 <code>signMessage</code> and EIP-712 <code>signTypedData</code> do not by themselves encode a valid Hyperliquid exchange action.</p>
+<h2 id="verify">5. Verify both executions</h2>
+<p>After a supported adapter is available, submit the exact signed Solana transaction and Hyperliquid action, then independently verify Solana finality and the exchange response and resulting position. A completed PairKey job only proves signature production; it does not prove that the two systems settled together.</p>

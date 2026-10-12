@@ -1,15 +1,34 @@
 <p class="lead">Use the same PairKey client for every destination. Connect an account, program, passkey or OIDC authority once, then choose the chain, derivation path and operation.</p>
 <h2 id="coverage">Current coverage</h2>
-<div class="table-scroll" role="region" aria-label="PairKey supported chain operations" tabindex="0"><table><thead><tr><th>Chain</th><th><code>signMessage</code></th><th><code>signTransaction</code></th><th><code>signAndSend</code></th></tr></thead><tbody>
-<tr><td>Solana</td><td>Yes · Ed25519</td><td>Yes · legacy and v0 messages</td><td>Yes · Solana connection</td></tr>
-<tr><td>EVM</td><td>Yes · EIP-191 with secp256k1</td><td>Yes · EIP-155 legacy native transfer</td><td>Yes · EVM RPC URL</td></tr>
-<tr><td>NEAR</td><td>Yes · Ed25519</td><td>Yes · Borsh <code>Transaction</code></td><td>Yes · NEAR RPC URL</td></tr>
-<tr><td>Sui</td><td>Yes · Ed25519 application message</td><td>Yes · BCS <code>TransactionData</code></td><td>Yes · Sui client</td></tr>
-<tr><td>Bitcoin</td><td>Yes · BIP-340 tagged digest</td><td>Not yet</td><td>Not yet</td></tr>
-<tr><td>Zcash</td><td>Yes · RedPallas</td><td>Not yet</td><td>Not yet</td></tr>
+<p><strong>Public release status:</strong> The current public service and published <code>@pairkey/sdk</code> support EVM EIP-191 messages and Base Sepolia legacy native transfers. EIP-712 typed data, selectable EVM chain IDs, and restricted Bitcoin Taproot PSBT signing are implemented in repository source, pending a coordinated SDK and service release. Zcash PCZT signing is a separate testnet library alpha without hosted support or a ZIP 2005 recovery guarantee. Check <code>GET /api/v2/config</code> for deployment capabilities before showing these options.</p>
+<div class="table-scroll" role="region" aria-label="PairKey supported chain operations" tabindex="0"><table><thead><tr><th>Chain</th><th><code>signMessage</code></th><th><code>signTypedData</code></th><th><code>signTransaction</code></th><th><code>signAndSend</code></th></tr></thead><tbody>
+<tr><td>Solana</td><td>Yes · Ed25519 application message</td><td>—</td><td>Yes · legacy and v0 messages</td><td>Yes · Solana connection</td></tr>
+<tr><td>EVM</td><td>Yes · EIP-191</td><td>EIP-712 · source preview</td><td>Base Sepolia legacy native transfer live · chain selection source preview</td><td>Yes · EVM RPC URL for supported transfers</td></tr>
+<tr><td>NEAR</td><td>Yes · Ed25519 application message</td><td>—</td><td>Yes · Borsh <code>Transaction</code></td><td>Yes · NEAR RPC URL</td></tr>
+<tr><td>Sui</td><td>Yes · Ed25519 application message</td><td>—</td><td>Yes · BCS <code>TransactionData</code></td><td>Yes · Sui client</td></tr>
+<tr><td>Bitcoin</td><td>Yes · PairKey-tagged BIP-340 digest</td><td>—</td><td>Testnet single-input Taproot PSBT · source preview</td><td>Bitcoin JSON-RPC · source preview</td></tr>
+<tr><td>Zcash</td><td>Yes · raw RedPallas application message</td><td>—</td><td>Testnet Ironwood PCZT · library alpha only</td><td>Not yet</td></tr>
 </tbody></table></div>
-<p>Read <code>GET /api/v2/config</code> at runtime before offering transaction actions. PairKey rejects transaction methods when the deployment does not advertise an adapter. <code>signMessage</code> signs application-supplied message bytes using the destination scheme; EVM applies EIP-191 and Bitcoin applies PairKey's BIP-340 tagged digest. These methods are not replacements for chain transaction signing or wallet login standards.</p>
-<pre><code>const pairkey = new PairKeyClient({web3, storage: localStorage});
+<p>Read <code>GET /api/v2/config</code> at runtime before offering transaction or typed-data actions. PairKey rejects operations when the deployment does not advertise their adapters. <code>signMessage</code> signs application-supplied message bytes using the destination scheme; EVM applies EIP-191 and Bitcoin applies PairKey's BIP-340 tagged digest. <code>signTypedData</code> is a separate EVM operation. These methods are not replacements for chain transaction signing or wallet login standards. See the <a href="docs/signing.html#messages">scheme and signed-byte map</a>.</p>
+<h2 id="use-cases">What to build with destination signatures</h2>
+<p>Install <code>@pairkey/sdk</code> and the Solana peer dependency, then connect an authority once. The destination key and signature are selected by <code>chain</code> and <code>path</code>; the source used to approve the request can be an account, program, passkey or OIDC identity.</p>
+<pre><code>npm install @pairkey/sdk @solana/web3.js</code></pre>
+<div class="table-scroll" role="region" aria-label="Destination signature use cases" tabindex="0"><table><thead><tr><th>Destination</th><th>Example use case</th><th>SDK operation</th><th>Important boundary</th></tr></thead><tbody>
+<tr><td>Solana</td><td>Program-governed treasury or app wallet</td><td><code>signTransaction</code> / <code>signAndSend</code></td><td>The derived key must be a required signer in a legacy or v0 transaction.</td></tr>
+<tr><td>EVM</td><td>Policy-approved native payout; selectable chain in source preview</td><td><code>signTransaction</code> / <code>signAndSend</code></td><td>Public service uses Base Sepolia. Legacy EIP-155 native transfer only; no contract calls or EIP-1559.</td></tr>
+<tr><td>EVM</td><td>Governance vote or app authorization using EIP-712 · source preview</td><td><code>signTypedData</code></td><td>Requires a matching SDK and service release; bind the selected key's chain ID and exact verifying domain.</td></tr>
+<tr><td>NEAR</td><td>Account operation under an installed access key</td><td><code>signTransaction</code> / <code>signAndSend</code></td><td>Install the derived public key as a NEAR access key first.</td></tr>
+<tr><td>Sui</td><td>Policy-controlled transfer or programmable transaction</td><td><code>signTransaction</code> / <code>signAndSend</code></td><td>Build BCS <code>TransactionData</code> with the derived address as sender.</td></tr>
+<tr><td>Bitcoin</td><td>Application-specific proof tied to a derived key</td><td><code>signMessage</code></td><td>PairKey-tagged BIP-340 digest; not BIP-322 or a transaction signature.</td></tr>
+<tr><td>Bitcoin</td><td>Single-input testnet BTCFi spend · source preview</td><td><code>signTransaction</code> / <code>signAndSend</code></td><td>Exact Taproot PSBT v0, previous transaction, outputs and fee caps; requires matching SDK and service release.</td></tr>
+<tr><td>Zcash</td><td>Application-specific off-chain authorization</td><td><code>signMessage</code></td><td>Raw RedPallas signature; no Orchard transaction authorization.</td></tr>
+<tr><td>Zcash</td><td>One-output Ironwood shielded spend on testnet · library alpha</td><td>No released SDK operation</td><td>v6 PCZT v2 only; one real spend and output, no hosted service or ZIP 2005 recovery guarantee. See the <a href="docs/tutorial-zcash-escrow.html">escrow guide</a>.</td></tr>
+</tbody></table></div>
+<p>For transaction destinations, build the transaction with the chain's normal tooling. PairKey signs the exact canonical payload and can submit it through your supplied RPC or client. Bitcoin's new PSBT path is a source preview. Bitcoin and Zcash <code>signMessage</code> outputs remain application signatures and cannot be broadcast as transactions.</p>
+<pre><code>import * as web3 from '@solana/web3.js';
+import {PairKeyClient} from '@pairkey/sdk';
+
+const pairkey = new PairKeyClient({web3, storage: localStorage});
 
 await pairkey.connect({
   source: 'account',
@@ -39,15 +58,33 @@ const signed = await pairkey.signTransaction({
 console.log(sent.transactionId, sent.status);</code></pre>
 
 <h2 id="evm">EVM</h2>
-<p>The hosted adapter currently targets Base Sepolia, chain ID <code>84532</code>. Transaction signing accepts an EIP-155 legacy native transfer. EIP-1559, calldata, contract calls, access lists and arbitrary RLP are not accepted yet.</p>
+<p><strong>Source preview:</strong> The <code>chainId: 1</code> and <code>signTypedData</code> examples below require an SDK and service release that advertises <code>evm_chain_selection</code> and <code>typed_data_signing.evm</code>. They do not run against the current public deployment.</p>
+<p>The hosted adapter defaults to Base Sepolia, chain ID <code>84532</code>. On a deployment advertising <code>evm_chain_selection</code>, pass <code>chainId</code> to <code>key</code>, <code>signMessage</code>, <code>signTypedData</code> and transaction methods to select another EIP-155 chain. The key and approval destination are bound to that chain ID. EIP-712 signing also requires the same <code>domain.chainId</code>. Transaction signing still accepts only a legacy native transfer; EIP-1559, calldata, contract calls, access lists and arbitrary RLP are not accepted. A destination RPC must accept that legacy format for the signed transfer to execute.</p>
 <h3>Sign a message</h3>
 <pre><code>const messageResult = await pairkey.signMessage({
-  chain: 'evm', path: [0], message: 'Approve order 1842'
+  chain: 'evm', chainId: 1, path: [0], message: 'Approve order 1842'
 });
 // EIP-191 personal_sign digest, signed with the derived secp256k1 key.</code></pre>
+<h3>Sign EIP-712 typed data</h3>
+<pre><code>const typedData = {
+  types: {
+    EIP712Domain: [
+      {name: 'name', type: 'string'},
+      {name: 'chainId', type: 'uint256'},
+      {name: 'verifyingContract', type: 'address'}
+    ],
+    Vote: [{name: 'proposalId', type: 'uint256'}, {name: 'support', type: 'bool'}]
+  },
+  primaryType: 'Vote',
+  domain: {name: 'Council', chainId: 1, verifyingContract: '0x1111111111111111111111111111111111111111'},
+  message: {proposalId: '42', support: true}
+};
+const signedVote = await pairkey.signTypedData({chainId: 1, path: [0], typedData});
+console.log(signedVote.evmSignatureHex); // 65-byte signature with v = 27 or 28</code></pre>
+<p><code>signTypedData</code> requires <code>typed_data_signing.evm</code> in <code>GET /api/v2/config</code>. It signs the EIP-712 digest of the complete approved typed-data object and returns a signature; it does not broadcast a transaction. The serialized typed data is limited to 1,000 UTF-8 bytes by the hosted approval size bound. Construct exact domain and message values with the application before calling it.</p>
 <h3>Sign a transaction</h3>
 <pre><code>const transfer = {
-  chain_id: 84532,
+  chain_id: 1,
   nonce,
   gas_price: gasPrice,
   gas_limit: 21000,
@@ -56,13 +93,13 @@ console.log(sent.transactionId, sent.status);</code></pre>
 };
 
 const signed = await pairkey.signTransaction({
-  chain: 'evm', path: [0], transaction: transfer
+  chain: 'evm', chainId: 1, path: [0], transaction: transfer
 });
 // signed.signedTransaction is the complete signed legacy transaction.</code></pre>
 <h3>Sign and send</h3>
 <pre><code>const sent = await pairkey.signAndSend({
-  chain: 'evm', path: [0], transaction: transfer,
-  rpcUrl: 'https://your-base-sepolia-rpc.example',
+  chain: 'evm', chainId: 1, path: [0], transaction: transfer,
+  rpcUrl: 'https://your-ethereum-rpc.example',
   confirm: true
 });</code></pre>
 
@@ -111,23 +148,23 @@ const signed = await pairkey.signTransaction({
 console.log(sent.transactionId, sent.status);</code></pre>
 
 <h2 id="bitcoin">Bitcoin</h2>
-<p>PairKey currently provides BIP-340 message signatures over its tagged message digest. This is not BIP-322. Transaction signing remains unavailable until the adapter can validate PSBT inputs, UTXOs, BIP-341 sighashes, fees, change, witnesses and supported sighash modes.</p>
+<p>PairKey provides BIP-340 message signatures over its tagged message digest; this is not BIP-322. A restricted testnet Taproot PSBT transaction adapter is implemented in repository source but requires a matching service and SDK release. It validates one key-path input, its complete previous transaction and witness UTXO, one or two exact outputs, fee caps and BIP-341 SIGHASH_DEFAULT. See the <a href="docs/tutorial-btcfi.html">BTCFi tutorial</a>.</p>
 <h3>Sign a message</h3>
 <pre><code>const messageResult = await pairkey.signMessage({
   chain: 'bitcoin', path: [0], message: 'Approve order 1842'
 });
 console.log(messageResult.signatureHex);</code></pre>
-<h3>Sign a transaction · not available</h3>
+<h3>Sign a transaction · source preview</h3>
 <pre><code>const config = await fetch('/api/v2/config').then(response =&gt; response.json());
-console.log(config.transaction_signing.bitcoin.sign);   // false
-console.log(config.transaction_signing.bitcoin.reason); // Required PSBT adapter work
-
-// signTransaction({chain: 'bitcoin', ...}) rejects before approval or signing.</code></pre>
-<h3>Sign and send · not available</h3>
-<p><code>signAndSend({chain: 'bitcoin', ...})</code> uses the same capability check and rejects before contacting a Bitcoin node.</p>
+if (config.transaction_signing.bitcoin.sign) {
+  const signed = await pairkey.signTransaction({chain: 'bitcoin', path: [0], transaction: spend});
+  console.log(signed.signedPsbt, signed.signedTransaction);
+}</code></pre>
+<h3>Sign and send · source preview</h3>
+<p>On a matching deployment, <code>signAndSend({chain:'bitcoin', transaction:spend, rpcUrl})</code> broadcasts the finalized raw transaction with Bitcoin JSON-RPC <code>sendrawtransaction</code>. A custom <code>broadcast</code> callback also works. The current public deployment reports <code>transaction_signing.bitcoin.sign: false</code>.</p>
 
 <h2 id="zcash">Zcash</h2>
-<p>PairKey currently provides raw RedPallas message signatures, not an Orchard transaction authorization. Transaction signing remains unavailable until the adapter implements the ZIP transaction digest, shielded authorization, note witnesses, proofs, bundle assembly and binding authorization.</p>
+<p>The released service provides raw RedPallas application-message signatures. A feature-gated library alpha now validates one testnet Ironwood action in a version-6 PCZT v2 and inserts a two-party spend signature. The hosted API and published SDK do not expose it, and account setup, private PCZT delivery, wallet/prover integration, and independent testnet-spend validation remain. The alpha does not enroll ZIP 2005 recovery keys; future quantum recovery is not guaranteed. See the <a href="docs/tutorial-zcash-escrow.html">shielded escrow guide</a>.</p>
 <h3>Sign a message</h3>
 <pre><code>const messageResult = await pairkey.signMessage({
   chain: 'zcash', path: [0], message: 'Approve order 1842'
@@ -136,7 +173,7 @@ console.log(messageResult.signatureHex);</code></pre>
 <h3>Sign a transaction · not available</h3>
 <pre><code>const config = await fetch('/api/v2/config').then(response =&gt; response.json());
 console.log(config.transaction_signing.zcash.sign);   // false
-console.log(config.transaction_signing.zcash.reason); // Required ZIP adapter work
+console.log(config.transaction_signing.zcash.reason);
 
 // signTransaction({chain: 'zcash', ...}) rejects before approval or signing.</code></pre>
 <h3>Sign and send · not available</h3>

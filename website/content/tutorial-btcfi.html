@@ -1,0 +1,28 @@
+<p class="lead">Use a Solana program to approve an exact Taproot spend while the Bitcoin remains on Bitcoin.</p>
+<div class="docs-note"><p><strong>Source preview:</strong> a single-input testnet Taproot PSBT adapter is implemented in the repository. The public PairKey service and published <code>@pairkey/sdk</code> do not yet advertise it. Check <code>GET /api/v2/config → transaction_signing.bitcoin.sign</code> before using this tutorial. Do not fund a PairKey-controlled output until your chosen deployment passes the complete signing flow.</p></div>
+<h2 id="design">1. Define the BTCFi action</h2>
+<p>Have the controller approve the exact outpoint, recipient output, optional change output, sequence, locktime, absolute fee and fee rate. The first adapter accepts one PairKey-owned input and one or two outputs. A BTCFi loan or vault with multiple inputs needs a later adapter.</p>
+<h2 id="key">2. Derive the testnet output key</h2>
+<pre><code>const key = await pairkey.key({chain: 'bitcoin', path: [0]});
+// key.public_key_hex is the 32-byte x-only Taproot output key.
+// Confirm the funding output's scriptPubKey is 0x5120 || key.public_key_hex.</code></pre>
+<p>Use a trusted Bitcoin node to confirm the funding transaction and its amount. The PSBT must include both its complete previous transaction and matching witness UTXO.</p>
+<h2 id="psbt">3. Build an exact PSBT</h2>
+<p>Build a canonical <a href="https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki">PSBT v0</a> with the wallet of your choice. It must have one Taproot key-path input, <code>SIGHASH_DEFAULT</code>, no script-path data and no prior signature. Pass the exact output values and raw scripts separately so both workers can compare them with the PSBT. The signing request is bounded by PairKey's 1,232-byte approval envelope.</p>
+<pre><code>const spend = {
+  network: 'testnet',
+  psbt: [...psbtBytes],
+  outputs: [
+    {value_sats: 99_000, script_pubkey: [...recipientScript]}
+    // Optional exact change output goes here.
+  ],
+  max_fee_sats: 1_000,
+  max_fee_rate_sat_vb: 10
+};
+const signed = await pairkey.signTransaction({
+  chain: 'bitcoin', path: [0], transaction: spend
+});
+console.log(signed.signedPsbt, signed.signedTransaction);</code></pre>
+<p>These values are illustrative. Set them from the real funding amount and current network conditions. The application and controller should inspect every field before consent. The signer checks the previous transaction ID, matching witness UTXO, PairKey output key, exact outputs and fee caps, then computes the <a href="https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki">BIP-341</a> sighash independently.</p>
+<h2 id="execute">4. Broadcast and recover</h2>
+<p>Use <code>signAndSend({chain:'bitcoin', transaction:spend, rpcUrl})</code> with a Bitcoin JSON-RPC endpoint, or supply a <code>broadcast(rawBytes, signed)</code> callback. Save the job ID, signed PSBT and raw transaction. If broadcast is uncertain, recover and rebroadcast the identical bytes; check the original transaction ID before preparing a replacement spend.</p>
