@@ -1,6 +1,44 @@
-<p class="lead">Choose your authority, derive a key, approve an exact message and receive a verifiable signature from our hosted signers.</p>
-<h2 id="quickstart">Choose your authority</h2><div class="doc-link-grid"><a href="docs/quickstart-account.html"><strong>Solana account →</strong><span>Live devnet · Connect a wallet and approve messages off-chain. No registration transaction.</span></a><a href="docs/quickstart-program.html"><strong>Solana program →</strong><span>Live on-chain example · Evaluate read-only rules or commit a state-consuming decision.</span></a><a href="docs/quickstart-passkey.html"><strong>Quickstart: Passkey →</strong><span>Browser demo and SDK · Bind a WebAuthn assertion to each exact request.</span></a><a href="docs/quickstart-oidc.html"><strong>Quickstart: OAuth/OIDC →</strong><span>Google browser preview · Approve each message with a bound ID token.</span></a></div>
-<h2 id="hosted">PairKey runs the signers</h2><p>The new flow uses <code>https://pairkey.com/api/v2</code>. You do not run workers, a coordinator or a validator. Account approvals need wallet message signing, with no registration rent or per-request Solana transaction. Policy changes and program on-chain approvals are explicit Solana transactions.</p>
-<h2 id="flow">One approval, one signing job</h2><ol><li><strong>Connect:</strong> obtain public namespace metadata for your authority; no namespace registration transaction.</li><li><strong>Derive:</strong> choose Solana, EVM, Zcash, NEAR or Bitcoin and a path.</li><li><strong>Approve:</strong> authenticate the exact request; apply any saved rules or program decision.</li><li><strong>Sign:</strong> both hosted signers independently authorize and participate.</li><li><strong>Verify:</strong> check the signature and both signer receipts.</li></ol><p>Signing is asynchronous. These guides return message signatures; they do not broadcast destination transactions. Save the public recovery record before submission, and recover that same job after a timeout.</p>
-<h2 id="policy">Optional rules, explicit updates</h2><p>Per-message authentication is required even without a saved policy. Optional rules live in a reusable Solana account; each signer reads the current revision. Programs can also evaluate custom application logic. See <a href="docs/policy.html">Policy &amp; rules</a>. Sessions are deferred for v2.</p>
-<h2 id="deployment">Deployment and availability</h2><p>The API configuration identifies the gateway, signer identities and example program. These v2 guides require the coordinated gateway, worker and hosted API release; the client stops if v2 is unavailable. The development deployment uses Solana devnet, Base Sepolia for EVM messages and Bitcoin testnet for Bitcoin messages. Hardware TEE attestation is not provided by the development workers. See <a href="docs/security.html#hosted-onboarding">service status</a>.</p><p>For operating infrastructure, see <a href="docs/local-development.html">local development</a> and <a href="docs/testnet.html">operator testnet setup</a>.</p>
+<p class="lead">All four authority sources follow the same derive, sign, send and recover lifecycle. Choose the proof your users can safely operate.</p>
+<h2 id="choose">Choose an authority</h2>
+<div class="doc-link-grid"><a href="docs/quickstart-account.html"><strong>Account wallet →</strong><span>A Solana wallet directly approves each exact request off-chain.</span></a><a href="docs/quickstart-program.html"><strong>Solana program →</strong><span>A controller PDA applies application rules through evaluation or commit.</span></a><a href="docs/quickstart-passkey.html"><strong>Passkey →</strong><span>WebAuthn binds a fresh ephemeral approval key to a stable credential identity.</span></a><a href="docs/quickstart-oidc.html"><strong>OAuth / OIDC →</strong><span>An issuer ID token binds a fresh ephemeral approval key to a stable subject.</span></a></div>
+<h2 id="compare">What changes between sources?</h2>
+<div class="table-scroll" role="region" aria-label="Authority source quick comparison" tabindex="0"><table><thead><tr><th>Source</th><th>Connect with</th><th>User action for signing</th><th>Ordinary approval cost on Solana</th></tr></thead><tbody>
+<tr><td>Account</td><td><code>wallet</code></td><td>Sign a wallet message</td><td>No transaction or rent</td></tr>
+<tr><td>Program</td><td><code>program</code>, owner wallet and mode</td><td>Program caller proof; optional approval transaction</td><td>None in Offchain mode; transaction in Onchain mode</td></tr>
+<tr><td>Passkey</td><td>Verified credential identity and ID</td><td>Complete a WebAuthn assertion</td><td>No transaction or rent</td></tr>
+<tr><td>OIDC</td><td>Issuer, audience, subject and token callback</td><td>Complete provider login for a fresh nonce</td><td>No transaction or rent</td></tr>
+</tbody></table></div>
+<h2 id="common">The common application flow</h2>
+<pre><code>const pairkey = new PairKeyClient({web3, storage: localStorage});
+
+// Source-specific. See one of the four guides above.
+await pairkey.connect({source, namespace, ...authentication});
+
+// Common to every source.
+const key = await pairkey.key({chain: 'solana', path: [0]});
+const signed = await pairkey.signMessage({
+  chain: 'solana', path: [0], message: 'Approve this exact message.'
+});</code></pre>
+<p>Use <a href="docs/keys-and-namespaces.html">Keys &amp; namespaces</a> to choose a stable naming and path plan before funding derived addresses.</p>
+<h2 id="transactions">Sign or send a transaction</h2>
+<pre><code>// Assemble without contacting a destination RPC.
+const signed = await pairkey.signTransaction({chain, path, transaction});
+
+// Or assemble and broadcast through an RPC supplied by your application.
+const sent = await pairkey.signAndSend({
+  chain, path, transaction, connection, rpcUrl
+});</code></pre>
+<p>Your application builds the transaction and chooses fees, recipients, actions and destination RPC. PairKey authenticates the exact canonical transaction, produces its signature and attaches it using the supported adapter.</p>
+<h2 id="policy">Add policy deliberately</h2>
+<p>No saved policy is required to derive a key or approve the first request. Optional rules add persistent restrictions. Creating or editing them is a separate Solana transaction and should happen only when the administrator deliberately changes policy. A program can additionally consume a nonce, allowance or proposal in Onchain approval mode.</p>
+<h2 id="recovery">Recover the original attempt</h2>
+<pre><code>const result = await pairkey.recover(jobId);
+
+if (sent.status === 'unknown') {
+  await pairkey.recoverAndSend(sent.jobId, {
+    chain: 'solana', connection, rebroadcast: true
+  });
+}</code></pre>
+<p>Recovery retrieves the same job and signed bytes. It does not request another approval or create another signature. Save the public recovery record before submission and treat a timeout as uncertain until signing and destination status are checked.</p>
+<h2 id="status">Check availability</h2>
+<p>The hosted configuration advertises supported sources, signer identities, transaction adapters and example program. The package API shown in these guides is prepared for the first <code>@pairkey/sdk</code> npm release; use the <a href="https://github.com/yinscode/pairkey/tree/main/website">repository source</a> until it is published. See <a href="docs/signing.html#today">transaction support</a> and <a href="docs/security.html">development deployment status</a>.</p>

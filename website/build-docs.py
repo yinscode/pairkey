@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent
 PAGES = [
     ('overview', 'Overview', 'Build with programmable keys.'),
     ('quickstart', 'Quickstart', 'Build with hosted signers.'),
+    ('keys-and-namespaces', 'Keys & namespaces', 'Choose stable key identities for each purpose.'),
     ('quickstart-account', 'Quickstart: Account', 'Your wallet. Your programmable keys.'),
     ('quickstart-program', 'Quickstart: Program', 'Your program. Your signing rules.'),
     ('quickstart-passkey', 'Quickstart: Passkey', 'Quickstart: Passkey'),

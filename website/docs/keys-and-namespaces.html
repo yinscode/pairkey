@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Choose stable key identities for each purpose. PairKey developer documentation: Keys &amp; namespaces.">
+<title>Keys &amp; namespaces — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
+<body><a class="skip" href="#main">Skip to content</a>
+<header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
+<nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
+<a class="button small" href="../docs/quickstart.html">Get started →</a></header>
+<div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
+<a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/keys-and-namespaces.html" aria-current="page">Keys &amp; namespaces</a>
+<a href="../docs/quickstart-account.html">Quickstart: Account</a>
+<a href="../docs/quickstart-program.html">Quickstart: Program</a>
+<a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
+<a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
+<a href="../docs/demo.html">Interactive demo</a>
+<a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/integration.html">Solana program integration</a>
+<a href="../docs/policy.html">Policy &amp; rules</a>
+<a href="../docs/policy-demo.html">Policy demo</a>
+<a href="../docs/sessions.html">Scoped sessions</a>
+<a href="../docs/signing.html">Signing schemes</a>
+<a href="../docs/api.html">SDK &amp; API reference</a>
+<a href="../docs/security.html">Security &amp; status</a>
+<a href="../docs/local-development.html">Local development</a>
+<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
+<main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / KEYS &amp; NAMESPACES</p>
+<h1>Choose stable key identities for each purpose.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#identity">What selects a key?</a><a href="#namespace">Use namespaces for purposes</a><a href="#paths">Use paths for subaccounts</a><a href="#changes">What changes the address?</a><a href="#example">Derive keys for one purpose</a><a href="#recovery">Keep a recovery map</a></nav>
+<p class="lead">A source controls a namespace. The namespace, destination and numeric path select a stable threshold key for one application purpose.</p>
+<h2 id="identity">What selects a key?</h2>
+<p>PairKey derives public keys lazily. No complete private key is assembled, stored in the browser or placed in a PDA. Think of the key identity as:</p>
+<pre><code>source identity
++ PairKey deployment
++ namespace
++ destination and signature scheme
++ numeric path
+= stable destination key</code></pre>
+<p>The source identity depends on how the user or application authenticates:</p>
+<div class="table-scroll" role="region" aria-label="Stable identities by authority source" tabindex="0"><table><thead><tr><th>Source</th><th>Stable identity</th><th>Short-lived authorization</th></tr></thead><tbody>
+<tr><td>Account</td><td>Solana wallet public key</td><td>The wallet signs each exact approval directly.</td></tr>
+<tr><td>Program</td><td>Program ID, controller PDA and authenticated application accounts</td><td>The program evaluates or commits each exact approval.</td></tr>
+<tr><td>Passkey</td><td>P-256 credential public key, RP ID and HTTPS origin</td><td>A fresh passkey-bound Ed25519 key signs each exact approval.</td></tr>
+<tr><td>OIDC</td><td>Issuer, audience and subject</td><td>A fresh token-bound Ed25519 key signs each exact approval.</td></tr>
+</tbody></table></div>
+<h2 id="namespace">Use namespaces for purposes</h2>
+<p>A namespace is a case-sensitive NFC string that maps to a stable 32-byte ID. Use it as a business and policy boundary. Prefer stable, non-secret identifiers; avoid email addresses, display names and other values that may change.</p>
+<pre><code>org/acme/treasury/solana
+org/acme/treasury/evm
+org/acme/payroll
+customer/01J9Z.../wallet
+bot/market-maker/strategy</code></pre>
+<p>Create another namespace when ownership, policy, recovery or operational risk should be independent. For the example program, <code>policyScope: 'namespace'</code> gives each namespace its own policy PDA and revision. Use shared scope only when every namespace under the controller should intentionally share one policy.</p>
+<h2 id="paths">Use paths for subaccounts</h2>
+<p>A numeric path selects a subaccount inside the same namespace and policy domain. Keep a documented mapping rather than assigning paths ad hoc.</p>
+<div class="table-scroll" role="region" aria-label="Example namespace and path plan" tabindex="0"><table><thead><tr><th>Purpose</th><th>Namespace</th><th>Path</th></tr></thead><tbody>
+<tr><td>Operating treasury</td><td><code>org/acme/treasury/solana</code></td><td><code>[0]</code></td></tr>
+<tr><td>Treasury reserve</td><td><code>org/acme/treasury/solana</code></td><td><code>[1]</code></td></tr>
+<tr><td>Payroll primary</td><td><code>org/acme/payroll</code></td><td><code>[0]</code></td></tr>
+<tr><td>Trading strategy 3</td><td><code>bot/market-maker</code></td><td><code>[3]</code></td></tr>
+</tbody></table></div>
+<p>Paths separate derived keys but do not create an independent authority or policy boundary. Use a namespace when that distinction matters.</p>
+<h2 id="changes">What changes the address?</h2>
+<div class="table-scroll" role="region" aria-label="Changes that affect derived keys" tabindex="0"><table><thead><tr><th>Change</th><th>New key?</th><th>Reason</th></tr></thead><tbody>
+<tr><td>Policy revision or limits</td><td>No</td><td>Policy governs use of an existing key.</td></tr>
+<tr><td>Program approval mode</td><td>No</td><td>Onchain and Offchain modes authorize the same program identity.</td></tr>
+<tr><td>Numeric path</td><td>Yes</td><td>The path selects another key within the namespace.</td></tr>
+<tr><td>Destination chain or suite</td><td>Yes</td><td>Destination context is part of derivation.</td></tr>
+<tr><td>Namespace label</td><td>Yes</td><td>The label maps to a different namespace ID.</td></tr>
+<tr><td>Source identity</td><td>Yes</td><td>A different wallet, program, credential or OIDC subject controls another family.</td></tr>
+<tr><td>PairKey deployment</td><td>Yes</td><td>The deployment and signer context are part of the namespace.</td></tr>
+</tbody></table></div>
+<h2 id="example">Derive keys for one purpose</h2>
+<pre><code>await pairkey.connect({
+  source: 'account', wallet,
+  namespace: 'org/acme/treasury/solana'
+});
+
+const operating = await pairkey.key({chain: 'solana', path: [0]});
+const reserve = await pairkey.key({chain: 'solana', path: [1]});</code></pre>
+<p>The same <code>key</code>, <code>signMessage</code>, <code>signTransaction</code>, <code>signAndSend</code> and recovery methods work after connecting with any authority source. Only the exact-request authentication step changes.</p>
+<h2 id="recovery">Keep a recovery map</h2>
+<p>Retain the deployment configuration, source identity, exact namespace label, destination and numeric path for every funded key. Also retain application recovery for the source: wallet recovery for accounts, governance access for programs, credential recovery for passkeys, or continued access to the same OIDC issuer, audience and subject. Ephemeral passkey and OIDC authorization keys do not need recovery and do not determine the destination address.</p>
+
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/quickstart.html"><span>Previous</span><strong>Quickstart →</strong></a><a href="../docs/quickstart-account.html"><span>Next</span><strong>Quickstart: Account →</strong></a></nav></main></div>
+<footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

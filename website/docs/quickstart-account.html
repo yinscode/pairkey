@@ -9,6 +9,7 @@
 <a class="button small" href="../docs/quickstart.html">Get started →</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
 <a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/keys-and-namespaces.html">Keys &amp; namespaces</a>
 <a href="../docs/quickstart-account.html" aria-current="page">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
@@ -25,8 +26,9 @@
 <a href="../docs/local-development.html">Local development</a>
 <a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / QUICKSTART: ACCOUNT</p>
-<h1>Your wallet. Your programmable keys.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#start">Try it with your wallet</a><a href="#application">Use it in your application</a><a href="#approval">What your wallet authorizes</a><a href="#policy">Set optional account rules</a><a href="#verify">Verify and recover</a><a href="#derivation">How addresses are scoped</a></nav>
+<h1>Your wallet. Your programmable keys.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#use">When to use an account</a><a href="#start">Try it with your wallet</a><a href="#application">Use it in your application</a><a href="#approval">What your wallet authorizes</a><a href="#policy">Set optional account rules</a><a href="#verify">Verify and recover</a><a href="#derivation">How addresses are scoped</a></nav>
 <p class="lead">Your wallet controls the keys. Approve an exact message off-chain, and two independent signers return one signature.</p>
+<h2 id="use">When to use an account</h2><p>Choose this source when users already operate a Solana wallet and can approve an exact request with <code>signMessage</code>. The wallet public key is the stable source identity. Changing wallets selects a different PairKey key family; changing policy does not.</p><p>Use a named namespace for each business or security boundary and numeric paths for related subaccounts. Plan these identifiers with <a href="../docs/keys-and-namespaces.html">Keys &amp; namespaces</a> before funding derived addresses.</p>
 <h2 id="start">Try it with your wallet</h2><p>Connect Phantom or Solflare. This uses your connected account as the authority. No registration transaction, SOL balance or destination-chain funds are needed for ordinary message approvals.</p>
 <div class="hosted-quickstart" data-hosted-quickstart="account">
 <button class="button" id="hosted-connect" type="button">Connect wallet</button>
@@ -85,5 +87,5 @@ const transcript = { request: prepared.signing_request, approval: prepared.reque
 // cargo run -p pairkey-sdk --example verify_hosted -- transcript.json</code></pre><p>The client saves the public prepared request, key, deployment and deterministic job ID <strong>before submission</strong>. Keep that recovery record; it contains no wallet signature, JWT or passkey assertion, but it does contain your message. “Recover last job” only retrieves the original attempt. It never asks for another approval, submits another job or consumes another allowance. If the original submission never reached the service, recovery reports an unknown job. An uncertain outcome is not proof that no signature exists.</p>
 <h2 id="derivation">How addresses are scoped</h2><p>The authority and namespace label scope the namespace. Labels such as <code>org/acme/treasury</code> or <code>user/alice/trading</code> are case-sensitive NFC strings mapped to stable 32-byte IDs. Destination, signature scheme and numeric path select keys inside it. Keep the deployment and namespace metadata to recover the same keys.</p><p>The UI displays a Solana public key, a NEAR <code>ed25519:</code> public-key identifier or an EVM address where applicable. Zcash and Bitcoin display signing public keys. Solana, restricted EVM legacy transfers, and NEAR have typed transaction adapters; see <a href="../docs/signing.html#today">transaction support</a>.</p>
 
-<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/quickstart.html"><span>Previous</span><strong>Quickstart →</strong></a><a href="../docs/quickstart-program.html"><span>Next</span><strong>Quickstart: Program →</strong></a></nav></main></div>
+<nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/keys-and-namespaces.html"><span>Previous</span><strong>Keys &amp; namespaces →</strong></a><a href="../docs/quickstart-program.html"><span>Next</span><strong>Quickstart: Program →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

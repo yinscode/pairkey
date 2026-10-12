@@ -1,6 +1,6 @@
 # PairKey website
 
-Static landing page, hosted v2 message demo at `/demo`, and 17 documentation pages.
+Static landing page, hosted v2 message demo at `/demo`, and 18 documentation pages.
 Visual assets are local. The Google source loads Google Identity Services for sign-in;
 no analytics or external fonts are loaded.
 
@@ -64,7 +64,7 @@ Edit `content/*.html`, then run:
 python3 website/build-docs.py
 ```
 
-The generator produces `docs.html`, 16 pages under `docs/`, public Rust examples,
+The generator produces `docs.html`, 17 pages under `docs/`, public Rust examples,
 the browser SDK archive and a self-contained program archive. The program bundles
 the exact typed gateway ABI and policy implementation from the source tree, with
 pinned dependencies. Edit application rules in the downloaded bundle's

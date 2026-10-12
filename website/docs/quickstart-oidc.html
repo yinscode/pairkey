@@ -9,6 +9,7 @@
 <a class="button small" href="../docs/quickstart.html">Get started →</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
 <a href="../docs/quickstart.html">Quickstart</a>
+<a href="../docs/keys-and-namespaces.html">Keys &amp; namespaces</a>
 <a href="../docs/quickstart-account.html">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
@@ -25,8 +26,12 @@
 <a href="../docs/local-development.html">Local development</a>
 <a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / QUICKSTART: OAUTH/OIDC</p>
-<h1>Quickstart: OAuth/OIDC</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#flow">Try one exact message</a><a href="#identity">Why Google appears twice</a><a href="#integration">Integrate your own application</a><a href="#policy">Optional rules and costs</a></nav>
+<h1>Quickstart: OAuth/OIDC</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#use">When to use OIDC</a><a href="#two-keys">Stable identity, fresh authorization</a><a href="#flow">Try one exact message</a><a href="#identity">Why Google appears twice</a><a href="#integration">Integrate your own application</a><a href="#policy">Optional rules and costs</a></nav>
 <p class="lead">Use an OAuth/OIDC identity to approve an exact message with PairKey’s hosted signers. The configured browser example uses Google OIDC; ordinary off-chain signing needs no Solana wallet or registration transaction.</p>
+<h2 id="use">When to use OIDC</h2><p>Choose this source when users should control keys through an existing identity provider such as Google or a configured enterprise issuer. The issuer, audience and subject form the stable identity. Changing OAuth client ID changes the audience and therefore selects another PairKey key family.</p>
+<h2 id="two-keys">Stable identity, fresh authorization</h2><p>The OIDC account does not directly sign destination transactions. For each approval, the SDK creates a fresh ephemeral Ed25519 key and derives a nonce from its public binding. The provider issues an ID token containing that nonce, and the ephemeral key signs the exact PairKey request. The stable PairKey destination key remains unchanged.</p><pre><code>OIDC identity → token binds ephemeral approval key
+ephemeral approval key → authorizes one exact request
+PairKey threshold key → signs the destination payload</code></pre>
 <p>PairKey requires an issuer-signed OIDC ID token bound to a short-lived Ed25519 key. An OAuth access token by itself does not authorize a PairKey request. Other providers need their issuer, audience and HTTPS verification keys pinned by the operator.</p>
 <div class="docs-note"><p><a href="/demo">Open the live demo →</a> Select <strong>OAuth / OIDC</strong> as the source. The Google browser flow is a preview; account selection has been observed, while an end-to-end Google-authorized signature is still awaiting live acceptance. Access depends on the Google OAuth app’s publishing status and test-user list. This option appears when the operator has enabled Google in <code>/api/v2/config</code>.</p></div>
 <h2 id="flow">Try one exact message</h2><ol><li>Select a Google account. PairKey uses Google’s stable subject identifier, issuer and this site’s client ID to establish your namespace.</li><li>Choose Solana, EVM, Zcash, NEAR or Bitcoin and a path, then load the derived public key.</li><li>Write a message of at most 256 UTF-8 bytes and select <strong>Prepare Google approval</strong>.</li><li>Continue with the same Google account again. This second ID token includes a fresh nonce tied to your namespace and a short-lived Ed25519 key. Both signers independently verify the token and the exact request before signing.</li><li>Inspect the signature and receipts, then select <strong>Verify signature</strong>. Message signing does not broadcast a destination transaction.</li></ol>
