@@ -7,7 +7,7 @@
 <meta name="description" content="Programmable keys across five chains. Authorize with a Solana program, Solana account, passkey or OIDC identity. Two independent TEE signers produce one signature.">
 <title>PairKey — The programmable key protocol</title>
 <link rel="icon" href="mark.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=source-icons-2">
+<link rel="stylesheet" href="style.css?v=use-cases-1">
 <script src="main.js" defer>
 </script>
 </head>
@@ -119,7 +119,7 @@
 <div class="journey-heading"><div><p class="eyebrow">01 / HOW PAIRKEY WORKS</p><h2 id="journey-title">One authority.<br>Many addresses.</h2></div><p>Start with who can authorize. Derive keys for where you want to go. Call PairKey when you need a signature.</p></div>
 <ol class="journey-steps">
 <li class="journey-card"><div class="journey-step"><span>01</span><p class="eyebrow">SOURCE</p></div><h3>Choose the authority.</h3><p>Each request proves that its source approved the exact message and key.</p>
-<ul class="authority-sources"><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/solana-program.svg?v=2" alt="" width="24" height="24"></span>Solana program</li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/solana-account.svg?v=2" alt="" width="24" height="24"></span>Solana account</li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/passkey.svg?v=2" alt="" width="24" height="24"></span>Passkey <span class="planned-label">Demo</span></li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/oauth.svg?v=2" alt="" width="24" height="24"></span>OAuth / OIDC <span class="planned-label">Preview</span></li></ul>
+<ul class="authority-sources"><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/solana-program.svg?v=2" alt="" width="24" height="24"></span>Solana program</li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/solana-account.svg?v=2" alt="" width="24" height="24"></span>Solana account</li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/passkey.svg?v=2" alt="" width="24" height="24"></span>Passkey</li><li><span class="source-icon" aria-hidden="true"><img src="assets/sources/oauth.svg?v=2" alt="" width="24" height="24"></span>OAuth / OIDC</li></ul>
 <a class="journey-detail" href="docs/architecture.html#sources">One authorization model →</a></li>
 <li class="journey-card"><div class="journey-step"><span>02</span><p class="eyebrow">DERIVE</p></div><h3>Create many addresses.</h3><p>Use a different path for each account. Derive distinct public keys for chain-specific addresses.</p>
 <div class="derivation-map" aria-label="Multiple derivation paths on each destination chain"><div class="derivation-root">Your authority <span>+ derivation path</span></div><ul><li><img src="assets/chains/solana.svg" alt="" width="18" height="18"><span>Solana</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/ethereum.svg" alt="" width="18" height="18"><span>EVM</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/bitcoin.svg?v=2" alt="" width="18" height="18"><span>Bitcoin</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/near.svg" alt="" width="18" height="18"><span>NEAR</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li><li><img src="assets/chains/zcash.svg" alt="" width="18" height="18"><span>Zcash</span><span class="path-examples" aria-label="Account paths 01, 02, and more">01 · 02 · …</span></li></ul></div></li>
@@ -194,6 +194,9 @@
 <span class="pill">OFF-CHAIN SIGNING PATH</span>
 <h3>No per-message<br>approval transaction.</h3>
 <p>A wallet, passkey or OIDC proof authorizes exact bytes. For immutable programs, each signer can evaluate <code>pairkey_approve</code> through read-only Solana simulation. Both signers check current permission without broadcasting an approval transaction.</p>
+<div class="approval-sample"><span>ILLUSTRATIVE PROGRAM LOGIC · READ-ONLY</span><pre><code>pairkey_approve(input):
+  authenticate caller + exact request
+  return policy.allows(input), input.digest</code></pre></div>
 <p class="caption">Keep signing within your rules. <a href="docs/policy.html">Policy and fee details →</a></p>
 </div>
 <ol class="flow">
@@ -219,6 +222,12 @@
 <span class="pill">EXACT-OPERATION APPROVAL</span>
 <h3>Commit a program<br>decision on-chain.</h3>
 <p>Use <code>pairkey_approve_commit</code> when your Solana program must consume an allowance or update state. It records the exact approval in the same transaction; both signers check the finalized decision before signing.</p>
+<div class="approval-sample"><span>ILLUSTRATIVE PROGRAM LOGIC · STATE-CHANGING</span><pre><code>pairkey_approve_commit(call):
+  authenticate caller + exact request
+  require policy.allows(call)
+  require allowance &gt; 0
+  decrement allowance
+  record approval via gateway CPI</code></pre></div>
 <p class="caption">Make signing authority part of your application’s on-chain logic. <a href="docs/integration.html">Explore program integration →</a></p>
 </div>
 <ol class="flow">
@@ -240,9 +249,19 @@
 </ol>
 </div>
 </section>
+<section id="use-cases" class="section wrap use-cases" aria-labelledby="use-cases-title">
+<div class="use-cases-heading"><div><p class="eyebrow">04 / WHAT YOU CAN BUILD</p><h2 id="use-cases-title">One PairKey protocol.<br>Many use cases.</h2></div><p>Choose who can authorize, define what they can sign, and derive the addresses your application needs. The same PairKey signing flow serves different products.</p></div>
+<div class="use-case-grid">
+<article class="use-case-card"><div class="use-case-top"><span>01 / PROGRAM-CONTROLLED</span><img src="assets/sources/solana-program.svg?v=2" width="30" height="30" alt=""></div><h3>Keys for your program.</h3><p>Put application rules in a Solana program. Authorize an exact request by evaluating current state, or commit a decision that consumes an allowance.</p><span class="use-case-source">SOURCE · SOLANA PROGRAM</span></article>
+<article class="use-case-card"><div class="use-case-top"><span>02 / MULTICHAIN ACCOUNTS</span><img src="assets/sources/solana-account.svg?v=2" width="30" height="30" alt=""></div><h3>One wallet. Many chains.</h3><p>Use a Solana wallet to approve a message, then derive signing keys for Solana, EVM, Bitcoin, NEAR and Zcash from that authority.</p><span class="use-case-source">SOURCE · SOLANA ACCOUNT</span></article>
+<article class="use-case-card"><div class="use-case-top"><span>03 / KEYLESS ACCESS</span><span class="use-case-icons"><img src="assets/sources/passkey.svg?v=2" width="30" height="30" alt=""><img src="assets/sources/oauth.svg?v=2" width="30" height="30" alt=""></span></div><h3>Sign in. Then sign.</h3><p>Start with a passkey or OAuth / OIDC identity. A bound, short-lived request key turns familiar sign-in into exact-message authorization.</p><span class="use-case-source">SOURCE · PASSKEY OR OAUTH / OIDC</span></article>
+<article class="use-case-card"><div class="use-case-top"><span>04 / AGENTIC WALLETS</span><img src="assets/sources/solana-program.svg?v=2" width="30" height="30" alt=""></div><h3>Let agents propose. Rules decide.</h3><p>Agentic wallets can request signatures while your program checks the caller, scope and current state for every action.</p><span class="use-case-source">SOURCE · PROGRAM-GOVERNED</span></article>
+</div>
+<div class="use-cases-footer"><span>ONE PAIRKEY PROTOCOL</span><strong>Exact approval <span aria-hidden="true">→</span> two independent signers <span aria-hidden="true">→</span> one verifiable signature</strong><a href="docs/quickstart.html">Choose a quickstart →</a></div>
+</section>
 <section id="compare" class="comparison section">
 <div class="wrap">
-<p class="eyebrow">04 / COMPARE THE MODELS</p>
+<p class="eyebrow">05 / COMPARE THE MODELS</p>
 <div class="comparison-heading">
 <h2>Same destination.<br>Different control.</h2>
 <p>Compare who sets the rules, who holds signing power, and what each request waits for.</p>
@@ -273,7 +292,7 @@
 </section>
 <section class="section wrap integration">
 <div>
-<p class="eyebrow">05 / BUILD WITH PAIRKEY</p>
+<p class="eyebrow">06 / BUILD WITH PAIRKEY</p>
 <h2>Your authority.<br>A wider reach.</h2>
 <p>Choose a source, derive a key and authorize one exact message. PairKey returns a signature and signer receipts your application can verify. No namespace registration transaction is needed.</p>
 <a class="text-link" href="docs/quickstart.html">Choose a quickstart <span aria-hidden="true">→</span>
