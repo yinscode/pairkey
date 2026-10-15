@@ -34,11 +34,35 @@ PAGES = [
     ('local-development', 'Local development', 'Run your own development stack.'),
     ('testnet', 'Operator testnet setup', 'From Solana authority to Base execution.'),
 ]
+NAV_GROUPS = [
+    ('Getting started', ['quickstart', 'keys-and-namespaces', 'quickstart-account',
+                         'quickstart-program', 'quickstart-passkey', 'quickstart-oidc', 'demo']),
+    ('Tutorials', ['tutorial-program-keys', 'tutorial-hyperliquid', 'tutorial-aave',
+                   'tutorial-zcash-escrow', 'tutorial-btcfi']),
+    ('Concepts', ['architecture', 'supported-chains', 'integration', 'signing',
+                  'policy', 'policy-demo', 'sessions']),
+    ('Reference', ['api', 'security', 'local-development', 'testnet']),
+]
+assert sorted(key for _, keys in NAV_GROUPS for key in keys) == sorted(
+    key for key, _, _ in PAGES if key != 'overview')
 ALIASES = {'quickstart':'quickstart', 'integration':'integration', 'sessions':'sessions',
            'jobs':'api', 'status':'security', 'sources':'security'}
 
 def url(slug):
     return 'docs.html' if slug == 'overview' else f'docs/{slug}.html'
+
+def nav_links(slug, prefix):
+    names = {key: name for key, name, _ in PAGES}
+    def link(key):
+        current = ' aria-current="page"' if key == slug else ''
+        return f'<a href="{prefix}{url(key)}"{current}>{html.escape(names[key])}</a>'
+    groups = [link('overview')]
+    for title, keys in NAV_GROUPS:
+        expanded = ' open' if slug in keys or (slug == 'overview' and title == 'Getting started') else ''
+        items = '\n'.join(link(key) for key in keys)
+        groups.append(f'<details{expanded}><summary>{html.escape(title)}</summary>'
+                      f'<div class="docs-nav-group-links">{items}</div></details>')
+    return '\n'.join(groups)
 
 def render(index):
     slug, label, title = PAGES[index]
@@ -49,7 +73,7 @@ def render(index):
         body = body.replace(f'docs.html#{anchor}', f'{url(target)}#{anchor}')
     # Content links are repository-site-root relative; resolve them for each output page.
     body = re.sub(r'href="(?!https?://|#|/)([^"]+)"', lambda m: f'href="{prefix}{m[1]}"', body)
-    links = '\n'.join(f'<a href="{prefix}{url(key)}"' + (' aria-current="page"' if key == slug else '') + f'>{html.escape(name)}</a>' for key,name,_ in PAGES)
+    links = nav_links(slug, prefix)
     headings = re.findall(r'<h2 id="([^"]+)">(.*?)</h2>', body)
     toc = ''.join(f'<a href="#{anchor}">{re.sub("<[^>]+>", "", heading)}</a>' for anchor,heading in headings)
     adjacent=[]
@@ -62,7 +86,7 @@ def render(index):
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="{html.escape(title)} PairKey developer documentation: {html.escape(label)}.">
 <title>{html.escape(label)} — PairKey docs</title><link rel="icon" href="{prefix}mark.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="{prefix}style.css?v=gold-1"><script src="{prefix}docs.js" defer></script></head>
+<link rel="stylesheet" href="{prefix}style.css?v=docs-nav-2"><script src="{prefix}docs.js?v=docs-nav-2" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
 <header class="nav wrap"><a class="brand" href="{prefix}index.html"><img src="{prefix}mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="{prefix}index.html#protocol">Protocol</a><a href="{prefix}docs.html" aria-current="true">Docs</a></nav>

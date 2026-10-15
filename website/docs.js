@@ -10,3 +10,15 @@ if (location.pathname.endsWith('/docs.html')) {
   };
   if (destinations[location.hash]) location.replace(destinations[location.hash]);
 }
+
+// Keep the current page visible inside the independently scrolling desktop menu.
+if (matchMedia('(min-width: 701px)').matches) {
+  const nav = document.querySelector('.docs-nav');
+  const current = nav?.querySelector('[aria-current="page"]');
+  if (current && nav.scrollHeight > nav.clientHeight) {
+    const link = current.getBoundingClientRect();
+    const viewport = nav.getBoundingClientRect();
+    if (link.bottom > viewport.bottom) nav.scrollTop += link.bottom - viewport.bottom + 8;
+    if (link.top < viewport.top) nav.scrollTop -= viewport.top - link.top + 8;
+  }
+}

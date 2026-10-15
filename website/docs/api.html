@@ -2,35 +2,35 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Request, verify, and deliver. PairKey developer documentation: SDK &amp; API reference.">
 <title>SDK &amp; API reference — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
+<link rel="stylesheet" href="../style.css?v=docs-nav-2"><script src="../docs.js?v=docs-nav-2" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
 <header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
 <a class="button small" href="../docs/quickstart.html">Get started →</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
-<a href="../docs/quickstart.html">Quickstart</a>
+<details><summary>Getting started</summary><div class="docs-nav-group-links"><a href="../docs/quickstart.html">Quickstart</a>
 <a href="../docs/keys-and-namespaces.html">Keys &amp; namespaces</a>
 <a href="../docs/quickstart-account.html">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
 <a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
-<a href="../docs/demo.html">Interactive demo</a>
-<a href="../docs/architecture.html">Architecture</a>
-<a href="../docs/supported-chains.html">Supported chains</a>
-<a href="../docs/tutorial-program-keys.html">Tutorial: Program keys</a>
+<a href="../docs/demo.html">Interactive demo</a></div></details>
+<details><summary>Tutorials</summary><div class="docs-nav-group-links"><a href="../docs/tutorial-program-keys.html">Tutorial: Program keys</a>
 <a href="../docs/tutorial-hyperliquid.html">Tutorial: Hyperliquid</a>
 <a href="../docs/tutorial-aave.html">Tutorial: Aave lending</a>
 <a href="../docs/tutorial-zcash-escrow.html">Tutorial: Zcash escrow</a>
-<a href="../docs/tutorial-btcfi.html">Tutorial: BTCFi</a>
+<a href="../docs/tutorial-btcfi.html">Tutorial: BTCFi</a></div></details>
+<details><summary>Concepts</summary><div class="docs-nav-group-links"><a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/supported-chains.html">Supported chains</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/signing.html">Signing schemes</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
 <a href="../docs/policy-demo.html">Policy demo</a>
-<a href="../docs/api.html" aria-current="page">SDK &amp; API reference</a>
+<a href="../docs/sessions.html">Scoped sessions</a></div></details>
+<details open><summary>Reference</summary><div class="docs-nav-group-links"><a href="../docs/api.html" aria-current="page">SDK &amp; API reference</a>
 <a href="../docs/security.html">Security &amp; status</a>
-<a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/local-development.html">Local development</a>
-<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
+<a href="../docs/testnet.html">Operator testnet setup</a></div></details></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / SDK &amp; API REFERENCE</p>
 <h1>Request, verify, and deliver.</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#hosted-api">Hosted API v2</a><a href="#sdk">Browser and Rust SDKs</a><a href="#request">Exact approval and versions</a><a href="#identities">Bound passkey and OIDC identities</a><a href="#hosted-policy">Policy and program endpoints</a><a href="#jobs">Recovery without another signature</a><a href="#errors">Interpret errors at the right stage</a><a href="#retention">Durability and limits</a><a href="#internal-api">Internal coordinator and legacy APIs</a><a href="#http">Legacy lower-level integration</a></nav>
 <p class="lead">Use hosted signers to derive keys, authorize exact requests and retrieve verifiable signatures.</p>

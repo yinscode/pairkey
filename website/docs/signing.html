@@ -2,35 +2,35 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Signing schemes PairKey developer documentation: Signing schemes.">
 <title>Signing schemes — PairKey docs</title><link rel="icon" href="../mark.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="../style.css?v=gold-1"><script src="../docs.js" defer></script></head>
+<link rel="stylesheet" href="../style.css?v=docs-nav-2"><script src="../docs.js?v=docs-nav-2" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
 <header class="nav wrap"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="30" height="30" alt="">PairKey</a>
 <nav aria-label="Main navigation"><a href="/demo">Demo</a><a href="../index.html#protocol">Protocol</a><a href="../docs.html" aria-current="true">Docs</a></nav>
 <a class="button small" href="../docs/quickstart.html">Get started →</a></header>
 <div class="wrap docs-layout"><aside class="docs-sidebar"><p class="eyebrow">BUILD WITH PAIRKEY</p><nav class="docs-nav" aria-label="Documentation"><a href="../docs.html">Overview</a>
-<a href="../docs/quickstart.html">Quickstart</a>
+<details><summary>Getting started</summary><div class="docs-nav-group-links"><a href="../docs/quickstart.html">Quickstart</a>
 <a href="../docs/keys-and-namespaces.html">Keys &amp; namespaces</a>
 <a href="../docs/quickstart-account.html">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
 <a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
-<a href="../docs/demo.html">Interactive demo</a>
-<a href="../docs/architecture.html">Architecture</a>
-<a href="../docs/supported-chains.html">Supported chains</a>
-<a href="../docs/tutorial-program-keys.html">Tutorial: Program keys</a>
+<a href="../docs/demo.html">Interactive demo</a></div></details>
+<details><summary>Tutorials</summary><div class="docs-nav-group-links"><a href="../docs/tutorial-program-keys.html">Tutorial: Program keys</a>
 <a href="../docs/tutorial-hyperliquid.html">Tutorial: Hyperliquid</a>
 <a href="../docs/tutorial-aave.html">Tutorial: Aave lending</a>
 <a href="../docs/tutorial-zcash-escrow.html">Tutorial: Zcash escrow</a>
-<a href="../docs/tutorial-btcfi.html">Tutorial: BTCFi</a>
+<a href="../docs/tutorial-btcfi.html">Tutorial: BTCFi</a></div></details>
+<details open><summary>Concepts</summary><div class="docs-nav-group-links"><a href="../docs/architecture.html">Architecture</a>
+<a href="../docs/supported-chains.html">Supported chains</a>
 <a href="../docs/integration.html">Solana program integration</a>
 <a href="../docs/signing.html" aria-current="page">Signing schemes</a>
 <a href="../docs/policy.html">Policy &amp; rules</a>
 <a href="../docs/policy-demo.html">Policy demo</a>
-<a href="../docs/api.html">SDK &amp; API reference</a>
+<a href="../docs/sessions.html">Scoped sessions</a></div></details>
+<details><summary>Reference</summary><div class="docs-nav-group-links"><a href="../docs/api.html">SDK &amp; API reference</a>
 <a href="../docs/security.html">Security &amp; status</a>
-<a href="../docs/sessions.html">Scoped sessions</a>
 <a href="../docs/local-development.html">Local development</a>
-<a href="../docs/testnet.html">Operator testnet setup</a></nav></aside>
+<a href="../docs/testnet.html">Operator testnet setup</a></div></details></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / SIGNING SCHEMES</p>
 <h1>Signing schemes</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#methods">Choose the operation you need</a><a href="#messages">Message signing schemes</a><a href="#typed-data">EVM typed data · source preview</a><a href="#today">Transaction support by chain</a><a href="#sdk-flow">Build, sign, and send</a><a href="#recovery">Handle uncertain outcomes</a><a href="#policy">What policy can enforce</a><a href="#limits">Operational limits</a></nav>
 <p class="lead">Choose the signed payload your application needs: an application message, EVM typed data, or a supported destination transaction. The same authority sources can approve each operation, but the signature format depends on the destination.</p>

@@ -1100,12 +1100,18 @@ button:disabled { cursor: not-allowed; opacity: .5; transform: none; }
 
 /* Static documentation pages */
 .docs-layout { grid-template-columns: 205px minmax(0, 1fr); gap: 52px; }
-.docs-sidebar { position: sticky; top: 24px; align-self: start; }
-.docs-sidebar .eyebrow { margin-bottom: 22px; }
-.docs-nav { position: static; gap: 5px; }
+.docs-sidebar { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); display: flex; flex-direction: column; min-height: 0; }
+.docs-sidebar .eyebrow { margin-bottom: 22px; flex-shrink: 0; }
+.docs-nav { position: static; gap: 5px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 8px; }
 .docs-nav a { padding: 10px 12px; margin-left: -12px; border-radius: 5px; line-height: 1.4; }
 .docs-nav a:hover { background: var(--light); }
 .docs-nav a[aria-current=page] { background: var(--accent-soft); font-weight: 600; }
+.docs-nav details { border-top: 1px solid var(--line); }
+.docs-nav summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; padding: 14px 6px 9px 0; font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+.docs-nav summary::-webkit-details-marker { display: none; }
+.docs-nav summary::after { content: '⌄'; font-size: 17px; font-weight: 400; line-height: 0; transition: transform .2s; }
+.docs-nav details[open] summary::after { transform: rotate(180deg); }
+.docs-nav-group-links { display: flex; flex-direction: column; gap: 2px; padding-bottom: 10px; }
 .docs-content h1 { font-size: clamp(38px, 4.4vw, 64px); line-height: 1.08; }
 .docs-content .lead { font-size: 19px; line-height: 1.7; }
 .docs-toc { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 11px; padding-bottom: 22px; margin-bottom: 26px; border-bottom: 1px solid var(--line); line-height: 1.6; }
@@ -1141,9 +1147,9 @@ button:disabled { cursor: not-allowed; opacity: .5; transform: none; }
   .demo-bottom { align-items: start; flex-direction: column; }
   .demo-context { font-size: 11px; }
   .demo-presets { margin-bottom: 0; }
-  .docs-sidebar { position: static; margin-bottom: 26px; }
+  .docs-sidebar { position: static; max-height: none; display: block; margin-bottom: 26px; }
   .docs-sidebar .eyebrow { margin-bottom: 10px; }
-  .docs-nav { gap: 3px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .docs-nav { flex-direction: column; flex-wrap: nowrap; gap: 3px; overflow: visible; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
   .docs-nav a { margin-left: 0; font-size: 12px; padding: 9px; }
   .docs-content .lead { font-size: 17px; }
   .doc-link-grid { grid-template-columns: 1fr; }
