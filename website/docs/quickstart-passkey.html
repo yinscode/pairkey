@@ -62,17 +62,7 @@ const signed = await pairkey.signMessage({
 const sent = await pairkey.signAndSend({
   chain: 'solana', path: [0], transaction, connection
 });</code></pre><p>Read the <a href="https://github.com/yinscode/pairkey/blob/main/website/pairkey-client.mjs">browser SDK source on GitHub</a>. Each signer checks the assertion challenge, RP ID, origin, user presence and user verification, then verifies the ephemeral signature and current rules. Neither the assertion nor the ephemeral private key is written to the public recovery record.</p>
-<h2 id="policy">Set optional rules</h2><p>No saved policy is required for the first message, but every message still needs a fresh passkey-bound approval. Optional rules can restrict destinations, paths and canonical payload bytes. A policy edit uses a new WebAuthn assertion directly over the exact policy-update challenge. Solana verifies that P-256 proof; a separate fee payer funds the transaction and cannot change rules without the passkey proof.</p><pre><code>const current = await pairkey.rules(namespace);
-const update = await pairkey.preparePolicy(namespace, {
-  revision: current.rules.revision + 1,
-  destinations: [key.account.destination],
-  path_prefixes: [[0]],
-  max_payload_bytes: 256,
-  payload_prefix: [],
-  disabled: false
-});
-const proof = await passkeyAssertion(identity, update.challenge, credentialId);
-await pairkey.setPolicy(namespace, feePayerWallet, update, { Passkey: proof });</code></pre><p>Policy creation can require rent and a transaction fee; same-size edits reuse the policy account. Ordinary off-chain message approvals do not broadcast a Solana authorization transaction. See <a href="../docs/policy.html#identities">Passkey and OIDC policy</a> for the update model.</p>
+<h2 id="policy">Set optional rules</h2><p>No saved policy is required for the first message, but every message still needs a fresh passkey-bound approval. Optional rules can restrict destinations, paths and canonical payload bytes. A policy edit uses a new WebAuthn assertion directly over the exact policy-update challenge. Solana verifies that P-256 proof; a separate fee payer funds the transaction and cannot change rules without the passkey proof.</p><p>The released <code>PairKeyClient</code> does not expose standard-rule edits or <code>passkeyAssertion</code>. For a custom policy integration, follow the <a href="https://github.com/yinscode/pairkey/blob/main/website/hosted-v2.mjs">low-level implementation</a>: prepare the next rules revision, request an assertion over that update's challenge, check the returned instructions, and submit the fee-payer transaction. Policy creation can require rent and a transaction fee; same-size edits reuse the policy account. Ordinary off-chain message approvals do not broadcast a Solana authorization transaction. See <a href="../docs/policy.html#identities">Passkey and OIDC policy</a> for the update model.</p>
 <h2 id="verify">Verify and recover</h2><p>The SDK saves the public recovery record before prompting the passkey. After a timeout, <code>recover(jobId)</code> reads that same job without another assertion or signing attempt. For a destination RPC timeout, <code>recoverAndSend(jobId, ...)</code> can rebroadcast the exact saved transaction bytes. Verify the signature, key certificate and both signer receipts with the <a href="../examples/verify_hosted.rs">offline Rust verifier</a>.</p>
 
 <nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/quickstart-program.html"><span>Previous</span><strong>Quickstart: Program →</strong></a><a href="../docs/quickstart-oidc.html"><span>Next</span><strong>Quickstart: OAuth/OIDC →</strong></a></nav></main></div>

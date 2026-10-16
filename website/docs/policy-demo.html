@@ -41,32 +41,29 @@
 <p>Both paths still require an authenticated caller and an exact request. Both signers independently check current authority before signing. Simulation can read current state, but cannot reserve an allowance or consume a nonce.</p>
 
 <h2 id="create-program">Create the application program</h2>
-<ol><li><a href="https://github.com/yinscode/pairkey/tree/main/examples/hosted-controller">Browse the hosted controller template on GitHub</a>. It contains the typed gateway ABI and both approval instructions.</li><li>Edit <code>programs/example-controller/src/approval.rs</code>. Put your application conditions in <code>AppPolicy::allows</code>; keep the caller authentication, exact-input binding, PDA checks and gateway CPI.</li><li>Pin the hosted gateway ID from <code>/api/v2/config</code>, build the Solana program, and deploy it. PairKey hosts the gateway and signers; you deploy only your application logic.</li><li>Create the owner’s policy account with a signed <code>pairkey_policy/v1</code> instruction. The template and hosted SDK do this through <code>setProgramPolicy</code>.</li></ol>
+<ol><li><a href="https://github.com/yinscode/pairkey/tree/main/examples/hosted-controller">Browse the hosted controller template on GitHub</a>. It contains the typed gateway ABI and both approval instructions.</li><li>Edit <code>programs/example-controller/src/approval.rs</code>. Put your application conditions in <code>AppPolicy::allows</code>; keep the caller authentication, exact-input binding, PDA checks and gateway CPI.</li><li>Pin the hosted gateway ID from <code>/api/v2/config</code>, build the Solana program, and deploy it. PairKey hosts the gateway and signers; you deploy only your application logic.</li><li>Create the owner’s namespace-scoped policy account with a signed <code>pairkey_policy/v2</code> instruction. The released <code>ProgramClient.setPolicy</code> helper prepares and sends this edit.</li></ol>
 <pre><code># From the cloned PairKey repository:
 PAIRKEY_REGISTRY_ID=YOUR_HOSTED_GATEWAY cargo build-sbf \
   --manifest-path programs/example-controller/Cargo.toml -- --locked
 solana program deploy --url devnet --keypair YOUR_DEVNET_WALLET.json \
   target/deploy/pairkey_hosted_controller_example.so</code></pre>
-<p>The example authority PDA uses <code>["controller", owner]</code>; its rules PDA uses <code>["pairkey-policy", owner]</code>. The policy stores the owner, enabled flag, destination, path prefix, payload limit, approval mode, remaining allowance and a revision. Your owner wallet authorizes creation and each edit. Creating the PDA requires rent; later same-size edits reuse it.</p>
+<p>The example authority PDA uses <code>["controller", owner]</code>. The namespace-scoped rules PDA uses <code>["pairkey-policy", owner, namespace_digest]</code>; the older shared scope uses <code>["pairkey-policy", owner]</code>. The policy stores the owner, enabled flag, destination, path prefix, payload limit, approval mode, remaining allowance and a revision. Your owner wallet authorizes creation and each edit. Creating the PDA requires rent; later same-size edits reuse it.</p>
 
 <h2 id="create-rules">Create and edit the rules</h2>
-<p>After connecting a wallet with the <a href="../docs/quickstart-program.html#application">program quickstart</a>, use the hosted SDK to create revision 1 or increment the current revision. This example selects the hosted program and its on-chain approval mode; replace its ID with your deployed program when ready.</p>
-<pre><code>const program = (await pairkey.config()).example_program;
-const mode = 'Onchain'; // 'Offchain' only for immutable, read-only code
-const current = await pairkey.programPolicy(program, wallet.publicKey);
+<p>After connecting a wallet with the <a href="../docs/quickstart-program.html#application">program quickstart</a>, use the released <code>@pairkey/sdk/program</code> helper to create revision 1 or increment the current revision. Use the hosted example program ID from <code>/api/v2/config</code> or your deployed program ID.</p>
+<pre><code>import * as web3 from '@solana/web3.js';
+import {ProgramClient} from '@pairkey/sdk/program';
 
-await pairkey.setProgramPolicy(wallet, {
-  program,
-  owner: wallet.publicKey.toBase58(),
-  revision: (current?.revision ?? 0) + 1,
-  enabled: true,
-  chain: 'solana',
-  path_prefix: [0],
-  max_payload_bytes: 1232,
-  require_commit: mode === 'Onchain',
-  remaining_approvals: 5
-});</code></pre>
-<p><code>setProgramPolicy</code> builds and checks the policy instruction, then asks the owner wallet to sign a Solana transaction. It is a setup or edit transaction, not a registration transaction and not something to repeat before every signature. The current revision must increase by exactly one. <code>require_commit</code> selects which approval instruction may grant permission; changing the mode does not change the program authority or its derived keys.</p>
+const programClient = new ProgramClient({
+  web3, wallet, programId: 'YOUR_CONTROLLER_PROGRAM_ID',
+  mode: 'Onchain', policyScope: 'namespace', storage: localStorage
+});
+await programClient.connect({namespace: 'org/acme/treasury'});
+const edit = await programClient.setPolicy({
+  chain: 'solana', pathPrefix: [0], remainingApprovals: 5
+});
+console.log(edit.revision, edit.transactionSignature);</code></pre>
+<p><code>setPolicy</code> reads the current revision, builds and checks the policy instruction, then asks the owner wallet to sign a Solana transaction. It is a setup or edit transaction, not a registration transaction and not something to repeat before every signature. <code>mode: 'Onchain'</code> requires a commit for each approval; use <code>Offchain</code> only for immutable, read-only program evaluation. Changing the mode does not change the program authority or its derived keys.</p>
 
 <h2 id="approve">Sample: <code>pairkey_approve</code></h2>
 <p>Use this path for read-only conditions such as an enabled flag, allowed destination, path prefix, membership or current application state. The program authenticates the signer-attested caller and returns a decision bound to the exact input. Each signer independently runs and checks the simulation.</p>
