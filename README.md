@@ -28,7 +28,7 @@ and recovery.
 
 ## The short version
 
-Install the browser SDK with `npm install @pairkey/sdk @solana/web3.js`.
+Install the browser SDK with `npm install @pairkey/sdk`.
 
 ```js
 import * as web3 from '@solana/web3.js';

@@ -4,7 +4,7 @@ Browser SDK for PairKey hosted v2 programmable threshold keys. One client suppor
 Solana account, Solana program, passkey, and OIDC/OAuth authorities.
 
 ```sh
-npm install @pairkey/sdk @solana/web3.js
+npm install @pairkey/sdk
 ```
 
 ## Connect and derive a key
