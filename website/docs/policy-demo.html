@@ -13,7 +13,7 @@
 <a href="../docs/quickstart-account.html">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
-<a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
+<a href="../docs/quickstart-oidc.html">Quickstart: OIDC/OAuth</a>
 <a href="../docs/demo.html">Interactive demo</a></div></details>
 <details><summary>Tutorials</summary><div class="docs-nav-group-links"><a href="../docs/tutorial-program-keys.html">Tutorial: Program keys</a>
 <a href="../docs/tutorial-hyperliquid.html">Tutorial: Hyperliquid</a>
@@ -108,7 +108,7 @@ policy_info.try_borrow_mut_data()?.copy_from_slice(
 
 <h2 id="try">Try the hosted example</h2>
 <ol><li>Open the <a href="/demo">live message-signing demo</a> and choose <strong>Solana program</strong>.</li><li>Select <strong>Use hosted example</strong>, connect a devnet wallet, and keep <strong>On-chain · consume an allowance</strong>.</li><li>Open <strong>Program policy setup</strong>, set an allowance, and sign the policy transaction once. Then load a derived key.</li><li>Write a message and approve the exact signing request. The program consumes one allowance and commits the approval before the signers produce the signature.</li></ol>
-<p>The on-chain example needs devnet SOL for the policy edit and each commit. The read-only example is represented by the code above; do not remove a program’s upgrade authority merely to try a demo. For your own immutable deployment, set <code>require_commit: false</code>, select <code>Offchain</code>, and keep the same caller and request checks. Read <a href="../docs/integration.html">Solana program integration</a> for the ABI and trust model, or <a href="../docs/policy.html">Policy &amp; rules</a> for the broader account, passkey and OIDC policy model.</p>
+<p>The on-chain example needs devnet SOL for the policy edit and each commit. The read-only example is represented by the code above; do not remove a program’s upgrade authority merely to try a demo. For your own immutable deployment, set <code>require_commit: false</code>, select <code>Offchain</code>, and keep the same caller and request checks. Read <a href="../docs/integration.html">Solana program integration</a> for the ABI and trust model, or <a href="../docs/policy.html">Policy &amp; rules</a> for the broader account, passkey and OIDC/OAuth policy model.</p>
 
 <nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/policy.html"><span>Previous</span><strong>Policy &amp; rules →</strong></a><a href="../docs/api.html"><span>Next</span><strong>SDK &amp; API reference →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>

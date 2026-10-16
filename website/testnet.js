@@ -148,7 +148,7 @@ function renderFlow(op){
   const view=messageFlowV2(op),identity=op?.prepared?.request.identity,program=identity?!!identity.Program:selectedSource()==='program',google=identity?!!identity.Oidc:selectedSource()==='google',passkey=identity?!!identity.Passkey:selectedSource()==='passkey';
   const onchain=identity?.Program?.mode==='Onchain';
   $('authority-title').textContent=program?'Your Solana program':google?'Your Google account':passkey?'Your passkey':'Your Solana account';
-  $('authority-kind').textContent=google?'AUTHORITY / OIDC':passkey?'AUTHORITY / PASSKEY':'AUTHORITY / SOLANA';
+  $('authority-kind').textContent=google?'AUTHORITY / OIDC/OAuth':passkey?'AUTHORITY / PASSKEY':'AUTHORITY / SOLANA';
   $('authority-icon').textContent=google?'G':passkey?'⌑':'{ }';
   $('flow-context').textContent=op?`${chainLabels[op.chain]||'Message'} · ${short(op.jobId||op.id,8)} · ${op.stage}`:'Connect, derive a key and approve a message. The flow below updates as PairKey works.';
   const status={preparing:'Preparing',authorizing:google?'Google approval':passkey?'Passkey approval':'Wallet approval',committing:'Finalizing',submitting:'Caller approved',signing:'Admitted',complete:'Approved',recovering:'Recovering',uncertain:'Unknown',stopped:'Stopped'}[view.stage]||'Waiting';
@@ -264,7 +264,7 @@ $('verify-button').addEventListener('click',async()=>{
 });
 try{
   config=await client.config();$('setup-title').textContent=config.ready===false?'Backend is initializing':'Hosted v2 connected';
-  $('setup-message').textContent='Start with Account for the shortest path, or choose Program, Passkey or OIDC.';
+  $('setup-message').textContent='Start with Account for the shortest path, or choose Program, Passkey or OIDC/OAuth.';
   googleIssuer=config.oidc_issuers?.find(x=>x.issuer==='https://accounts.google.com');
   $('connection-light').dataset.ready=String(config.ready!==false);$('flow-live').textContent=config.hardware_backed?'HOSTED SIGNERS':'DEVELOPMENT SIGNERS';
 }catch(error){$('setup-title').textContent='Hosted v2 unavailable';$('setup-message').textContent='This page needs the coordinated v2 backend. Check the deployment or retry after it is available.';$('flow-live').textContent='DISCONNECTED';}

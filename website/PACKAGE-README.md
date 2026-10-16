@@ -1,7 +1,7 @@
 # `@pairkey/sdk`
 
 Browser SDK for PairKey hosted v2 programmable threshold keys. One client supports
-Solana account, Solana program, passkey, and OIDC authorities.
+Solana account, Solana program, passkey, and OIDC/OAuth authorities.
 
 ```sh
 npm install @pairkey/sdk @solana/web3.js
@@ -83,7 +83,7 @@ await pairkey.connect({source: 'oidc', identity, namespace: 'user/alice',
   getIdToken: ({nonce}) => obtainIdToken({nonce})});
 ```
 
-Passkey and OIDC create a short-lived nonexportable Ed25519 binding for each
+Passkey and OIDC/OAuth create a short-lived nonexportable Ed25519 binding for each
 approval. The ephemeral key authenticates the exact PairKey request; it does not
 change the deterministic derived key.
 

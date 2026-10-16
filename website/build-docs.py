@@ -15,7 +15,7 @@ PAGES = [
     ('quickstart-account', 'Quickstart: Account', 'Your wallet. Your programmable keys.'),
     ('quickstart-program', 'Quickstart: Program', 'Your program. Your signing rules.'),
     ('quickstart-passkey', 'Quickstart: Passkey', 'Quickstart: Passkey'),
-    ('quickstart-oidc', 'Quickstart: OAuth/OIDC', 'Quickstart: OAuth/OIDC'),
+    ('quickstart-oidc', 'Quickstart: OIDC/OAuth', 'Quickstart: OIDC/OAuth'),
     ('demo', 'Interactive demo', 'See the rules in action.'),
     ('architecture', 'Architecture', 'One authority. Two signers.'),
     ('supported-chains', 'Supported chains', 'Supported chains'),

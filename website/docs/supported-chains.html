@@ -13,7 +13,7 @@
 <a href="../docs/quickstart-account.html">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
-<a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
+<a href="../docs/quickstart-oidc.html">Quickstart: OIDC/OAuth</a>
 <a href="../docs/demo.html">Interactive demo</a></div></details>
 <details><summary>Tutorials</summary><div class="docs-nav-group-links"><a href="../docs/tutorial-program-keys.html">Tutorial: Program keys</a>
 <a href="../docs/tutorial-hyperliquid.html">Tutorial: Hyperliquid</a>
@@ -33,7 +33,7 @@
 <a href="../docs/testnet.html">Operator testnet setup</a></div></details></nav></aside>
 <main id="main" class="docs-content"><p class="eyebrow"><a href="../docs.html">DOCS</a> / SUPPORTED CHAINS</p>
 <h1>Supported chains</h1><nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#coverage">Current coverage</a><a href="#use-cases">What to build with destination signatures</a><a href="#solana">Solana</a><a href="#evm">EVM</a><a href="#near">NEAR</a><a href="#sui">Sui</a><a href="#bitcoin">Bitcoin</a><a href="#zcash">Zcash</a><a href="#delivery">Handle submission safely</a></nav>
-<p class="lead">Use the same PairKey client for every destination. Connect an account, program, passkey or OIDC authority once, then choose the chain, derivation path and operation.</p>
+<p class="lead">Use the same PairKey client for every destination. Connect an account, program, passkey or OIDC/OAuth authority once, then choose the chain, derivation path and operation.</p>
 <h2 id="coverage">Current coverage</h2>
 <p><strong>Public release status:</strong> The current public service and published <code>@pairkey/sdk</code> support EVM EIP-191 messages and Base Sepolia legacy native transfers. EIP-712 typed data, selectable EVM chain IDs, and restricted Bitcoin Taproot PSBT signing are implemented in repository source, pending a coordinated SDK and service release. Zcash PCZT signing is a separate testnet library alpha without hosted support or a ZIP 2005 recovery guarantee. Check <code>GET /api/v2/config</code> for deployment capabilities before showing these options.</p>
 <div class="table-scroll" role="region" aria-label="PairKey supported chain operations" tabindex="0"><table><thead><tr><th>Chain</th><th><code>signMessage</code></th><th><code>signTypedData</code></th><th><code>signTransaction</code></th><th><code>signAndSend</code></th></tr></thead><tbody>
@@ -46,7 +46,7 @@
 </tbody></table></div>
 <p>Read <code>GET /api/v2/config</code> at runtime before offering transaction or typed-data actions. PairKey rejects operations when the deployment does not advertise their adapters. <code>signMessage</code> signs application-supplied message bytes using the destination scheme; EVM applies EIP-191 and Bitcoin applies PairKey's BIP-340 tagged digest. <code>signTypedData</code> is a separate EVM operation. These methods are not replacements for chain transaction signing or wallet login standards. See the <a href="../docs/signing.html#messages">scheme and signed-byte map</a>.</p>
 <h2 id="use-cases">What to build with destination signatures</h2>
-<p>Install <code>@pairkey/sdk</code> and the Solana peer dependency, then connect an authority once. The destination key and signature are selected by <code>chain</code> and <code>path</code>; the source used to approve the request can be an account, program, passkey or OIDC identity.</p>
+<p>Install <code>@pairkey/sdk</code> and the Solana peer dependency, then connect an authority once. The destination key and signature are selected by <code>chain</code> and <code>path</code>; the source used to approve the request can be an account, program, passkey or OIDC/OAuth identity.</p>
 <pre><code>npm install @pairkey/sdk @solana/web3.js</code></pre>
 <div class="table-scroll" role="region" aria-label="Destination signature use cases" tabindex="0"><table><thead><tr><th>Destination</th><th>Example use case</th><th>SDK operation</th><th>Important boundary</th></tr></thead><tbody>
 <tr><td>Solana</td><td>Program-governed treasury or app wallet</td><td><code>signTransaction</code> / <code>signAndSend</code></td><td>The derived key must be a required signer in a legacy or v0 transaction.</td></tr>
@@ -71,7 +71,7 @@ await pairkey.connect({
   namespace: 'org/acme/treasury'
 });
 
-// The same calls below also work after connecting a program, passkey or OIDC source.</code></pre>
+// The same calls below also work after connecting a program, passkey or OIDC/OAuth source.</code></pre>
 
 <h2 id="solana">Solana</h2>
 <p>PairKey derives an Ed25519 key. Message signing is an application message signature, not Sign-In with Solana. A transaction must list the key as a required signer; your application supplies its instructions, fee payer, recent blockhash, lookup tables and any other signatures.</p>

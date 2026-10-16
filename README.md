@@ -17,7 +17,7 @@
   <a href="https://pairkey.com/docs/supported-chains.html"><strong>Supported chains</strong></a>
 </p>
 
-PairKey gives a Solana account, Solana program, passkey, or OIDC identity a
+PairKey gives a Solana account, Solana program, passkey, or OIDC/OAuth identity a
 stable set of keys across multiple chains. The application approves one exact
 request, two signers produce the destination signature, and the application
 decides where to send it.
@@ -66,7 +66,7 @@ See the [package usage guide](website/PACKAGE-README.md) and
 ## Why developers use PairKey
 
 - **One API for four authority sources.** Accounts, programs, passkeys, and
-  OIDC identities use the same key and signing methods.
+  OIDC/OAuth identities use the same key and signing methods.
 - **One authority can control many chain keys.** Namespace, destination, and
   path select stable keys without a registration transaction.
 - **Every approval binds the exact request.** Chain, path, payload, request ID,
@@ -81,7 +81,7 @@ See the [package usage guide](website/PACKAGE-README.md) and
 ## One lifecycle
 
 ```text
-Account · Program · Passkey · OIDC
+Account · Program · Passkey · OIDC/OAuth
                  │
                  ▼
        namespace + chain + path
@@ -118,9 +118,9 @@ deployment, namespace, destination, or path selects a different key. See
 | Solana account | Wallet public key | Wallet message signature | [Account quickstart](https://pairkey.com/docs/quickstart-account.html) |
 | Solana program | Program and controller PDA | Read-only program evaluation or on-chain commit | [Program quickstart](https://pairkey.com/docs/quickstart-program.html) |
 | Passkey | Credential key, RP ID, and origin | WebAuthn assertion binds a fresh ephemeral approval key | [Passkey quickstart](https://pairkey.com/docs/quickstart-passkey.html) |
-| OIDC | Issuer, audience, and subject | ID token binds a fresh ephemeral approval key | [OIDC quickstart](https://pairkey.com/docs/quickstart-oidc.html) |
+| OIDC/OAuth | Issuer, audience, and subject | ID token binds a fresh ephemeral approval key | [OIDC/OAuth quickstart](https://pairkey.com/docs/quickstart-oidc.html) |
 
-Passkey and OIDC use a fresh ephemeral key to authenticate one exact PairKey
+Passkey and OIDC/OAuth use a fresh ephemeral key to authenticate one exact PairKey
 request. That ephemeral key does not hold destination assets and does not change
 the stable derived address.
 

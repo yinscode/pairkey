@@ -38,7 +38,7 @@ claiming a measured production latency or universal free service.
 `hosted-v2.mjs` and `approval-codec.mjs` implement canonical browser approvals and
 explicit management transactions. They reuse wallet transaction compatibility from
 `hosted-client.mjs` (the v1 client). `pairkey-client.mjs` provides one interface
-for account, program, passkey and OIDC sources with message signing, typed
+for account, program, passkey and OIDC/OAuth sources with message signing, typed
 transaction signing, client-side broadcast and recovery. `program-client.mjs`
 adds explicit example-controller policy management. They form the published
 `@pairkey/sdk` package with type declarations. The docs generator includes them in

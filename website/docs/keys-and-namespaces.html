@@ -13,7 +13,7 @@
 <a href="../docs/quickstart-account.html">Quickstart: Account</a>
 <a href="../docs/quickstart-program.html">Quickstart: Program</a>
 <a href="../docs/quickstart-passkey.html">Quickstart: Passkey</a>
-<a href="../docs/quickstart-oidc.html">Quickstart: OAuth/OIDC</a>
+<a href="../docs/quickstart-oidc.html">Quickstart: OIDC/OAuth</a>
 <a href="../docs/demo.html">Interactive demo</a></div></details>
 <details><summary>Tutorials</summary><div class="docs-nav-group-links"><a href="../docs/tutorial-program-keys.html">Tutorial: Program keys</a>
 <a href="../docs/tutorial-hyperliquid.html">Tutorial: Hyperliquid</a>
@@ -47,7 +47,7 @@
 <tr><td>Account</td><td>Solana wallet public key</td><td>The wallet signs each exact approval directly.</td></tr>
 <tr><td>Program</td><td>Program ID, controller PDA and authenticated application accounts</td><td>The program evaluates or commits each exact approval.</td></tr>
 <tr><td>Passkey</td><td>P-256 credential public key, RP ID and HTTPS origin</td><td>A fresh passkey-bound Ed25519 key signs each exact approval.</td></tr>
-<tr><td>OIDC</td><td>Issuer, audience and subject</td><td>A fresh token-bound Ed25519 key signs each exact approval.</td></tr>
+<tr><td>OIDC/OAuth</td><td>Issuer, audience and subject</td><td>A fresh token-bound Ed25519 key signs each exact approval.</td></tr>
 </tbody></table></div>
 <h2 id="namespace">Use namespaces for purposes</h2>
 <p>A namespace is a case-sensitive NFC string that maps to a stable 32-byte ID. Use it as a business and policy boundary. Prefer stable, non-secret identifiers; avoid email addresses, display names and other values that may change.</p>
@@ -73,7 +73,7 @@ bot/market-maker/strategy</code></pre>
 <tr><td>Numeric path</td><td>Yes</td><td>The path selects another key within the namespace.</td></tr>
 <tr><td>Destination chain or suite</td><td>Yes</td><td>Destination context is part of derivation.</td></tr>
 <tr><td>Namespace label</td><td>Yes</td><td>The label maps to a different namespace ID.</td></tr>
-<tr><td>Source identity</td><td>Yes</td><td>A different wallet, program, credential or OIDC subject controls another family.</td></tr>
+<tr><td>Source identity</td><td>Yes</td><td>A different wallet, program, credential or OIDC/OAuth subject controls another family.</td></tr>
 <tr><td>PairKey deployment</td><td>Yes</td><td>The deployment and signer context are part of the namespace.</td></tr>
 </tbody></table></div>
 <h2 id="example">Derive keys for one purpose</h2>
@@ -86,7 +86,7 @@ const operating = await pairkey.key({chain: 'solana', path: [0]});
 const reserve = await pairkey.key({chain: 'solana', path: [1]});</code></pre>
 <p>The same <code>key</code>, <code>signMessage</code>, <code>signTransaction</code>, <code>signAndSend</code> and recovery methods work after connecting with any authority source. Only the exact-request authentication step changes.</p>
 <h2 id="recovery">Keep a recovery map</h2>
-<p>Retain the deployment configuration, source identity, exact namespace label, destination and numeric path for every funded key. Also retain application recovery for the source: wallet recovery for accounts, governance access for programs, credential recovery for passkeys, or continued access to the same OIDC issuer, audience and subject. Ephemeral passkey and OIDC authorization keys do not need recovery and do not determine the destination address.</p>
+<p>Retain the deployment configuration, source identity, exact namespace label, destination and numeric path for every funded key. Also retain application recovery for the source: wallet recovery for accounts, governance access for programs, credential recovery for passkeys, or continued access to the same OIDC issuer, audience and subject. Ephemeral passkey and OIDC/OAuth authorization keys do not need recovery and do not determine the destination address.</p>
 
 <nav class="docs-pagination" aria-label="Next and previous pages"><a href="../docs/quickstart.html"><span>Previous</span><strong>Quickstart →</strong></a><a href="../docs/quickstart-account.html"><span>Next</span><strong>Quickstart: Account →</strong></a></nav></main></div>
 <footer class="wrap footer"><a class="brand" href="../index.html"><img src="../mark.svg?v=3" width="26" height="26" alt="">PairKey</a><p>Programmable keys on multiple chains</p><a href="../docs/security.html">Security &amp; status →</a></footer></body></html>
