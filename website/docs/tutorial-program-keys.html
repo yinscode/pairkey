@@ -75,7 +75,7 @@ const signed = await pairkey.signTransaction({
 });
 saveJobId(signed.jobId);</code></pre>
 <p>The example controller only demonstrates an allowance. Add proposal-state checks to your own program; a generic “proposal passed” message does not enforce what gets signed. A later destination failure does not automatically undo a consumed proposal.</p>
-<p><strong>Source preview:</strong> EIP-712 and selectable EVM chain IDs require a coordinated SDK and service release; this example does not run against the current public deployment. For an EVM governor that accepts EIP-712 votes, the same program authority can approve a vote signature on its selected chain. Bind the governor contract, proposal ID, support choice and domain to the proposal state before consuming it:</p>
+<p><strong>Source preview:</strong> EIP-712 and selectable EVM chain IDs are included in the SDK but require a compatible service release; this example does not run against the current public deployment. For an EVM governor that accepts EIP-712 votes, the same program authority can approve a vote signature on its selected chain. Bind the governor contract, proposal ID, support choice and domain to the proposal state before consuming it:</p>
 <pre><code>const vote = await pairkey.signTypedData({
   chainId: governorChainId,
   path: [2],

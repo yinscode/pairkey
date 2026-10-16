@@ -42,7 +42,7 @@ Solana legacy and v0 messages, EIP-155 legacy native transfers on a selected EVM
 canonical NEAR transactions, and BCS Sui `TransactionData` are supported. Sui
 returns unchanged transaction bytes plus `serializedSignature`; pass a Sui gRPC
 client as `connection` to execute them. A testnet, single-input Taproot PSBT
-adapter is available in repository source and requires a matching service release;
+adapter is included in the SDK but requires a matching service release;
 the current public service does not advertise it. Zcash Orchard PCZT transaction
 signing is not implemented. Message signing remains available on all six suites.
 

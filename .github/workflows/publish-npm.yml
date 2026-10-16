@@ -43,6 +43,9 @@ jobs:
       - name: Test SDK
         run: npm test
 
+      - name: Use SDK guide as the npm README
+        run: cp PACKAGE-README.md README.md
+
       - name: Inspect package contents
         run: npm pack --dry-run
 

@@ -163,8 +163,8 @@ or custom broadcast callback supplied by the application.
 | Bitcoin | BIP-340 tagged message digest | Single-input testnet Taproot PSBT in source preview | Bitcoin RPC in source preview |
 | Zcash | RedPallas message signature | Restricted testnet Ironwood PCZT library alpha; no hosted API or ZIP 2005 recovery guarantee | Adapter pending |
 
-The Bitcoin PSBT path requires a coordinated SDK and service release; the current
-public deployment does not advertise it. The public deployment advertises current capabilities at
+The SDK includes a restricted Bitcoin PSBT client path, but the current public
+deployment does not advertise it. Wait for a compatible service release before using it. The public deployment advertises current capabilities at
 [`GET /api/v2/config`](https://pairkey.com/api/v2/config). See
 [Supported chains](https://pairkey.com/docs/supported-chains.html) for working
 examples and the status of each destination adapter.
